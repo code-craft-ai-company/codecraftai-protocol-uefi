@@ -1,6 +1,6 @@
 [tool.poetry]
-name = "<package name>"
-description = "<package description>"
+name = "automojo-protocols.uefi"
+description = "Automation Mojo - UEFI Protocol Interop Library"
 version = "0.0.1"
 authors = []
 readme = "README.rst"
@@ -11,12 +11,28 @@ classifiers = [
     "Operating System :: POSIX"
 ]
 keywords = [
-    "python"
+    "python",
+    "uefi",
+    "firmware",
+    "interop",
+    "automation"
 ]
-packages = [{include="mojo", from="source/packages"}]
+packages = [{include="automojo", from="source/packages"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
+cryptography = "^46.0.5"
+pyserial = "^3.5"
+requests = "^2.32.0"
+automojo-errors = { git = "https://github.com/automationmojo/automojo-errors.git", branch = "main" }
+automojo-credentials = { git = "https://github.com/automationmojo/automojo-credentials.git", branch = "main" }
+automojo-xmodules = { git = "https://github.com/automationmojo/automojo-xmodules.git", branch = "main" }
+# automojo-protocols-ssh is an OPTIONAL runtime dependency used only by the
+# UefiSshHostTransport; it has a transitive dep on automojo-interop that
+# conflicts with cryptography pinning in this project. When absent,
+# UefiSshHostTransport construction raises ConfigurationError. Install
+# separately in downstream projects that need the ssh-host transport:
+#   pip install automojo-protocols-ssh automojo-interop
 
 [tool.poetry.group.dev.dependencies]
 
