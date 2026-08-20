@@ -15,8 +15,9 @@
                a minimal :class:`_FakeVariableStore` records every
                ``set_variable`` call and returns canned ``UefiVariable``
                records for ``get_variable``.  The authenticated-write
-               path uses a pytest fixture that generates a small RSA-2048
-               self-signed key / certificate pair in-memory only.
+               path uses a lazily-built, module-cached RSA-2048
+               self-signed key / certificate pair generated in-memory
+               only.
 
     .. moduleauthor:: Myron Walker <myron.walker@gmail.com>
 

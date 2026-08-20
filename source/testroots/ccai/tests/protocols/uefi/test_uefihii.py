@@ -22,8 +22,6 @@ __credits__ = []
 
 import unittest
 
-import pytest
-
 from typing import List, Optional
 
 from ccai.protocols.uefi.uefiaspects import (
@@ -236,11 +234,14 @@ class TestCurrentItemsParsing(unittest.TestCase):
             self.assertIsNone(item.value)
         return
 
-    @pytest.mark.xfail(reason="Heuristic AMI screen parser requires real-firmware tuning", strict=False)
+    @unittest.expectedFailure
     def test_ami_parses_label_value_pairs(self) -> None:
         """
             An AMI screen with ``"label  value"`` entries parses them
             as non-menu items whose values are preserved.
+
+            Expected failure: the heuristic AMI screen parser requires
+            real-firmware tuning.
         """
         screen = _ami_screen(
             selected_label="Secure Boot",
@@ -291,12 +292,15 @@ class TestCurrentItemsParsing(unittest.TestCase):
         self.assertEqual(labels_to_values.get("Quiet Boot"), "Disabled")
         return
 
-    @pytest.mark.xfail(reason="Heuristic Phoenix screen parser requires real-firmware tuning", strict=False)
+    @unittest.expectedFailure
     def test_phoenix_strips_prefix_and_marker(self) -> None:
         """
             Phoenix shape uses ``">"`` as the item prefix and ``"*"``
             as the selected marker.  Both must be stripped from the
             label.
+
+            Expected failure: the heuristic Phoenix screen parser
+            requires real-firmware tuning.
         """
         screen = _phoenix_screen(
             selected_label="Boot Options",
@@ -370,11 +374,14 @@ class TestFindItem(unittest.TestCase):
         )
         return navigator
 
-    @pytest.mark.xfail(reason="Depends on heuristic screen parser; requires real-firmware tuning", strict=False)
+    @unittest.expectedFailure
     def test_returns_index(self) -> None:
         """
             ``find_item`` returns the zero-based index of the first
             matching label.
+
+            Expected failure: depends on the heuristic screen parser,
+            which requires real-firmware tuning.
         """
         screen = _ami_screen(
             selected_label="Security",

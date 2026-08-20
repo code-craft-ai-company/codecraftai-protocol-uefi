@@ -24,8 +24,6 @@ import unittest
 from typing import Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 
-import pytest
-
 from ccai.errors.exceptions import ConfigurationError, SemanticError
 
 try:
@@ -156,7 +154,19 @@ def _all_present_responses() -> Dict[str, Tuple[int, str, str]]:
 # Construction
 # ---------------------------------------------------------------------------
 
-pytestmark = pytest.mark.skipif(not _HAS_SSH_AGENT, reason="ccai.protocols.ssh not installed")
+def setUpModule() -> None:
+    """
+        Skips every test in this module when the optional
+        'codecraftai-protocol-ssh' package is not installed.  The
+        ssh-host transport is the only feature that requires it, so its
+        absence is a valid configuration rather than a failure.
+
+        :raises: unittest.SkipTest
+    """
+    if not _HAS_SSH_AGENT:
+        raise unittest.SkipTest("ccai.protocols.ssh not installed")
+
+    return
 
 
 class UefiSshHostTransportConstructionTestCase(unittest.TestCase):
