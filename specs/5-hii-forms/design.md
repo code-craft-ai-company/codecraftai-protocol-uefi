@@ -21,7 +21,7 @@ for OEM firmware that does not match any shipped shape.
 ## Architecture
 
 ```
-automojo.protocols.uefi.hii/
+ccai.protocols.uefi.hii/
     __init__.py            # re-exports HiiFormNavigator, ScreenShape, HiiFormItem, Screen
     screen.py              # Screen dataclass + screen capture helpers
     shapes/
@@ -498,7 +498,7 @@ Each fixture includes:
 
 * OVMF VM: enter Setup, toggle a known boolean (e.g.,
   "System Profile"), save, reboot, verify persistence.
-* Gate on `AUTOMOJO_UEFI_OVMF_VM` env var.
+* Gate on `CCAI_UEFI_OVMF_VM` env var.
 
 ### Coverage target
 

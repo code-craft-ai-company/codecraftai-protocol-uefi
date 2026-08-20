@@ -25,7 +25,7 @@ BMC.
 ## Architecture
 
 ```
-automojo.protocols.uefi.capsules/
+ccai.protocols.uefi.capsules/
     __init__.py               # re-exports public surface
     builder.py                # CapsuleBuilder, BuiltCapsule, CapsuleGuid
     fmp.py                    # FmpCapsulePayload, FmpImageAuthHeader helpers

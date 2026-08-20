@@ -3,7 +3,7 @@
 ## Introduction
 
 The Helpers feature provides a collection of pure-function primitives used
-by every higher layer in `automojo-uefi`.  It covers hex-dump rendering,
+by every higher layer in `codecraftai-protocol-uefi`.  It covers hex-dump rendering,
 CRC-32 (bit-for-bit compatible with `EFI_BOOT_SERVICES.CalculateCrc32` and
 validated against a UEFI-spec test vector), UCS-2 encode/decode (strict, no
 UTF-16 surrogate pairs), big- and little-endian integer packers,
@@ -160,7 +160,7 @@ the full shared-module path at every call site.
 
 1. WHEN the caller imports `TimeoutContext` from `uefihelpers` THEN the
    system SHALL expose the class re-exported from the shared
-   `automojo.xmodules` helpers module.
+   `ccai.xmodules` helpers module.
 2. WHEN the caller imports `MonitoredScope` from `uefihelpers` THEN the
    system SHALL expose the class re-exported from the same shared module.
 3. WHERE this feature re-exports shared classes the system SHALL NOT wrap

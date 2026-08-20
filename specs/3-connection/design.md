@@ -11,7 +11,7 @@ It does not frame commands (that is `UefiClient`), does not retry commands
 
 The class is modeled on the connection-establishment loop inside
 `SshBase._create_client` at
-`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshbase.py`
+`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshbase.py`
 lines 288–375.  The notable enhancements are:
 
 * **Explicit reconnection API.**  The SSH library relies on reconstructing
@@ -28,7 +28,7 @@ lines 288–375.  The notable enhancements are:
 ## Architecture
 
 ```
-automojo.protocols.uefi.connection/
+ccai.protocols.uefi.connection/
     __init__.py         # re-exports UefiConnection
     ueficonnection.py   # the class
     events.py           # ConnectionEvent, ReconnectEvent structured types
@@ -37,10 +37,10 @@ automojo.protocols.uefi.connection/
 Dependency direction:
 
 ```
-ueficonnection.py ──▶ automojo.protocols.uefi.aspects
-                  ──▶ automojo.protocols.uefi.logging
-                  ──▶ automojo.protocols.uefi.interfaces  # IUefiTransport
-                  ──▶ automojo.protocols.uefi.exceptions
+ueficonnection.py ──▶ ccai.protocols.uefi.aspects
+                  ──▶ ccai.protocols.uefi.logging
+                  ──▶ ccai.protocols.uefi.interfaces  # IUefiTransport
+                  ──▶ ccai.protocols.uefi.exceptions
 events.py         ──▶ (stdlib only)
 ```
 

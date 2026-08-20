@@ -20,7 +20,7 @@ Parsers implemented:
 ## Architecture
 
 ```
-automojo.protocols.uefi.systables/
+ccai.protocols.uefi.systables/
     __init__.py               # re-exports public surface
     loader.py                 # SystemTablesLoader (transport-dispatched)
     sources/

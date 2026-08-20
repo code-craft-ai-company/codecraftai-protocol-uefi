@@ -19,7 +19,7 @@ never re-derive it.  Templates for rendering command outcomes embed
 ## Architecture
 
 ```
-automojo.protocols.uefi.ueficonst/
+ccai.protocols.uefi.ueficonst/
     __init__.py          # re-exports public surface from ueficonst.py + uefiguids.py
     ueficonst.py         # numeric defaults, templates, prompt sentinels, transport kinds
     uefiguids.py         # well-known GUID registry + guid_to_bytes / guid_from_bytes
@@ -31,7 +31,7 @@ Dependency direction:
 ```
 __init__.py  ──▶  ueficonst.py
               ──▶  uefiguids.py
-              ──▶  uefijumpparams.py  ──▶  automojo.credentials  (for credential typing)
+              ──▶  uefijumpparams.py  ──▶  ccai.credentials  (for credential typing)
 ```
 
 `ueficonst.py` does not import `uefiguids.py`; the reverse also holds.  This
@@ -127,7 +127,7 @@ TRANSPORT_KINDS: Final[frozenset[str]] = frozenset({
 })
 
 DEFAULT_SHELL_PROMPT_PATTERN: Final[bytes] = rb"(?:Shell|FS\d+:\\[^>]*)>\s*$"
-DEFAULT_INTERACTIVE_SENTINEL: Final[bytes] = b"UEFI_AUTOMOJO_PROMPT%:%:%"
+DEFAULT_INTERACTIVE_SENTINEL: Final[bytes] = b"UEFI_CCAI_PROMPT%:%:%"
 DEFAULT_INTERACTIVE_SENTINEL_STR: Final[str] = DEFAULT_INTERACTIVE_SENTINEL.decode("utf-8")
 
 DEFAULT_SUCCESS_LABEL: Final[str] = "Success"
@@ -153,8 +153,8 @@ import dataclasses
 import os
 from typing import Optional
 
-from automojo.credentials.sshcredential import SshCredential
-from automojo.errors.exceptions import ConfigurationError
+from ccai.credentials.sshcredential import SshCredential
+from ccai.errors.exceptions import ConfigurationError
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
@@ -284,6 +284,6 @@ branch indicates dead constants or dead branches.
 
 ## Dependencies on Other Features
 
-* None on other `automojo-uefi` features.
-* Depends on `automojo.credentials.sshcredential.SshCredential` (for
-  `UefiJumpParams.credential`) and on `automojo.errors.exceptions.ConfigurationError`.
+* None on other `codecraftai-protocol-uefi` features.
+* Depends on `ccai.credentials.sshcredential.SshCredential` (for
+  `UefiJumpParams.credential`) and on `ccai.errors.exceptions.ConfigurationError`.

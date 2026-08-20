@@ -1,7 +1,7 @@
 # Tasks — Network Boot
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/netboot/`.
+      `source/packages/ccai/protocols/uefi/netboot/`.
   - [ ] 1.1 Add `__init__.py` exporting `NetworkBoot`,
         `build_http_boot_option`, `build_pxe_boot_option_ipv4`,
         `build_pxe_boot_option_ipv6`.
@@ -103,7 +103,7 @@
   - [ ] 12.1 Against an OVMF VM: install HTTP option at a local HTTP
         server, write `BootNext`, reboot via 5-system-reset, verify VM
         fetched the image (check server logs).
-  - [ ] 12.2 Gate on `AUTOMOJO_UEFI_OVMF_VM` env var.
+  - [ ] 12.2 Gate on `CCAI_UEFI_OVMF_VM` env var.
   - [ ] 12.3 Repeat for PXE IPv4 and PXE IPv6 with a minimal dnsmasq
         PXE stub.
   - References: Requirement 4, Requirement 5.

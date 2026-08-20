@@ -3,14 +3,14 @@
 ## Introduction
 
 The Logging feature provides a thin integration layer with the shared
-`automojo.xmodules.xlogging` package.  It exposes a single factory,
+`ccai.xmodules.xlogging` package.  It exposes a single factory,
 `get_uefi_logger(channel)`, that returns a configured logger bound to a
 channel under the `uefi.*` namespace; re-exports `LoggingPattern` from
 `1-aspects` as a convenience so log-call sites do not have to reach across
 packages; and documents the set of named channels the rest of the library
 emits on.
 
-Every log line produced by `automojo-uefi` must be attributable to a named
+Every log line produced by `codecraftai-protocol-uefi` must be attributable to a named
 channel under `uefi.*`.  The documented channels are `uefi.shell`,
 `uefi.variable`, `uefi.capsule`, `uefi.transport`, `uefi.bootmgr`,
 `uefi.secureboot`, `uefi.devicepath`, `uefi.gpt`, `uefi.esp`,
@@ -18,7 +18,7 @@ channel under `uefi.*`.  The documented channels are `uefi.shell`,
 does not prescribe log levels or formatters — those come from the shared
 logging configuration.
 
-The feature has no dependencies on other `automojo-uefi` features other
+The feature has no dependencies on other `codecraftai-protocol-uefi` features other
 than re-exporting `LoggingPattern` from `1-aspects`.
 
 ## Requirements
@@ -92,7 +92,7 @@ co-located.
 #### Acceptance Criteria
 
 1. WHEN the caller imports `LoggingPattern` from
-   `automojo.protocols.uefi.logging` THEN the system SHALL return the same
+   `ccai.protocols.uefi.logging` THEN the system SHALL return the same
    class that `1-aspects` exposes.
 2. WHERE this feature re-exports `LoggingPattern` the system SHALL NOT wrap
    or subclass it.
@@ -136,7 +136,7 @@ startup cost stays bounded.
 
 #### Acceptance Criteria
 
-1. WHEN `automojo.protocols.uefi.logging` is imported THEN the system
+1. WHEN `ccai.protocols.uefi.logging` is imported THEN the system
    SHALL NOT open files, sockets, subprocesses, or register global handlers.
 2. WHEN the module is imported twice in the same process THEN the system
    SHALL produce identical `KNOWN_UEFI_CHANNELS` set identity and identical

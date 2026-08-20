@@ -30,7 +30,7 @@ decorator-based retry is used (per the coding standards in
 ## Architecture
 
 ```
-automojo.protocols.uefi.transport.ipmisol/
+ccai.protocols.uefi.transport.ipmisol/
     __init__.py              # re-exports UefiIpmiSolTransport
     ipmisoltransport.py      # UefiIpmiSolTransport (IUefiTransport)
     pyghmi_backend.py        # _SolBackend using pyghmi
@@ -409,7 +409,7 @@ credentials in their repr, so no extra redaction is required there.
 
 ### Integration tests
 
-* Gated by `AUTOMOJO_IPMI_HOST` env var.
+* Gated by `CCAI_IPMI_HOST` env var.
 * Round-trip: activate → send `\r\n` → read prompt → deactivate.
 * Eviction race: second `connect()` with `evict_existing=True` wins.
 

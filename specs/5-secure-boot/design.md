@@ -22,7 +22,7 @@ filesystem I/O on key paths.
 ## Architecture
 
 ```
-automojo.protocols.uefi.secureboot/
+ccai.protocols.uefi.secureboot/
     __init__.py                # re-exports public surface
     state.py                   # SecureBootState dataclass
     signatures.py              # Signature, SignatureType, SignatureListCodec

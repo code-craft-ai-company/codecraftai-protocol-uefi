@@ -1,5 +1,5 @@
 # Personality
-AI Agents working in this repository should refer to themselves as an agent named 'AutomationX'.
+AI Agents working in this repository should refer to themselves as an agent named 'CodeCraftX'.
 
 # Rules
 - Look in the '<repository>/specs' folder for specification files that help to steer development work
@@ -8,11 +8,11 @@ AI Agents working in this repository should refer to themselves as an agent name
 - Files inside the .venv folder should not be modified, they are modified by the setup scripts
 
 # Project Overview
-This repository provides `automojo-uefi`, a Python interop library for interacting with UEFI-based
-devices from automation and test code.  It is modeled on the `automojo-protocol-ssh` library and
+This repository provides `codecraftai-protocol-uefi`, a Python interop library for interacting with UEFI-based
+devices from automation and test code.  It is modeled on the `codecraftai-protocol-ssh` library and
 exposes the same `Agent` / `Session` / `Aspects` interop pattern so that UEFI targets can be driven
 with the same behavioral controls (action patterns, retry, timeouts, logging) used across the
-automojo ecosystem.
+ccai ecosystem.
 
 Because UEFI runs as firmware rather than as a network service, interop is performed over one of
 several transports (serial console / UEFI Shell, Redfish, SSH-to-host for OS-resident UEFI tooling,
@@ -23,12 +23,12 @@ Boot key management, and system reset/power control.  Pure in-firmware concerns 
 binding, in-firmware USB/PCI/network stacks) are consumed indirectly rather than reimplemented.
 
 The canonical reference for feature scope is [specs/uefi-specification.md](specs/uefi-specification.md).
-The canonical reference for the interop pattern is the sibling `automojo-protocol-ssh` repository.
+The canonical reference for the interop pattern is the sibling `codecraftai-protocol-ssh` repository.
 
 # Features
 
 ## Architectural Scaffolding
-Mirrors the `automojo-protocol-ssh` layout; every feature below rides on these primitives.
+Mirrors the `codecraftai-protocol-ssh` layout; every feature below rides on these primitives.
 
 * `UefiBase` — shared state and generic run-pattern engine (`SINGLE_CALL`, `DO_UNTIL_SUCCESS`,
   `DO_WHILE_SUCCESS`) built on `TimeoutContext` and `MonitoredScope`.  Implements `ISystemContext`.
@@ -45,7 +45,7 @@ Mirrors the `automojo-protocol-ssh` layout; every feature below rides on these p
 ## Transports
 * Serial-console transport with PTY-style prompt matching against the UEFI Shell.
 * Redfish / REST-over-HTTPS transport for BMC-managed systems (UEFI spec §29.7).
-* SSH-to-host transport (depends on `automojo-protocol-ssh`) for OS-resident UEFI tooling such as
+* SSH-to-host transport (depends on `codecraftai-protocol-ssh`) for OS-resident UEFI tooling such as
   `efibootmgr`, `efivar`, `fwupd`, and `/sys/firmware/efi/*`.
 * IPMI / Serial-Over-LAN transport for out-of-band console redirection.
 
@@ -113,8 +113,8 @@ The code structure of this repository follows the [Code Organization](userguide/
 
 Remember to make the test hierarchy match the source hierarchy when adding test files.  For example:
 
-File to test: 'source/packages/automojo/interop/protocols/dns/dnsquestion.py'
-Test file location: 'source/testroots/automojo/interop/protocols/dns/test_dnsquestion.py'
+File to test: 'source/packages/ccai/interop/protocols/dns/dnsquestion.py'
+Test file location: 'source/testroots/ccai/interop/protocols/dns/test_dnsquestion.py'
 
 # Coding Standards
 The code in this repository is meant to be utilized by testing tools and test frameworks.  Therefore, the code must prioritize:

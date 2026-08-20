@@ -1,7 +1,7 @@
 # Tasks — Constants and Types
 
 - [ ] 1. Create the package skeleton at
-      `source/packages/automojo/protocols/uefi/ueficonst/`.
+      `source/packages/ccai/protocols/uefi/ueficonst/`.
   - [ ] 1.1 Add `__init__.py` that re-exports the public surface from the
         three submodules (`ueficonst`, `uefiguids`, `uefijumpparams`).
   - [ ] 1.2 Author a module-level docstring in `__init__.py` explaining that
@@ -88,13 +88,13 @@
   - [ ] 9.1 Add a test that imports `ueficonst` and `uefiguids` with
         `sys.modules` snapshotted, then asserts no third-party module was
         added to `sys.modules` by the import.
-  - [ ] 9.2 Allow-list `automojo.errors` and `automojo.credentials` in the
+  - [ ] 9.2 Allow-list `ccai.errors` and `ccai.credentials` in the
         test's assertion.
   - References: Requirement 11.
 
 - [ ] 10. Coverage gate.
   - [ ] 10.1 Configure pytest-cov to enforce 100% line coverage for the
-        `automojo.protocols.uefi.ueficonst` package.
+        `ccai.protocols.uefi.ueficonst` package.
   - [ ] 10.2 Add a CI step that fails on any drop below 100%.
   - References: Testing Strategy.
 

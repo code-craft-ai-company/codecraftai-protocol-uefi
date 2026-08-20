@@ -18,7 +18,7 @@ state-carry-forward replay.
 ## Architecture
 
 ```
-automojo.protocols.uefi.workflows.rebootverify/
+ccai.protocols.uefi.workflows.rebootverify/
     __init__.py               # re-exports public surface
     rebootverifyworkflow.py   # RebootAndVerifyWorkflow class
     rebootverifyreport.py     # RebootAndVerifyReport dataclass
@@ -226,7 +226,7 @@ redact before logging externally.
 * OVMF: cold reset, warm reset, shutdown-then-start — each with
   `wait_for_shell=True` and `wait_for_shell=False`.
 * OVMF: state-carry-forward after cold reset restores map alias.
-* Gated on `AUTOMOJO_OVMF_TEST=1`.
+* Gated on `CCAI_OVMF_TEST=1`.
 
 ### Action-pattern tests
 

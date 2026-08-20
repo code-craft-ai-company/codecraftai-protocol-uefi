@@ -19,7 +19,7 @@ The facade never silently swallows errors: every backend failure becomes a
 ## Architecture
 
 ```
-automojo.protocols.uefi.variables/
+ccai.protocols.uefi.variables/
     __init__.py               # re-exports public surface
     attributes.py             # VariableAttributes IntFlag
     records.py                # VariableRecord, VariableWriteReceipt,

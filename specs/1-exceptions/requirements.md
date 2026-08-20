@@ -3,8 +3,8 @@
 ## Introduction
 
 The Exceptions feature establishes the UEFI-specific exception hierarchy
-used by every higher layer in `automojo-uefi`.  It layers on top of the
-shared `automojo.errors.exceptions` module — reusing `ConfigurationError` and
+used by every higher layer in `codecraftai-protocol-uefi`.  It layers on top of the
+shared `ccai.errors.exceptions` module — reusing `ConfigurationError` and
 `SemanticError` — and adds a set of UEFI-typed classes (`UefiError`,
 `UefiShellError`, `UefiVariableError`, `UefiCapsuleError`,
 `UefiSecureBootError`, `UefiTransportError`, `UefiProtocolError`) that carry
@@ -34,7 +34,7 @@ one `except` clause when triaging.
 #### Acceptance Criteria
 
 1. WHEN the caller imports `UefiError` THEN the system SHALL expose it as a
-   direct subclass of `automojo.errors.exceptions.AutomojoError` (or the
+   direct subclass of `ccai.errors.exceptions.CodeCraftAIError` (or the
    shared root, whatever its canonical name is).
 2. WHERE any subclass defined by this feature is raised the system SHALL
    expose it as an instance of `UefiError` via

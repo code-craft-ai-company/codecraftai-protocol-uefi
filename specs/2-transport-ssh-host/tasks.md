@@ -1,7 +1,7 @@
 # Tasks — SSH-to-Host Transport
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/transport/sshhost/`.
+      `source/packages/ccai/protocols/uefi/transport/sshhost/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `UefiSshHostTransport` and
         `HostCmdResult`.
   - [ ] 1.2 Add a module-level docstring naming the composition-over-
@@ -100,7 +100,7 @@
 
 - [ ] 10. Integration tests against a disposable Linux VM.
   - [ ] 10.1 Fixture: ephemeral VM (libvirt / cloud-init) with an
-        `AUTOMOJO_SSH_HOST_FIXTURE` env var gate.
+        `CCAI_SSH_HOST_FIXTURE` env var gate.
   - [ ] 10.2 Round-trip: connect → probe → `efibootmgr -v` parse →
         disconnect.
   - [ ] 10.3 Sudo-prompt fixture: sudoers misconfigured to require a

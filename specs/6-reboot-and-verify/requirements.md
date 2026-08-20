@@ -188,12 +188,12 @@ before they hit users.
 
 #### Acceptance Criteria
 
-1. WHEN the test suite runs with `AUTOMOJO_OVMF_TEST=1` THEN the system
+1. WHEN the test suite runs with `CCAI_OVMF_TEST=1` THEN the system
    SHALL boot a QEMU VM with OVMF firmware and exercise a cold reset with
    `wait_for_shell=True`.
 2. WHEN the OVMF integration test completes THEN the system SHALL assert
    that `report.shell_verified is True` and `report.state_replayed is True`.
-3. IF `AUTOMOJO_OVMF_TEST` is not set THEN the integration test SHALL be
+3. IF `CCAI_OVMF_TEST` is not set THEN the integration test SHALL be
    skipped with a clear message rather than failing.
 
 ### Requirement 10 — Aspects-None Default Resolution

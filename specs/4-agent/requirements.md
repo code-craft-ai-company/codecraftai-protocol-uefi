@@ -6,7 +6,7 @@
 target.  Every public method opens a fresh channel (via a freshly-built
 `UefiClient`), performs the operation, and closes the channel before
 returning.  It is the direct analog of `SshAgent`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshagent.py`)
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshagent.py`)
 and inherits from `UefiBase` exactly as `SshAgent` inherits from
 `SshBase`.
 

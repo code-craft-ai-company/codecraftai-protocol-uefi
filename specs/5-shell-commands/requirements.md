@@ -9,7 +9,7 @@ the most-used commands of the UEFI Shell: `map`, `ls`, `cp`, `cd`, `bcfg`,
 typed `frozen=True` dataclass so that test authors never have to scrape raw
 strings.  Wrappers are organized one module per command family
 (`shellmap.py`, `shellbcfg.py`, `shellsetvar.py`, …) under
-`packages/automojo/protocols/uefi/shell/`.
+`packages/ccai/protocols/uefi/shell/`.
 
 This feature is scoped to the *UEFI Shell Specification* (version 2.2), not
 to the core UEFI specification — the Shell is a separate document.  All

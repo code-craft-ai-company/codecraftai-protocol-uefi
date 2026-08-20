@@ -1,7 +1,7 @@
 # Tasks — Variable Services
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/variables/`.
+      `source/packages/ccai/protocols/uefi/variables/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `VariableStore`,
         `VariableAttributes`, `VariableRecord`, `VariableWriteReceipt`,
         `QueryVariableInfoResult`, `SignerKeyPair`,
@@ -85,7 +85,7 @@
         builder the shell backend uses.
   - [ ] 8.4 Implement `query` via `efivar --query-variable-info` when
         available, raising `UefiTransportError` otherwise.
-  - [ ] 8.5 Add integration tests gated by a `AUTOMOJO_UEFI_HOST`
+  - [ ] 8.5 Add integration tests gated by a `CCAI_UEFI_HOST`
         env-var pointing at a disposable Linux VM.
   - References: Requirement 4, Requirement 5, Requirement 7,
     Requirement 12.

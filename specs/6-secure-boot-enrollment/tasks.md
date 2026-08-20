@@ -1,7 +1,7 @@
 # Tasks — Secure Boot Enrollment Workflow
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/workflows/secureboot/`.
+      `source/packages/ccai/protocols/uefi/workflows/secureboot/`.
   - [ ] 1.1 Add `__init__.py` re-exporting
         `SecureBootEnrollmentWorkflow`, `SecureBootEnrollmentReport`,
         `SecureBootBundle`, `BundleEntry`, `VariableWrite`, and the
@@ -102,8 +102,8 @@
         `setup_mode_after==0` and `secure_boot_after==1`.
   - [ ] 12.3 `test_ovmf_dbx_only.py` — append-write semantics.
   - [ ] 12.4 `test_ovmf_precondition_user_mode.py`.
-  - [ ] 12.5 Gate behind `AUTOMOJO_OVMF_TEST=1` and
-        `AUTOMOJO_SECURE_BOOT_FIXTURES`.
+  - [ ] 12.5 Gate behind `CCAI_OVMF_TEST=1` and
+        `CCAI_SECURE_BOOT_FIXTURES`.
   - References: Requirement 12.
 
 - [ ] 13. Report-shape tests.
@@ -115,7 +115,7 @@
 
 - [ ] 14. Coverage gate and security audit.
   - [ ] 14.1 Configure pytest-cov to enforce 95%+ line coverage for
-        `automojo.protocols.uefi.workflows.secureboot`.
+        `ccai.protocols.uefi.workflows.secureboot`.
   - [ ] 14.2 Add a log-audit test asserting no raw key material
         appears in captured log output.
   - [ ] 14.3 Add a CI step failing on coverage drop.

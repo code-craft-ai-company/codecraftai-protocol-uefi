@@ -1,7 +1,7 @@
 # Tasks — Firmware Capsules
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/capsules/`.
+      `source/packages/ccai/protocols/uefi/capsules/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `CapsuleBuilder`,
         `BuiltCapsule`, `FmpCapsulePayload`, `CapsuleDelivery`,
         `CapsuleReport`, `CapsuleReportRecord`, and every capsule flag

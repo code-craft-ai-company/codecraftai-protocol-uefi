@@ -20,7 +20,7 @@ writes) into a single sequenced call, and produces a detailed
 ## Architecture
 
 ```
-automojo.protocols.uefi.workflows.secureboot/
+ccai.protocols.uefi.workflows.secureboot/
     __init__.py                       # re-exports
     secureboothenrollmentworkflow.py  # main workflow class + fn
     secureboothenrollmentreport.py    # report dataclass
@@ -301,7 +301,7 @@ See section above.
 * OVMF already in User Mode — precondition failure.
 * OVMF with dbx-only update (preserving PK/KEK/db) — append-write
   semantics.
-* Gated by `AUTOMOJO_OVMF_TEST=1` and `AUTOMOJO_SECURE_BOOT_FIXTURES`.
+* Gated by `CCAI_OVMF_TEST=1` and `CCAI_SECURE_BOOT_FIXTURES`.
 
 ### Fixture setup
 

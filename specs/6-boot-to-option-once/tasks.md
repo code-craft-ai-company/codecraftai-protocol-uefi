@@ -1,7 +1,7 @@
 # Tasks — Boot To Option Once Workflow
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/workflows/boottooptiononce/`.
+      `source/packages/ccai/protocols/uefi/workflows/boottooptiononce/`.
   - [ ] 1.1 Add `__init__.py` re-exporting
         `BootToOptionOnceWorkflow`, `BootToOptionOnceReport`, and the
         `boot_to_option_once` convenience function.
@@ -110,12 +110,12 @@
   - [ ] 13.3 `test_ovmf_simulated_noncompliance.py` — hook that
         re-sets `BootNext` after clear to exercise §3.1.5 violation
         path.
-  - [ ] 13.4 Gate behind `AUTOMOJO_OVMF_TEST=1`.
+  - [ ] 13.4 Gate behind `CCAI_OVMF_TEST=1`.
   - References: Requirement 11.
 
 - [ ] 14. Coverage gate and documentation.
   - [ ] 14.1 Configure pytest-cov to enforce 95%+ line coverage for
-        `automojo.protocols.uefi.workflows.boottooptiononce`.
+        `ccai.protocols.uefi.workflows.boottooptiononce`.
   - [ ] 14.2 CI step failing on drop.
   - [ ] 14.3 Author `userguide/60-06-boot-to-option-once.rst` with a
         minimal example plus the UEFI §3.1.5 compliance note.

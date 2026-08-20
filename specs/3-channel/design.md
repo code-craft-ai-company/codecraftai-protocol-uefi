@@ -25,7 +25,7 @@ on the `uefi.transport` channel and swallowed, per requirement.
 ## Architecture
 
 ```
-automojo.protocols.uefi.channel/
+ccai.protocols.uefi.channel/
     __init__.py                # re-exports public surface
     uefichannel.py             # UefiChannel abstract base
     uefishellchannel.py        # Shell (serial / IPMI-SOL)
@@ -37,9 +37,9 @@ Dependency direction:
 
 ```
 uefishellchannel.py  ─┐
-uefiredfishchannel.py ─┼─▶ uefichannel.py ──▶ automojo.protocols.uefi.aspects
-uefihostoschannel.py ─┘                    ──▶ automojo.protocols.uefi.logging
-                                           ──▶ automojo.protocols.uefi.exceptions
+uefiredfishchannel.py ─┼─▶ uefichannel.py ──▶ ccai.protocols.uefi.aspects
+uefihostoschannel.py ─┘                    ──▶ ccai.protocols.uefi.logging
+                                           ──▶ ccai.protocols.uefi.exceptions
 ```
 
 ## Components and Interfaces
@@ -314,7 +314,7 @@ class UefiHostOsChannel(UefiChannel):
     """
         Thin forwarder over an ``SshChannel`` obtained from the composed
         ``SshAgent``.  Inherits the battle-tested buffering of
-        ``automojo-protocol-ssh`` (sshconnection.py:14–159).
+        ``codecraftai-protocol-ssh`` (sshconnection.py:14–159).
     """
 
     def __init__(self, transport: "UefiSshHostTransport", aspects: UefiCmdAspects = DEFAULT_CMD_ASPECTS,

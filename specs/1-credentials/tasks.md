@@ -1,7 +1,7 @@
 # Tasks — Credentials
 
 - [ ] 1. Create the package skeleton at
-      `source/packages/automojo/protocols/uefi/credentials/`.
+      `source/packages/ccai/protocols/uefi/credentials/`.
   - [ ] 1.1 Add `__init__.py` that re-exports the three credential classes
         plus the `ALLOWED_BAUD`, `ALLOWED_FLOW_CONTROL`, and
         `ALLOWED_IPMI_INTERFACES` constants.
@@ -102,7 +102,7 @@
 
 - [ ] 11. Coverage gate.
   - [ ] 11.1 Enforce 100% line coverage for
-        `automojo.protocols.uefi.credentials`.
+        `ccai.protocols.uefi.credentials`.
   - [ ] 11.2 Add a CI step that fails on any coverage regression.
   - References: Testing Strategy.
 

@@ -11,7 +11,7 @@ directory inside the UEFI Shell — via a `_replay_actions: list[Callable]`
 list that is replayed after every reconnect.
 
 The class is a UEFI-flavored port of `SshSession`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshsession.py`).
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshsession.py`).
 It inherits from `UefiBase` (so the action-pattern engine is already
 implemented) and adds three things:
 
@@ -32,7 +32,7 @@ long-running connected work.
 ## Architecture
 
 ```
-automojo.protocols.uefi.session/
+ccai.protocols.uefi.session/
     __init__.py     # re-exports UefiSession
     uefisession.py  # the class
 ```
@@ -40,14 +40,14 @@ automojo.protocols.uefi.session/
 Dependency direction:
 
 ```
-uefisession.py ──▶ automojo.protocols.uefi.base       # UefiBase
-               ──▶ automojo.protocols.uefi.client     # UefiClient subclasses
-               ──▶ automojo.protocols.uefi.connection # UefiConnection
-               ──▶ automojo.protocols.uefi.channel    # UefiChannel subclasses
-               ──▶ automojo.protocols.uefi.aspects
-               ──▶ automojo.protocols.uefi.credentials
-               ──▶ automojo.protocols.uefi.exceptions
-               ──▶ automojo.protocols.uefi.logging
+uefisession.py ──▶ ccai.protocols.uefi.base       # UefiBase
+               ──▶ ccai.protocols.uefi.client     # UefiClient subclasses
+               ──▶ ccai.protocols.uefi.connection # UefiConnection
+               ──▶ ccai.protocols.uefi.channel    # UefiChannel subclasses
+               ──▶ ccai.protocols.uefi.aspects
+               ──▶ ccai.protocols.uefi.credentials
+               ──▶ ccai.protocols.uefi.exceptions
+               ──▶ ccai.protocols.uefi.logging
 ```
 
 ## Components and Interfaces

@@ -13,7 +13,7 @@ to any public interop API.
 Aspects are the contract by which callers decide *how persistent* the library
 should be when interacting with a UEFI target — one-shot, retry-until-success,
 retry-while-success, or retry-until-connection-fails.  This mirrors the
-`automojo-protocol-ssh` library's `SshAspects` / `SshCmdAspects` pattern
+`codecraftai-protocol-ssh` library's `SshAspects` / `SshCmdAspects` pattern
 exactly so that callers who already use that library can transfer their mental
 model directly.
 
@@ -148,7 +148,7 @@ library output routes through my structured logging pipeline.
 #### Acceptance Criteria
 
 1. WHEN the caller omits `logger` THEN the system SHALL obtain one from
-   `automojo.xmodules.xlogging.enhancedloggers.getEnhancedLogger()`.
+   `ccai.xmodules.xlogging.enhancedloggers.getEnhancedLogger()`.
 2. WHEN the caller provides a `logging.Logger` (or compatible duck-type)
    THEN the system SHALL store it as-is without wrapping.
 3. IF the caller provides a value that is not logger-shaped (lacks `info`,

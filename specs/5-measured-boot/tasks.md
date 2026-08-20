@@ -1,7 +1,7 @@
 # Tasks — Measured Boot
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/measured/`.
+      `source/packages/ccai/protocols/uefi/measured/`.
   - [ ] 1.1 Add `__init__.py` exporting `MeasuredBoot`, `PcrEvent`,
         `ValidationReport`, `PcrMismatch`, `EventType`, `TpmAlgId`,
         `UefiVariableEventData`, `UefiImageLoadEventData`,
@@ -131,7 +131,7 @@
 - [ ] 13. Authoring an integration test.
   - [ ] 13.1 Stand up an OVMF+swtpm VM, boot it, pull the event log,
         read PCRs, validate.
-  - [ ] 13.2 Gate the test on `AUTOMOJO_UEFI_OVMF_VM` env var.
+  - [ ] 13.2 Gate the test on `CCAI_UEFI_OVMF_VM` env var.
   - [ ] 13.3 Emit a failure report that includes the diff table on
         validation failure.
   - References: Requirement 3.

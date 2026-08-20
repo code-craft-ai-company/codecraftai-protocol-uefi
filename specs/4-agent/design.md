@@ -11,7 +11,7 @@ retry, timeout, and logging are all controlled through the caller-
 supplied `aspects`.
 
 The class mirrors `SshAgent`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshagent.py`)
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshagent.py`)
 closely and inherits from `UefiBase` exactly as `SshAgent` inherits from
 `SshBase`.  The notable UEFI-specific additions are:
 
@@ -29,7 +29,7 @@ closely and inherits from `UefiBase` exactly as `SshAgent` inherits from
 ## Architecture
 
 ```
-automojo.protocols.uefi.agent/
+ccai.protocols.uefi.agent/
     __init__.py    # re-exports UefiAgent
     uefiagent.py   # the class
 ```
@@ -37,14 +37,14 @@ automojo.protocols.uefi.agent/
 Dependency direction:
 
 ```
-uefiagent.py ──▶ automojo.protocols.uefi.base        # UefiBase
-             ──▶ automojo.protocols.uefi.session     # UefiSession (for open_session)
-             ──▶ automojo.protocols.uefi.client      # UefiClient subclasses
-             ──▶ automojo.protocols.uefi.connection  # UefiConnection
-             ──▶ automojo.protocols.uefi.aspects
-             ──▶ automojo.protocols.uefi.credentials
-             ──▶ automojo.protocols.uefi.exceptions
-             ──▶ automojo.protocols.uefi.logging
+uefiagent.py ──▶ ccai.protocols.uefi.base        # UefiBase
+             ──▶ ccai.protocols.uefi.session     # UefiSession (for open_session)
+             ──▶ ccai.protocols.uefi.client      # UefiClient subclasses
+             ──▶ ccai.protocols.uefi.connection  # UefiConnection
+             ──▶ ccai.protocols.uefi.aspects
+             ──▶ ccai.protocols.uefi.credentials
+             ──▶ ccai.protocols.uefi.exceptions
+             ──▶ ccai.protocols.uefi.logging
 ```
 
 ## Components and Interfaces

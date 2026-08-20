@@ -1,7 +1,7 @@
 ======================================
-Automation Mojo - UEFI Interop Package
+Code Craft AI - UEFI Interop Package
 ======================================
-The 'automojo-uefi' package contains object for working with UEFI devices
+The 'codecraftai-protocol-uefi' package contains object for working with UEFI devices
 
 =========================
 Features of this Template

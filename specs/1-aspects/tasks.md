@@ -1,7 +1,7 @@
 # Tasks — Aspects
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/aspects/`.
+      `source/packages/ccai/protocols/uefi/aspects/`.
   - [ ] 1.1 Add `__init__.py` that re-exports the public surface:
         `Freezable`, `ActionPattern`, `LoggingPattern`, `UefiAspects`,
         `UefiCmdAspects`, `DEFAULT_ASPECTS`, `DEFAULT_CMD_ASPECTS`,
@@ -14,7 +14,7 @@
 - [ ] 2. Implement `freezable.py`.
   - [ ] 2.1 Author the `Freezable` class per the design.
   - [ ] 2.2 Add a unit test file `test_freezable.py` under
-        `source/testroots/automojo/protocols/uefi/aspects/` covering
+        `source/testroots/ccai/protocols/uefi/aspects/` covering
         pre-freeze mutation, freeze transition, post-freeze mutation
         rejection, and subclass inheritance.
   - References: Requirement 1.
@@ -73,7 +73,7 @@
 
 - [ ] 9. Coverage gate.
   - [ ] 9.1 Configure pytest-cov to enforce 100% line coverage for the
-        `automojo.protocols.uefi.aspects` package.
+        `ccai.protocols.uefi.aspects` package.
   - [ ] 9.2 Add a CI step that fails on drop below 100%.
   - References: Testing Strategy.
 

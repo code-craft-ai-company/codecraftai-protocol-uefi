@@ -1,7 +1,7 @@
 # Tasks — UefiSession
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/session/`.
+      `source/packages/ccai/protocols/uefi/session/`.
   - [ ] 1.1 Add `__init__.py` that re-exports `UefiSession`.
   - [ ] 1.2 Add a module-level docstring summarizing the persistent-
         channel / replay-on-reconnect / basis-session semantics.
@@ -181,7 +181,7 @@
 
 - [ ] 20. Coverage gate.
   - [ ] 20.1 Configure pytest-cov for 95% line coverage across
-        `automojo.protocols.uefi.session`.
+        `ccai.protocols.uefi.session`.
   - [ ] 20.2 Add CI step that fails on drop.
   - References: Testing Strategy.
 

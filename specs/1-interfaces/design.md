@@ -17,7 +17,7 @@ forward references to break import cycles.
 ## Architecture
 
 ```
-automojo.protocols.uefi.interfaces/
+ccai.protocols.uefi.interfaces/
     __init__.py           # re-exports the five protocols
     uefiinterfaces.py     # Protocol definitions
 ```
@@ -27,8 +27,8 @@ Dependency direction:
 ```
 uefiinterfaces.py  ──▶  typing (stdlib)
                    ──▶  uuid (stdlib)
-                   ──▶  automojo.protocols.uefi.ueficonst.uefiguids   (type-only)
-                   ──▶  automojo.interop.isystemcontext               (type-only; base protocol)
+                   ──▶  ccai.protocols.uefi.ueficonst.uefiguids   (type-only)
+                   ──▶  ccai.interop.isystemcontext               (type-only; base protocol)
 ```
 
 No imports from `1-aspects`, `1-credentials`, `1-exceptions`, `1-helpers`,
@@ -249,7 +249,7 @@ class IUefiFileProvider(Protocol):
 ### `IUefiSystemContext`
 
 ```python
-from automojo.interop.isystemcontext import ISystemContext
+from ccai.interop.isystemcontext import ISystemContext
 
 
 @runtime_checkable
@@ -373,7 +373,7 @@ registry is the test that adds real value.
 
 ## Dependencies on Other Features
 
-* Depends on the shared `automojo.interop.isystemcontext.ISystemContext`
+* Depends on the shared `ccai.interop.isystemcontext.ISystemContext`
   protocol class.
 * References (via forward-quoted strings) types from `1-aspects`
   (`UefiCmdAspects`), from layer-5 features (`UefiShellResult`,

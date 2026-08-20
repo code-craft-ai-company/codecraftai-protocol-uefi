@@ -3,7 +3,7 @@
 ## Introduction
 
 The Interfaces feature defines the abstract `typing.Protocol`-based
-interfaces that shape the rest of the `automojo-uefi` stack.  It provides
+interfaces that shape the rest of the `codecraftai-protocol-uefi` stack.  It provides
 `IUefiTransport` for layer-2 transports (connect / disconnect / send / recv
 primitives plus a `connected` property), `IUefiShellRunner` for the
 run_cmd-style execution surface used by layer-3 shell clients,
@@ -19,7 +19,7 @@ structurally, without inheriting.  Where runtime dispatch needs
 Every method on every interface carries type hints and a Sphinx-style
 docstring so that editor hover-documentation is sufficient for consumers.
 
-The feature has no dependencies on other `automojo-uefi` features beyond
+The feature has no dependencies on other `codecraftai-protocol-uefi` features beyond
 referencing classes from `1-exceptions` and `1-constants-and-types` only
 in docstrings and type hints.
 
@@ -208,7 +208,7 @@ stays bounded in time and memory.
 
 #### Acceptance Criteria
 
-1. WHEN `automojo.protocols.uefi.interfaces` is imported THEN the system
+1. WHEN `ccai.protocols.uefi.interfaces` is imported THEN the system
    SHALL NOT open files, sockets, subprocesses, or register global
    handlers.
 2. WHEN the module is imported twice in the same process THEN the system

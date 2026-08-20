@@ -207,5 +207,5 @@ regressions in each semantic axis independently.
    exercising both include and exclude globs with overlap (exclude wins).
 3. WHEN the test suite runs THEN the system SHALL include a test
    exercising `delete=True` with files missing locally.
-4. WHEN the test suite runs with `AUTOMOJO_OVMF_TEST=1` THEN the system
+4. WHEN the test suite runs with `CCAI_OVMF_TEST=1` THEN the system
    SHALL include an integration test against an OVMF-mounted ESP.

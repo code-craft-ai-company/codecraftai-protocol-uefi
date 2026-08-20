@@ -4,7 +4,7 @@
 
 The Constants and Types feature provides the shared vocabulary of immutable
 values, typed dataclasses, GUID aliases, and type aliases that every higher
-layer in `automojo-uefi` references.  It collects numeric defaults (timeouts,
+layer in `codecraftai-protocol-uefi` references.  It collects numeric defaults (timeouts,
 buffer sizes), textual templates for structured log rendering, UEFI Shell
 prompt sentinels, the master registry of well-known UEFI GUIDs (such as
 `EFI_GLOBAL_VARIABLE_GUID`, `EFI_IMAGE_SECURITY_DATABASE_GUID`, and
@@ -227,6 +227,6 @@ code paths can reference them without pulling in the rest of the library.
 
 1. WHEN `ueficonst` or `uefiguids` is imported THEN the system SHALL not
    import anything outside the Python standard library and the sibling
-   `automojo.errors` package used for `ConfigurationError`.
+   `ccai.errors` package used for `ConfigurationError`.
 2. IF a future change introduces a third-party import THEN a unit test SHALL
    fail until the import is removed or explicitly allow-listed.

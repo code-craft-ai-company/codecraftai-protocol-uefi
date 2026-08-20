@@ -1,7 +1,7 @@
 # Tasks — ESP File Operations
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/esp/`.
+      `source/packages/ccai/protocols/uefi/esp/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `EspFileProvider`,
         `EspDirEntry`, `EspDirTree`, `EspFileAttributes`.
   - [ ] 1.2 Add `backends/__init__.py` re-exporting
@@ -120,6 +120,6 @@
 
 - [ ] 14. Coverage gate.
   - [ ] 14.1 Configure pytest-cov to require 95% line coverage for the
-        `automojo.protocols.uefi.esp` package.
+        `ccai.protocols.uefi.esp` package.
   - [ ] 14.2 Add CI step that fails on drop below 95%.
   - References: Testing Strategy.

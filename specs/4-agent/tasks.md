@@ -1,7 +1,7 @@
 # Tasks — UefiAgent
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/agent/`.
+      `source/packages/ccai/protocols/uefi/agent/`.
   - [ ] 1.1 Add `__init__.py` that re-exports `UefiAgent`.
   - [ ] 1.2 Add a module-level docstring summarizing one-shot
         semantics and the `SshAgent` analogy.
@@ -165,7 +165,7 @@
 
 - [ ] 18. Coverage gate.
   - [ ] 18.1 Configure pytest-cov for 95% line coverage across
-        `automojo.protocols.uefi.agent`.
+        `ccai.protocols.uefi.agent`.
   - [ ] 18.2 Add CI step that fails on drop.
   - References: Testing Strategy.
 

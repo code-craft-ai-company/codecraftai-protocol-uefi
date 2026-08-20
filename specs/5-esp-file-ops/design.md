@@ -21,7 +21,7 @@ transport error taxonomy.  Callers never branch on transport kind.
 ## Architecture
 
 ```
-automojo.protocols.uefi.esp/
+ccai.protocols.uefi.esp/
     __init__.py                 # re-exports EspFileProvider, EspDirEntry,
                                 # EspDirTree, EspFileAttributes
     provider.py                 # EspFileProvider facade (dispatches to backends)

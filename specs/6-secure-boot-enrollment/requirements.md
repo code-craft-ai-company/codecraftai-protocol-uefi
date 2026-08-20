@@ -230,8 +230,8 @@ with prebuilt test certificates, so that I catch regressions.
 
 #### Acceptance Criteria
 
-1. WHEN the test suite runs with `AUTOMOJO_OVMF_TEST=1` and
-   `AUTOMOJO_SECURE_BOOT_FIXTURES` pointing at a directory of
+1. WHEN the test suite runs with `CCAI_OVMF_TEST=1` and
+   `CCAI_SECURE_BOOT_FIXTURES` pointing at a directory of
    PK/KEK/db/dbx test certificates THEN the system SHALL drive a full
    enrollment against an OVMF VM started in SetupMode.
 2. WHEN the enrollment completes THEN the system SHALL assert

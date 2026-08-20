@@ -1,7 +1,7 @@
 # Tasks — Boot Manager
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/bootmanager/`.
+      `source/packages/ccai/protocols/uefi/bootmanager/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `BootManager`, `BootOption`,
         `LoadOptionAttributes`, `pack_u16_array`, `unpack_u16_array`.
   - [ ] 1.2 Add a module-level docstring citing UEFI §3, §3.1.3, §3.3.
@@ -130,7 +130,7 @@
   - [ ] 14.1 Author a QEMU/OVMF integration test that reads default
         `BootOrder`, adds a UEFI Shell `Boot####` entry, sets
         `BootNext`, cold-resets, and verifies `BootCurrent`.
-  - [ ] 14.2 Gate the test on an `AUTOMOJO_OVMF_AVAILABLE` env var.
+  - [ ] 14.2 Gate the test on an `CCAI_OVMF_AVAILABLE` env var.
   - References: Requirement 7, Requirement 8, Requirement 9,
     Requirement 10.
 

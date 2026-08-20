@@ -1,7 +1,7 @@
 # Tasks — Logging
 
 - [ ] 1. Create the package skeleton at
-      `source/packages/automojo/protocols/uefi/logging/`.
+      `source/packages/ccai/protocols/uefi/logging/`.
   - [ ] 1.1 Add `__init__.py` that re-exports `get_uefi_logger`,
         `LoggingPattern`, `KNOWN_UEFI_CHANNELS`, and every `CHANNEL_*`
         constant.
@@ -75,7 +75,7 @@
 
 - [ ] 9. Author `test_logging_no_side_effects.py`.
   - [ ] 9.1 Record `sys.modules` snapshot before import.
-  - [ ] 9.2 Import `automojo.protocols.uefi.logging`.
+  - [ ] 9.2 Import `ccai.protocols.uefi.logging`.
   - [ ] 9.3 Assert no extra file handles, sockets, or subprocesses were
         opened (checked by observing that the module does not call
         `open`, `socket.socket`, or `subprocess.*` at import time via AST
@@ -84,7 +84,7 @@
 
 - [ ] 10. Coverage gate.
   - [ ] 10.1 Enforce 100% line coverage for
-        `automojo.protocols.uefi.logging`.
+        `ccai.protocols.uefi.logging`.
   - [ ] 10.2 Add a CI step that fails on any coverage regression.
   - References: Testing Strategy.
 

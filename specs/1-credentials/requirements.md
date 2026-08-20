@@ -3,9 +3,9 @@
 ## Introduction
 
 The Credentials feature provides per-transport credential dataclasses used by
-every layer-2 transport in `automojo-uefi`.  It delivers three new types —
+every layer-2 transport in `codecraftai-protocol-uefi`.  It delivers three new types —
 `UefiSerialCredential`, `UefiRedfishCredential`, and `UefiIpmiCredential` —
-and re-uses the existing `automojo.credentials.sshcredential.SshCredential`
+and re-uses the existing `ccai.credentials.sshcredential.SshCredential`
 for the SSH-to-host transport.  Each credential class is a frozen dataclass
 that validates itself in `__post_init__` by calling a `validate()` method,
 raises `ConfigurationError` on any misconfiguration, redacts sensitive
@@ -16,7 +16,7 @@ token and a password/user pair supplied).  The feature resolves ambiguity
 with an explicit `prefer_token: bool` flag: if both are supplied and
 `prefer_token` is `True`, the token wins; otherwise `validate()` raises.
 
-The feature has no dependencies on other `automojo-uefi` features other
+The feature has no dependencies on other `codecraftai-protocol-uefi` features other
 than `1-exceptions` (for `ConfigurationError` re-export, though the class
 itself lives in the shared errors module) and the standard library.
 
@@ -176,12 +176,12 @@ surface between two libraries.
 
 1. WHERE the SSH-to-host transport accepts a credential the system SHALL
    accept an instance of
-   `automojo.credentials.sshcredential.SshCredential`.
+   `ccai.credentials.sshcredential.SshCredential`.
 2. WHEN the caller passes any other type the system SHALL raise
    `TypeError` whose message lists the expected type's canonical dotted path.
 3. WHERE this feature documents credential types the system SHALL name
    `SshCredential` alongside the three new types and point to the existing
-   `automojo.credentials.sshcredential` module.
+   `ccai.credentials.sshcredential` module.
 
 ### Requirement 9 — Token vs. Password Disambiguation
 
@@ -225,7 +225,7 @@ credential class is a visible diff.
 
 #### Acceptance Criteria
 
-1. WHEN `automojo.protocols.uefi.credentials` is imported THEN the system
+1. WHEN `ccai.protocols.uefi.credentials` is imported THEN the system
    SHALL expose `__all__` listing the three new credential classes.
 2. WHERE a helper is private the system SHALL prefix its name with a single
    underscore and SHALL NOT include it in `__all__`.

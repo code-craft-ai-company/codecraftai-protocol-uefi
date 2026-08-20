@@ -16,7 +16,7 @@ text form that `ConvertDevicePathFromText()` accepts.
 ## Architecture
 
 ```
-automojo.protocols.uefi.netboot/
+ccai.protocols.uefi.netboot/
     __init__.py           # re-exports public surface
     httpbuilder.py        # build_http_boot_option
     pxebuilder.py         # build_pxe_boot_option_ipv4, build_pxe_boot_option_ipv6
@@ -452,7 +452,7 @@ consume aspects.
 
 * Against an OVMF VM: install HTTP option pointing at a local HTTP server,
   `BootNext`, reboot, verify the VM fetched and attempted to boot.
-* Gated on `AUTOMOJO_UEFI_OVMF_VM` env var.
+* Gated on `CCAI_UEFI_OVMF_VM` env var.
 
 ### Coverage target
 

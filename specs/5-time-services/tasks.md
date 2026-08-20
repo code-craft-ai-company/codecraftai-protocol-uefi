@@ -1,7 +1,7 @@
 # Tasks — Time Services
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/time/`.
+      `source/packages/ccai/protocols/uefi/time/`.
   - [ ] 1.1 Add `__init__.py` exporting `TimeServices`.
   - [ ] 1.2 Module docstring summarizing UEFI §8.3 scope and the
         strict tz-aware contract.
@@ -103,19 +103,19 @@
 - [ ] 11. Integration test — Shell.
   - [ ] 11.1 OVMF VM: set a known time through the Shell backend, read
         back, assert within tolerance.
-  - [ ] 11.2 Gate on `AUTOMOJO_UEFI_OVMF_VM` env var.
+  - [ ] 11.2 Gate on `CCAI_UEFI_OVMF_VM` env var.
   - References: Requirement 3, Requirement 10.
 
 - [ ] 12. Integration test — Redfish.
   - [ ] 12.1 Against a test BMC simulator (or a containerized Redfish
         emulator): `PATCH` DateTime, `GET` DateTime, assert round-trip.
-  - [ ] 12.2 Gate on `AUTOMOJO_UEFI_REDFISH_HOST` env var.
+  - [ ] 12.2 Gate on `CCAI_UEFI_REDFISH_HOST` env var.
   - References: Requirement 4.
 
 - [ ] 13. Integration test — hwclock.
   - [ ] 13.1 Linux VM with passwordless sudo: set and read hwclock,
         assert round-trip.
-  - [ ] 13.2 Gate on `AUTOMOJO_UEFI_SSH_HOST` env var.
+  - [ ] 13.2 Gate on `CCAI_UEFI_SSH_HOST` env var.
   - References: Requirement 5.
 
 - [ ] 14. Documentation.

@@ -18,7 +18,7 @@ beyond binding functions and the CRC-32 lookup table.
 ## Architecture
 
 ```
-automojo.protocols.uefi.helpers/
+ccai.protocols.uefi.helpers/
     __init__.py        # re-exports uefihelpers public surface
     uefihelpers.py     # all helper functions + re-exports
 ```
@@ -26,9 +26,9 @@ automojo.protocols.uefi.helpers/
 Dependency direction:
 
 ```
-uefihelpers.py  ──▶  automojo.protocols.uefi.ueficonst.uefiguids   (guid helpers)
-                ──▶  automojo.xmodules.xtimeout                     (TimeoutContext)
-                ──▶  automojo.xmodules.xmonitored                   (MonitoredScope)
+uefihelpers.py  ──▶  ccai.protocols.uefi.ueficonst.uefiguids   (guid helpers)
+                ──▶  ccai.xmodules.xtimeout                     (TimeoutContext)
+                ──▶  ccai.xmodules.xmonitored                   (MonitoredScope)
 ```
 
 ## Components and Interfaces
@@ -181,7 +181,7 @@ with both observed and expected lengths in the message.
 ### GUID Pack / Unpack Shortcuts
 
 ```python
-from automojo.protocols.uefi.ueficonst.uefiguids import guid_to_bytes, guid_from_bytes
+from ccai.protocols.uefi.ueficonst.uefiguids import guid_to_bytes, guid_from_bytes
 
 
 def pack_guid(guid: uuid.UUID) -> bytes:
@@ -224,8 +224,8 @@ def indent_lines(text: str, prefix: str = "    ") -> str:
 ### Re-exports
 
 ```python
-from automojo.xmodules.xtimeout import TimeoutContext
-from automojo.xmodules.xmonitored import MonitoredScope
+from ccai.xmodules.xtimeout import TimeoutContext
+from ccai.xmodules.xmonitored import MonitoredScope
 ```
 
 Re-exports are listed in `__all__` alongside the native helpers.
@@ -342,7 +342,7 @@ unavailable)
 
 * Depends on `1-constants-and-types` for `guid_to_bytes` and
   `guid_from_bytes`.
-* Depends on `automojo.xmodules.xtimeout.TimeoutContext` and
-  `automojo.xmodules.xmonitored.MonitoredScope` (re-exported only).
+* Depends on `ccai.xmodules.xtimeout.TimeoutContext` and
+  `ccai.xmodules.xmonitored.MonitoredScope` (re-exported only).
 * No dependency on `1-aspects`, `1-exceptions`, `1-credentials`,
   `1-logging`, or `1-interfaces`.

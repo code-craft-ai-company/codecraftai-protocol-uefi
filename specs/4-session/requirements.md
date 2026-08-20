@@ -10,7 +10,7 @@ caller has mapped ESP volumes, set aliases, and changed into a working
 directory — all of which must persist across commands.
 
 `UefiSession` is the direct analog of `SshSession`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshsession.py`)
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshsession.py`)
 and inherits from `UefiBase` exactly as `SshSession` inherits from
 `SshBase`.  A session maintains exactly one open channel between
 `__enter__` and `__exit__`.  Session-flavored reconnection on transient

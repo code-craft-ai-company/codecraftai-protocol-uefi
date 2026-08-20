@@ -3,7 +3,7 @@
 ## Overview
 
 The Shell Commands feature is a collection of one-module-per-command-family
-wrappers under `automojo.protocols.uefi.shell` that turn UEFI Shell text
+wrappers under `ccai.protocols.uefi.shell` that turn UEFI Shell text
 output into frozen Python dataclasses.  Each wrapper is a thin function
 that:
 
@@ -22,7 +22,7 @@ keeps parsers testable as pure functions against captured fixtures.
 ## Architecture
 
 ```
-automojo.protocols.uefi.shell/
+ccai.protocols.uefi.shell/
     __init__.py         # re-exports the public wrapper functions
     _common.py          # shared quoting, flag-assembly, line-splitter helpers
     _parsers.py         # shared regex fragments used across wrappers

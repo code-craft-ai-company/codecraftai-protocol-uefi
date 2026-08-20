@@ -13,7 +13,7 @@ The transport is strictly post-boot — it cannot operate when the target is in
 UEFI pre-boot or in a firmware setup screen, because there is no OS shell to
 reach.  This limitation is explicit in the transport matrix below.
 
-The transport reuses `automojo-protocol-ssh`'s `SshAgent` via *composition*,
+The transport reuses `codecraftai-protocol-ssh`'s `SshAgent` via *composition*,
 not inheritance: the caller supplies a fully-constructed `SshAgent`, and this
 transport holds a reference to it.  All SSH lifecycle concerns (key
 negotiation, jump hosts, agent forwarding, connection retry) are delegated
@@ -22,7 +22,7 @@ capability probing, root-escalation policy, and `IUefiTransport` conformance
 on top of `SshAgent.run_cmd`.
 
 This feature has dependencies on layer 1 (`1-aspects`, `1-interfaces`,
-`1-exceptions`) and on the external `automojo-protocol-ssh` package.
+`1-exceptions`) and on the external `codecraftai-protocol-ssh` package.
 
 ## Requirements
 

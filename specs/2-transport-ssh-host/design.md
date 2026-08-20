@@ -10,7 +10,7 @@ UEFI tooling (`efibootmgr`, `efivar`, `fwupdmgr`, direct reads/writes of
 `UefiAspects` (see `1-aspects`).
 
 The transport is deliberately a thin veneer over an existing
-`automojo-protocol-ssh` `SshAgent`, acquired via *composition*.  The caller
+`codecraftai-protocol-ssh` `SshAgent`, acquired via *composition*.  The caller
 constructs the `SshAgent` themselves with whatever credential, jump-host,
 key-file, and retry behavior they already need, and hands that agent to this
 transport.  This transport does not own the SSH lifecycle — it only adds:
@@ -31,7 +31,7 @@ No decorator-based retry is used (per the coding standards in
 ## Architecture
 
 ```
-automojo.protocols.uefi.transport.sshhost/
+ccai.protocols.uefi.transport.sshhost/
     __init__.py            # re-exports UefiSshHostTransport, HostCmdResult
     sshhosttransport.py    # UefiSshHostTransport (IUefiTransport)
     capabilityprobe.py     # connect-time probe logic
@@ -437,7 +437,7 @@ credentials and handles its own redaction).
 ### Integration tests
 
 * Runnable against a disposable Linux VM when env var
-  `AUTOMOJO_SSH_HOST_FIXTURE` is set; otherwise skipped.
+  `CCAI_SSH_HOST_FIXTURE` is set; otherwise skipped.
 * Round-trip: connect → probe → `efibootmgr -v` → parse → disconnect.
 * Sudo-prompt detection against a sudoers-misconfigured fixture.
 
@@ -457,7 +457,7 @@ credentials and handles its own redaction).
 
 External:
 
-* `automojo-protocol-ssh` — `SshAgent`, `SshCredential`, `SshCmdAspects`.
+* `codecraftai-protocol-ssh` — `SshAgent`, `SshCredential`, `SshCmdAspects`.
 
 ## Transport Matrix
 

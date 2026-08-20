@@ -7,7 +7,7 @@ of layer-2 transports and under layer-4 `UefiBase`.  It is organized as one
 abstract base class plus three concrete subclasses, each specializing the
 framing logic for a single transport family.  The abstract base class is
 modeled closely on `SshClient`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshclient.py`),
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshclient.py`),
 extended with explicit `supported_action_patterns` declaration so that
 layer-4 can validate action-pattern compatibility before any bytes are sent.
 
@@ -26,7 +26,7 @@ division of labor exactly (`sshbase.py:347–368`).
 ## Architecture
 
 ```
-automojo.protocols.uefi.client/
+ccai.protocols.uefi.client/
     __init__.py              # re-exports public surface
     ueficlient.py            # UefiClient abstract base
     uefishellclient.py       # UefiShellClient (serial / IPMI-SOL)
@@ -38,15 +38,15 @@ Dependency direction (nothing imports upward):
 
 ```
 uefishellclient.py  ─┐
-uefiredfishclient.py ─┼─▶ ueficlient.py ──▶ automojo.protocols.uefi.aspects
-uefihostosclient.py ─┘                  ──▶ automojo.protocols.uefi.channel
-                                        ──▶ automojo.protocols.uefi.transports.*
-                                        ──▶ automojo.protocols.uefi.logging
+uefiredfishclient.py ─┼─▶ ueficlient.py ──▶ ccai.protocols.uefi.aspects
+uefihostosclient.py ─┘                  ──▶ ccai.protocols.uefi.channel
+                                        ──▶ ccai.protocols.uefi.transports.*
+                                        ──▶ ccai.protocols.uefi.logging
 ```
 
 Each concrete subclass lives in its own module so that tests for one
 subclass do not have to import the others (Redfish pulls `requests`,
-SSH-host pulls `automojo-protocol-ssh`; keeping them separate keeps
+SSH-host pulls `codecraftai-protocol-ssh`; keeping them separate keeps
 import cost proportional to the transport the caller actually uses).
 
 ## Components and Interfaces

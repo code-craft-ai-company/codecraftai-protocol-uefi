@@ -1,7 +1,7 @@
 # Tasks — Exceptions
 
 - [ ] 1. Create the package skeleton at
-      `source/packages/automojo/protocols/uefi/errors/`.
+      `source/packages/ccai/protocols/uefi/errors/`.
   - [ ] 1.1 Add `__init__.py` that re-exports the public exception classes
         and the `SHELL_ERROR_OUTPUT_PREVIEW_LINES` constant.
   - [ ] 1.2 Author a module-level docstring in `__init__.py` stating the
@@ -11,7 +11,7 @@
 
 - [ ] 2. Author `UefiError` in `uefiexceptions.py`.
   - [ ] 2.1 Subclass the shared root exception from
-        `automojo.errors.exceptions`.
+        `ccai.errors.exceptions`.
   - [ ] 2.2 Accept `message: str` and `details: Optional[list[str]] = None`.
   - [ ] 2.3 Copy the incoming `details` list into a new list before storing.
   - [ ] 2.4 Raise `TypeError` when `details` is not a list and not `None`.
@@ -82,7 +82,7 @@
   - References: Requirement 9.
 
 - [ ] 9. Author `test_semantic_error_rule.py`.
-  - [ ] 9.1 Import `automojo.protocols.uefi.errors.uefiexceptions`.
+  - [ ] 9.1 Import `ccai.protocols.uefi.errors.uefiexceptions`.
   - [ ] 9.2 Iterate every class in `__all__`.
   - [ ] 9.3 Assert none is a subclass of `SemanticError` from the shared
         module.
@@ -90,7 +90,7 @@
 
 - [ ] 10. Coverage gate.
   - [ ] 10.1 Enforce 100% line coverage for
-        `automojo.protocols.uefi.errors`.
+        `ccai.protocols.uefi.errors`.
   - [ ] 10.2 Add a CI step that fails on any coverage regression.
   - References: Testing Strategy.
 

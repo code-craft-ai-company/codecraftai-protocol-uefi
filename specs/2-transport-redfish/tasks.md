@@ -1,7 +1,7 @@
 # Tasks — Redfish Transport
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/transport/redfish/`.
+      `source/packages/ccai/protocols/uefi/transport/redfish/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `UefiRedfishTransport` and
         `RedfishResponse`.
   - [ ] 1.2 Add a module-level docstring summarizing the measured-interop

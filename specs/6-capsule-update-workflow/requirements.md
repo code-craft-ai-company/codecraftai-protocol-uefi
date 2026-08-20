@@ -211,8 +211,8 @@ workflow.
 
 #### Acceptance Criteria
 
-1. WHEN the test suite runs with `AUTOMOJO_OVMF_TEST=1` and
-   `AUTOMOJO_CAPSULE_FIXTURE` set to a test-signed capsule THEN the
+1. WHEN the test suite runs with `CCAI_OVMF_TEST=1` and
+   `CCAI_CAPSULE_FIXTURE` set to a test-signed capsule THEN the
    system SHALL execute the full workflow against an OVMF VM.
 2. WHEN the integration test completes THEN the system SHALL assert
    `report.esrt_advanced is True` and `report.reported_status_guid` equals

@@ -1,7 +1,7 @@
 # Tasks — System Tables Readout
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/systables/`.
+      `source/packages/ccai/protocols/uefi/systables/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `SystemTablesLoader`,
         `EsrtTable`, `EsrtEntry`, `EsrtCrossReference`, `SmbiosTable`,
         `SmbiosStructure`, `AcpiRsdp`, `AcpiXsdt`, `AcpiMadt`,

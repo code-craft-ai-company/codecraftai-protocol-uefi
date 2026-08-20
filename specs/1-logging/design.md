@@ -6,19 +6,19 @@ The Logging feature delivers a single small module, `uefilogging.py`, that
 provides a `get_uefi_logger(channel, strict=True)` factory, re-exports
 `LoggingPattern` from `1-aspects`, and exposes a `KNOWN_UEFI_CHANNELS`
 frozenset plus a `CHANNEL_*` constant for each documented channel.  The
-factory routes through `automojo.xmodules.xlogging.enhancedloggers.getEnhancedLogger`
+factory routes through `ccai.xmodules.xlogging.enhancedloggers.getEnhancedLogger`
 so that every logger is the same enhanced kind consumed throughout the
-`automojo` ecosystem.
+`ccai` ecosystem.
 
 The design goal is a tiny, dependency-light surface with zero side effects
-on import.  Every log line emitted from any layer of `automojo-uefi` must
+on import.  Every log line emitted from any layer of `codecraftai-protocol-uefi` must
 be attributable to a channel under `uefi.*`; this module is the single
 place where that namespace is enforced and enumerated.
 
 ## Architecture
 
 ```
-automojo.protocols.uefi.logging/
+ccai.protocols.uefi.logging/
     __init__.py        # re-exports public surface
     uefilogging.py     # get_uefi_logger, KNOWN_UEFI_CHANNELS, CHANNEL_* constants
 ```
@@ -26,9 +26,9 @@ automojo.protocols.uefi.logging/
 Dependency direction:
 
 ```
-uefilogging.py  ──▶  automojo.xmodules.xlogging.enhancedloggers.getEnhancedLogger
-                ──▶  automojo.protocols.uefi.aspects.LoggingPattern      (re-export)
-                ──▶  automojo.errors.exceptions.ConfigurationError
+uefilogging.py  ──▶  ccai.xmodules.xlogging.enhancedloggers.getEnhancedLogger
+                ──▶  ccai.protocols.uefi.aspects.LoggingPattern      (re-export)
+                ──▶  ccai.errors.exceptions.ConfigurationError
 ```
 
 ## Components and Interfaces
@@ -75,8 +75,8 @@ KNOWN_UEFI_CHANNELS: Final[frozenset[str]] = frozenset({
 import logging
 from typing import Optional
 
-from automojo.errors.exceptions import ConfigurationError
-from automojo.xmodules.xlogging.enhancedloggers import getEnhancedLogger
+from ccai.errors.exceptions import ConfigurationError
+from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 
 
 _REQUIRED_LOGGER_METHODS = ("debug", "info", "warning", "error", "critical")
@@ -139,10 +139,10 @@ def get_uefi_logger(channel: str, strict: bool = True) -> logging.Logger:
 ### `LoggingPattern` re-export
 
 ```python
-from automojo.protocols.uefi.aspects import LoggingPattern  # noqa: F401
+from ccai.protocols.uefi.aspects import LoggingPattern  # noqa: F401
 ```
 
-Re-exported so consumers can `from automojo.protocols.uefi.logging import
+Re-exported so consumers can `from ccai.protocols.uefi.logging import
 LoggingPattern, get_uefi_logger` in one line.
 
 ## Data Models
@@ -215,7 +215,7 @@ higher-layer call sites that *use* the loggers produced here.
 ### Unit tests (`test_logging_pattern_reexport.py`)
 
 * `LoggingPattern` imported from this module is identical (by `is`) to
-  `LoggingPattern` imported from `automojo.protocols.uefi.aspects`.
+  `LoggingPattern` imported from `ccai.protocols.uefi.aspects`.
 * `LoggingPattern` has the three expected members.
 
 ### Smoke test (`test_logging_smoke.py`)
@@ -232,7 +232,7 @@ branch.
 ## Dependencies on Other Features
 
 * Depends on `1-aspects` for the `LoggingPattern` enum (re-export only).
-* Depends on `automojo.xmodules.xlogging.enhancedloggers.getEnhancedLogger`.
-* Depends on `automojo.errors.exceptions.ConfigurationError`.
+* Depends on `ccai.xmodules.xlogging.enhancedloggers.getEnhancedLogger`.
+* Depends on `ccai.errors.exceptions.ConfigurationError`.
 * No dependency on `1-constants-and-types`, `1-exceptions`,
   `1-credentials`, `1-helpers`, or `1-interfaces`.

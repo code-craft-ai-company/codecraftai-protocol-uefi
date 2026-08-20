@@ -11,14 +11,14 @@ redacts sensitive fields (password, token) from `__repr__` / `__str__`, and
 raises `ConfigurationError` with multi-line `details` on any misconfiguration.
 
 The design mirrors the pattern established by
-`automojo.credentials.sshcredential.SshCredential`: construction is the
+`ccai.credentials.sshcredential.SshCredential`: construction is the
 primary validation gate, storage is frozen, and there is no additional
 setter API.
 
 ## Architecture
 
 ```
-automojo.protocols.uefi.credentials/
+ccai.protocols.uefi.credentials/
     __init__.py                  # re-exports the three classes
     uefiserialcredential.py
     uefiredfishcredential.py
@@ -29,9 +29,9 @@ automojo.protocols.uefi.credentials/
 Dependency direction:
 
 ```
-uefiserialcredential.py   ──▶  automojo.errors.exceptions
-uefiredfishcredential.py  ──▶  automojo.errors.exceptions
-uefiipmicredential.py     ──▶  automojo.errors.exceptions
+uefiserialcredential.py   ──▶  ccai.errors.exceptions
+uefiredfishcredential.py  ──▶  ccai.errors.exceptions
+uefiipmicredential.py     ──▶  ccai.errors.exceptions
 *credential.py            ──▶  _redaction.py
 ```
 
@@ -71,7 +71,7 @@ import dataclasses
 import os
 from typing import Optional
 
-from automojo.errors.exceptions import ConfigurationError
+from ccai.errors.exceptions import ConfigurationError
 from ._redaction import _redacted
 
 
@@ -399,8 +399,8 @@ Credentials emit no log output.  They are values, not behaviors.
 
 ## Dependencies on Other Features
 
-* Depends on `automojo.errors.exceptions.ConfigurationError`.
-* Documents reuse of `automojo.credentials.sshcredential.SshCredential` for
+* Depends on `ccai.errors.exceptions.ConfigurationError`.
+* Documents reuse of `ccai.credentials.sshcredential.SshCredential` for
   the SSH-to-host transport; does not import it.
 * No dependency on `1-aspects`, `1-constants-and-types`, `1-exceptions`,
   `1-helpers`, `1-logging`, or `1-interfaces`.

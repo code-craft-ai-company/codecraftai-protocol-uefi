@@ -4,7 +4,7 @@
 
 The ESP File Operations feature provides a transport-agnostic file API over
 the EFI System Partition (ESP) that mirrors the `SshAgent` file API in
-`automojo-protocol-ssh`.  It exposes `file_push`, `file_pull`, `file_exists`,
+`codecraftai-protocol-ssh`.  It exposes `file_push`, `file_pull`, `file_exists`,
 `directory_exists`, `directory`, and `directory_tree` methods whose
 signatures are identical across the three supported transports — UEFI Shell
 (`cp` / `ls`), SSH-to-host (OS-mounted ESP via `/boot/efi`), and Redfish

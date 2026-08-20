@@ -17,7 +17,7 @@ transport-free and therefore unit-testable against captured fixtures.
 ## Architecture
 
 ```
-automojo.protocols.uefi.measured/
+ccai.protocols.uefi.measured/
     __init__.py           # re-exports MeasuredBoot facade + types
     measuredboot.py       # MeasuredBoot facade; wires agent → parser/reader
     eventlog.py           # parse_event_log + specification ID decoding
@@ -418,7 +418,7 @@ Log-format selection follows `aspects.logging_pattern` exactly as
 
 * End-to-end against a captured OVMF+vTPM event log and a live `tpm2_pcrread`
   stub, asserting `validate_log_against_pcrs` returns `success=True`.
-* Gated by `AUTOMOJO_UEFI_OVMF_VM` env var.
+* Gated by `CCAI_UEFI_OVMF_VM` env var.
 
 ### Fixtures corpus
 

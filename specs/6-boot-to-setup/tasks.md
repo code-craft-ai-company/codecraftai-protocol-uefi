@@ -1,7 +1,7 @@
 # Tasks — Boot To Setup Workflow
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/workflows/boottosetup/`.
+      `source/packages/ccai/protocols/uefi/workflows/boottosetup/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `BootToSetupWorkflow`,
         `BootToSetupContext`, `BootToSetupReport`, and the
         `boot_to_setup` convenience function.
@@ -92,7 +92,7 @@
   - [ ] 10.3 `test_ovmf_no_boot_to_fw_ui.py` — capability failure.
   - [ ] 10.4 `test_ovmf_navigator_smoke.py` — read one form,
         `len(items) > 0`.
-  - [ ] 10.5 Gate behind `AUTOMOJO_OVMF_TEST=1`.
+  - [ ] 10.5 Gate behind `CCAI_OVMF_TEST=1`.
   - References: Requirement 10.
 
 - [ ] 11. Report-shape tests.
@@ -102,7 +102,7 @@
 
 - [ ] 12. Coverage gate.
   - [ ] 12.1 Configure pytest-cov to enforce 95%+ line coverage for
-        `automojo.protocols.uefi.workflows.boottosetup`.
+        `ccai.protocols.uefi.workflows.boottosetup`.
   - [ ] 12.2 CI step failing on drop.
   - References: Testing Strategy.
 

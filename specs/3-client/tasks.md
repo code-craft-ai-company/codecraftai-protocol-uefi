@@ -1,7 +1,7 @@
 # Tasks — UefiClient
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/client/`.
+      `source/packages/ccai/protocols/uefi/client/`.
   - [ ] 1.1 Add `__init__.py` that re-exports `UefiClient`,
         `UefiShellClient`, `UefiRedfishClient`, `UefiHostOsClient`, and
         `UefiExecuteResult`.
@@ -131,7 +131,7 @@
 
 - [ ] 12. Coverage gate.
   - [ ] 12.1 Configure pytest-cov to require 95% line coverage across
-        `automojo.protocols.uefi.client`.
+        `ccai.protocols.uefi.client`.
   - [ ] 12.2 Add a CI step that fails on drop.
   - References: Testing Strategy.
 

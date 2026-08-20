@@ -1,7 +1,7 @@
 # Tasks — Helpers
 
 - [ ] 1. Create the package skeleton at
-      `source/packages/automojo/protocols/uefi/helpers/`.
+      `source/packages/ccai/protocols/uefi/helpers/`.
   - [ ] 1.1 Add `__init__.py` that re-exports the public surface from
         `uefihelpers.py`.
   - [ ] 1.2 Populate `__all__` in `uefihelpers.py`.
@@ -54,7 +54,7 @@
   - References: Requirement 6.
 
 - [ ] 8. Re-export `TimeoutContext` and `MonitoredScope` from the shared
-      `automojo.xmodules` modules.
+      `ccai.xmodules` modules.
   - [ ] 8.1 Import both classes at module top.
   - [ ] 8.2 Add both to `__all__`.
   - [ ] 8.3 Document the re-export policy (no subclassing, no wrapping).
@@ -93,7 +93,7 @@
 
 - [ ] 12. Coverage gate.
   - [ ] 12.1 Enforce 100% line coverage for
-        `automojo.protocols.uefi.helpers`.
+        `ccai.protocols.uefi.helpers`.
   - [ ] 12.2 Add a CI step that fails on any coverage regression.
   - References: Testing Strategy.
 

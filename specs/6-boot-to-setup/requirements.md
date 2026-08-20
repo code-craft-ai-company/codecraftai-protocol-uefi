@@ -194,7 +194,7 @@ the workflow works end-to-end against a real UEFI firmware.
 
 #### Acceptance Criteria
 
-1. WHEN the test suite runs with `AUTOMOJO_OVMF_TEST=1` THEN the system
+1. WHEN the test suite runs with `CCAI_OVMF_TEST=1` THEN the system
    SHALL boot an OVMF VM that advertises `BOOT_TO_FW_UI` support and
    drive the full round-trip.
 2. WHEN the integration test completes THEN the system SHALL assert

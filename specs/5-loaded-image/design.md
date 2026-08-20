@@ -28,7 +28,7 @@ The public surface is small:
 ## Architecture
 
 ```
-automojo.protocols.uefi.loadedimage/
+ccai.protocols.uefi.loadedimage/
     __init__.py              # re-exports public surface
     image.py                 # LoadedImage root parser
     headers.py               # CoffFileHeader, PeOptionalHeader, DataDirectoryEntry

@@ -4,7 +4,7 @@
 
 The Exceptions feature delivers a single module, `uefiexceptions.py`, that
 defines the UEFI-specific exception hierarchy layered atop the shared
-`automojo.errors.exceptions` module.  The design goals are:
+`ccai.errors.exceptions` module.  The design goals are:
 
 1. Every library error is catchable by `except UefiError`.
 2. Domain-specific context (command / status / stdout / stderr for shell
@@ -23,7 +23,7 @@ the shared module rather than redeclaring them.
 ## Architecture
 
 ```
-automojo.protocols.uefi.errors/
+ccai.protocols.uefi.errors/
     __init__.py           # re-exports public surface
     uefiexceptions.py     # UefiError + subclasses
 ```
@@ -31,8 +31,8 @@ automojo.protocols.uefi.errors/
 Dependency direction:
 
 ```
-uefiexceptions.py  ──▶  automojo.errors.exceptions   (shared root + ConfigurationError)
-                    ──▶  automojo.protocols.uefi.ueficonst.uefiguids  (typing only)
+uefiexceptions.py  ──▶  ccai.errors.exceptions   (shared root + ConfigurationError)
+                    ──▶  ccai.protocols.uefi.ueficonst.uefiguids  (typing only)
 ```
 
 This module is imported by nearly every other feature in the library but
@@ -46,10 +46,10 @@ imports almost nothing itself.
 import os
 from typing import Any, Optional
 
-from automojo.errors.exceptions import AutomojoError
+from ccai.errors.exceptions import CodeCraftAIError
 
 
-class UefiError(AutomojoError):
+class UefiError(CodeCraftAIError):
     """
         Root exception for every UEFI-specific error raised by this library.
 
@@ -273,7 +273,7 @@ contract in two ways:
 | `efi_status` on `UefiVariableError` not int and not None  | `TypeError`            | Raised from `__init__`.             |
 
 `SemanticError` is raised from higher-layer call sites directly using the
-shared `automojo.errors.exceptions.SemanticError` class — never caught by
+shared `ccai.errors.exceptions.SemanticError` class — never caught by
 this library, never subclassed here.
 
 ## Logging
@@ -331,7 +331,7 @@ typed-field omission bug.
 
 ## Dependencies on Other Features
 
-* Depends on the shared `automojo.errors.exceptions` module for the root
+* Depends on the shared `ccai.errors.exceptions` module for the root
   class and for `SemanticError` / `ConfigurationError`.
 * Depends on `uuid` from the standard library for the `UefiVariableError`
   `vendor_guid` type check.

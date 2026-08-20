@@ -10,7 +10,7 @@ credentials, default aspects, the host/transport-kind configuration, the
 a system-context argument by layer-5 capability modules.
 
 The class is a faithful port of `SshBase`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshbase.py`),
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshbase.py`),
 with three important extensions:
 
 1. **Five-pattern engine.**  The SSH base only supports three patterns
@@ -28,7 +28,7 @@ with three important extensions:
 ## Architecture
 
 ```
-automojo.protocols.uefi.base/
+ccai.protocols.uefi.base/
     __init__.py       # re-exports UefiBase
     uefibase.py       # the class
     runctx.py         # _RunContext dataclass for threading parameters
@@ -37,17 +37,17 @@ automojo.protocols.uefi.base/
 Dependency direction (nothing imports upward):
 
 ```
-uefibase.py ──▶ automojo.protocols.uefi.aspects
-            ──▶ automojo.protocols.uefi.client
-            ──▶ automojo.protocols.uefi.connection
-            ──▶ automojo.protocols.uefi.channel
-            ──▶ automojo.protocols.uefi.credentials
-            ──▶ automojo.protocols.uefi.exceptions
-            ──▶ automojo.protocols.uefi.interfaces
-            ──▶ automojo.protocols.uefi.logging
-            ──▶ automojo.waiting.waitmodel            # TimeoutContext
-            ──▶ automojo.xmodules.xlogging.monitoredscope  # MonitoredScope
-            ──▶ automojo.errors.exceptions            # AbstractMethodError, SemanticError, ConfigurationError
+uefibase.py ──▶ ccai.protocols.uefi.aspects
+            ──▶ ccai.protocols.uefi.client
+            ──▶ ccai.protocols.uefi.connection
+            ──▶ ccai.protocols.uefi.channel
+            ──▶ ccai.protocols.uefi.credentials
+            ──▶ ccai.protocols.uefi.exceptions
+            ──▶ ccai.protocols.uefi.interfaces
+            ──▶ ccai.protocols.uefi.logging
+            ──▶ ccai.waiting.waitmodel            # TimeoutContext
+            ──▶ ccai.xmodules.xlogging.monitoredscope  # MonitoredScope
+            ──▶ ccai.errors.exceptions            # AbstractMethodError, SemanticError, ConfigurationError
 ```
 
 ## Components and Interfaces

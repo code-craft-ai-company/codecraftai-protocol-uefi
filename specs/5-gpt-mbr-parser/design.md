@@ -21,7 +21,7 @@ appropriate — those sources are outside this feature's scope.
 ## Architecture
 
 ```
-automojo.protocols.uefi.gpt/
+ccai.protocols.uefi.gpt/
     __init__.py              # public re-exports
     partition_types.py       # named UUID constants (§5.3.3 Table 22)
     gpt_header.py            # GptHeader dataclass + from_bytes/build/to_bytes

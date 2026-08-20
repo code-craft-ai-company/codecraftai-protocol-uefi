@@ -1,7 +1,7 @@
 # Tasks — UefiConnection
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/connection/`.
+      `source/packages/ccai/protocols/uefi/connection/`.
   - [ ] 1.1 Add `__init__.py` that re-exports `UefiConnection` and
         `ConnectionEvent`.
   - [ ] 1.2 Add a module-level docstring summarizing lifecycle
@@ -100,7 +100,7 @@
 
 - [ ] 10. Coverage gate.
   - [ ] 10.1 Configure pytest-cov to require 95% line coverage across
-        `automojo.protocols.uefi.connection`.
+        `ccai.protocols.uefi.connection`.
   - [ ] 10.2 Add CI step that fails on drop.
   - References: Testing Strategy.
 

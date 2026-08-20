@@ -1,7 +1,7 @@
 # Tasks — ESP Content Sync Workflow
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/workflows/espsync/`.
+      `source/packages/ccai/protocols/uefi/workflows/espsync/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `EspContentSyncWorkflow`,
         `EspSyncReport`, `FileAction`, `FileActionRecord`, and the
         `esp_content_sync` convenience function.
@@ -102,12 +102,12 @@
   - [ ] 12.2 `test_ssh_host_sync.py` — against a real SSH-to-host target
         (gated by env var).
   - [ ] 12.3 `test_ovmf_sync.py` — against OVMF VM.
-  - [ ] 12.4 Gate OVMF test behind `AUTOMOJO_OVMF_TEST=1`.
+  - [ ] 12.4 Gate OVMF test behind `CCAI_OVMF_TEST=1`.
   - References: Requirement 11.
 
 - [ ] 13. Coverage gate.
   - [ ] 13.1 Configure pytest-cov to enforce 95%+ line coverage for
-        `automojo.protocols.uefi.workflows.espsync`.
+        `ccai.protocols.uefi.workflows.espsync`.
   - [ ] 13.2 CI step failing on drop.
   - References: Testing Strategy.
 

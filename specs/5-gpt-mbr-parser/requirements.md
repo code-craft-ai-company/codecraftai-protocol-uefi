@@ -262,7 +262,7 @@ implementation and the UEFI-spec test vector is tested once.
 #### Acceptance Criteria
 
 1. WHEN CRC-32 is computed THEN the system SHALL call
-   `automojo.protocols.uefi.helpers.crc32_uefi(buf)` — never the
+   `ccai.protocols.uefi.helpers.crc32_uefi(buf)` — never the
    stdlib `zlib.crc32` directly.
 2. IF the layer-1 helper is not importable at module load THEN the
    system SHALL raise `ImportError` eagerly rather than deferring to

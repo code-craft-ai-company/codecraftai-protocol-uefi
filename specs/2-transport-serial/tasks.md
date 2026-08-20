@@ -1,7 +1,7 @@
 # Tasks — Serial Transport
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/transport/serial/`.
+      `source/packages/ccai/protocols/uefi/transport/serial/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `UefiSerialTransport`.
   - [ ] 1.2 Add a module-level docstring summarizing the measured-interop
         contract and the supported endpoint schemes.

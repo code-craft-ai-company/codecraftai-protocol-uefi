@@ -16,7 +16,7 @@ report), and observability (every decision logged).
 ## Architecture
 
 ```
-automojo.protocols.uefi.workflows.espsync/
+ccai.protocols.uefi.workflows.espsync/
     __init__.py              # re-exports
     espcontentsync.py        # EspContentSyncWorkflow + convenience fn
     espsyncreport.py         # report + FileActionRecord + FileAction enum
@@ -270,7 +270,7 @@ Channel: `uefi.workflow.espsync`.
   a fake/simulated ESP.
 * `test_ssh_host_sync.py` — real files over SSH-to-host.
 * `test_ovmf_sync.py` — full OVMF-backed sync (gated by
-  `AUTOMOJO_OVMF_TEST=1`).
+  `CCAI_OVMF_TEST=1`).
 
 ### Action-pattern tests
 

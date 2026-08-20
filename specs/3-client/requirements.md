@@ -18,7 +18,7 @@ so misuse is loud.  Channels are short-lived; multiplexing requires explicit
 caller opt-in.
 
 This feature is the direct analog of `SshClient`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshclient.py`)
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshclient.py`)
 with extra subclass-level specialization to cover the three very different
 transports supported by this library.
 

@@ -1,7 +1,7 @@
 # Tasks — Device Path Codec
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/devicepath/`.
+      `source/packages/ccai/protocols/uefi/devicepath/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `DevicePath`,
         `DevicePathNode`, every concrete node class,
         `decode_binary`, `encode_binary`, `decode_text`,

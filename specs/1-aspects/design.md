@@ -9,8 +9,8 @@ helper on each class, and a `resolve_aspects` convenience.  The classes are
 constructed once and then frozen so they can safely be pinned as module-level
 constants and passed across threads.
 
-The design closely mirrors `automojo-protocol-ssh`'s `sshaspects.py`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshaspects.py`)
+The design closely mirrors `codecraftai-protocol-ssh`'s `sshaspects.py`
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshaspects.py`)
 so that callers familiar with the SSH library transfer their mental model
 without friction.  Differences from the SSH version are intentional and
 listed in the "Differences from SshAspects" section below.
@@ -18,7 +18,7 @@ listed in the "Differences from SshAspects" section below.
 ## Architecture
 
 ```
-automojo.protocols.uefi.aspects/
+ccai.protocols.uefi.aspects/
     __init__.py        # re-exports public surface
     freezable.py       # Freezable base class
     patterns.py        # ActionPattern, LoggingPattern enums

@@ -18,7 +18,7 @@ single transport requires explicit opt-in at client construction time
 
 The channel subclasses re-use buffering and prompt-detection logic already
 proven in `SshChannel`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshconnection.py`
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshconnection.py`
 lines 14–159) and the serial read-until primitives from `2-transport-serial`.
 
 ## Requirements

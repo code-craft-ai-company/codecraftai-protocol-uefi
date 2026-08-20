@@ -15,7 +15,7 @@ and layers a minimal telnet IAC-stripping adapter on top of `socket` for
 transport is the only place raw device bytes live before they become the
 output of `read_until` / `recv`.
 
-The design is modeled on `automojo-protocol-ssh`'s
+The design is modeled on `codecraftai-protocol-ssh`'s
 `sshconnection.SshConnection` pattern — the transport is responsible for
 *establishing* and *tearing down* the byte pipe, while all retry semantics are
 driven externally by the `aspects` object.  No decorator-based retry is used
@@ -24,7 +24,7 @@ driven externally by the `aspects` object.  No decorator-based retry is used
 ## Architecture
 
 ```
-automojo.protocols.uefi.transport.serial/
+ccai.protocols.uefi.transport.serial/
     __init__.py             # re-exports UefiSerialTransport
     serialtransport.py      # UefiSerialTransport (IUefiTransport)
     endpoints.py            # endpoint scheme parser + factory

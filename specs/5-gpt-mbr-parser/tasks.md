@@ -1,7 +1,7 @@
 # Tasks — GPT / MBR Parser
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/gpt/`.
+      `source/packages/ccai/protocols/uefi/gpt/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `GptHeader`,
         `GptPartitionEntry`, `GptPartitionArray`,
         `GptPartitionAttributes`, `ProtectiveMbr`,
@@ -10,7 +10,7 @@
   - [ ] 1.2 Add a module-level docstring citing UEFI §5 subsections
         and naming the layer-1 dependencies.
   - [ ] 1.3 Add a dedicated companion package
-        `source/packages/automojo/protocols/uefi/mbr/` for
+        `source/packages/ccai/protocols/uefi/mbr/` for
         `ProtectiveMbr` / `LegacyMbr` if the team prefers separation;
         otherwise keep them under `gpt/` with clear submodule naming.
   - References: Requirement 5, Requirement 11.
@@ -122,7 +122,7 @@
         `gpt_header.py` and `gpt_entry.py`; raise `ImportError` if
         absent.
   - [ ] 11.2 Add a test that `gpt_header.crc32_uefi is
-        automojo.protocols.uefi.helpers.crc32_uefi` (identity).
+        ccai.protocols.uefi.helpers.crc32_uefi` (identity).
   - [ ] 11.3 Add a test using the UEFI spec CRC-32 test vector to
         cross-check.
   - References: Requirement 11.

@@ -27,7 +27,7 @@ because parse is deterministic.
 ## Architecture
 
 ```
-automojo.protocols.uefi.devicepath/
+ccai.protocols.uefi.devicepath/
     __init__.py                   # public re-exports
     nodes/
         __init__.py

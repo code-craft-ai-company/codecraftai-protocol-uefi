@@ -1,7 +1,7 @@
 # Tasks — UefiChannel
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/channel/`.
+      `source/packages/ccai/protocols/uefi/channel/`.
   - [ ] 1.1 Add `__init__.py` that re-exports `UefiChannel`,
         `UefiShellChannel`, `UefiRedfishChannel`, `UefiHostOsChannel`.
   - [ ] 1.2 Add a module-level docstring summarizing the send/recv/
@@ -130,7 +130,7 @@
 
 - [ ] 12. Coverage gate.
   - [ ] 12.1 Configure pytest-cov for 95% line coverage across
-        `automojo.protocols.uefi.channel`.
+        `ccai.protocols.uefi.channel`.
   - [ ] 12.2 Add CI step that fails on drop.
   - References: Testing Strategy.
 

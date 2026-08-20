@@ -1,7 +1,7 @@
 # Tasks — Interfaces
 
 - [ ] 1. Create the package skeleton at
-      `source/packages/automojo/protocols/uefi/interfaces/`.
+      `source/packages/ccai/protocols/uefi/interfaces/`.
   - [ ] 1.1 Add `__init__.py` that re-exports every protocol class and
         the `IMPLEMENTOR_COMPLIANCE_REGISTRY`.
   - [ ] 1.2 Populate `__all__`.
@@ -44,7 +44,7 @@
 
 - [ ] 6. Author `IUefiSystemContext`.
   - [ ] 6.1 Import `ISystemContext` from the shared
-        `automojo.interop.isystemcontext` module.
+        `ccai.interop.isystemcontext` module.
   - [ ] 6.2 Declare `IUefiSystemContext(ISystemContext, Protocol)` and
         decorate with `@runtime_checkable`.
   - [ ] 6.3 Declare the `firmware_vendor`, `firmware_revision`, and
@@ -91,7 +91,7 @@
 
 - [ ] 11. Coverage gate.
   - [ ] 11.1 Enforce 100% line coverage for
-        `automojo.protocols.uefi.interfaces`.
+        `ccai.protocols.uefi.interfaces`.
   - [ ] 11.2 Add a CI step that fails on any coverage regression.
   - References: Testing Strategy.
 

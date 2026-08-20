@@ -1,7 +1,7 @@
 # Tasks — Capsule Update Workflow
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/workflows/capsuleupdate/`.
+      `source/packages/ccai/protocols/uefi/workflows/capsuleupdate/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `CapsuleUpdateWorkflow`,
         `CapsuleUpdateReport`, and the `capsule_update_workflow`
         convenience function.
@@ -103,8 +103,8 @@
         failure.
   - [ ] 10.4 `test_ovmf_capsule_update_dry_run.py` — dry-run returns
         without flashing.
-  - [ ] 10.5 Gate behind `AUTOMOJO_OVMF_TEST=1` and
-        `AUTOMOJO_CAPSULE_FIXTURE`.
+  - [ ] 10.5 Gate behind `CCAI_OVMF_TEST=1` and
+        `CCAI_CAPSULE_FIXTURE`.
   - References: Requirement 11.
 
 - [ ] 11. Report-shape tests.
@@ -115,7 +115,7 @@
 
 - [ ] 12. Coverage gate.
   - [ ] 12.1 Configure pytest-cov to enforce 95%+ line coverage for
-        `automojo.protocols.uefi.workflows.capsuleupdate`.
+        `ccai.protocols.uefi.workflows.capsuleupdate`.
   - [ ] 12.2 Add a CI step failing on drop.
   - References: Testing Strategy.
 

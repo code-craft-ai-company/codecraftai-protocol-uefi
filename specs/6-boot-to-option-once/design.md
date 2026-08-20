@@ -18,7 +18,7 @@ observations of all four boot-related variables.
 ## Architecture
 
 ```
-automojo.protocols.uefi.workflows.boottooptiononce/
+ccai.protocols.uefi.workflows.boottooptiononce/
     __init__.py              # re-exports
     boottooptiononce.py      # workflow class + convenience fn
     boottooptiononcereport.py# report dataclass
@@ -196,7 +196,7 @@ Channel: `uefi.workflow.bootnext`.
 * OVMF with a simulated noncompliant firmware that leaves `BootNext`
   set — §3.1.5-violation path (can be simulated by clearing and
   re-setting BootNext in a test hook).
-* Gated by `AUTOMOJO_OVMF_TEST=1`.
+* Gated by `CCAI_OVMF_TEST=1`.
 
 ### Action-pattern tests
 

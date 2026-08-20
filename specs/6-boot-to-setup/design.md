@@ -20,7 +20,7 @@ disrupted.
 ## Architecture
 
 ```
-automojo.protocols.uefi.workflows.boottosetup/
+ccai.protocols.uefi.workflows.boottosetup/
     __init__.py              # re-exports
     boottosetupworkflow.py   # workflow class + convenience fn
     boottosetupreport.py     # report dataclass
@@ -240,7 +240,7 @@ Channel: `uefi.workflow.boottosetup`.
 * OVMF without `BOOT_TO_FW_UI` — capability failure path.
 * HII navigator smoke — read the root form, assert at least one menu
   item visible.
-* Gated by `AUTOMOJO_OVMF_TEST=1`.
+* Gated by `CCAI_OVMF_TEST=1`.
 
 ### Action-pattern tests
 

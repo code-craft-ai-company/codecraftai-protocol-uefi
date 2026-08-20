@@ -19,7 +19,7 @@ can validate their scaffolding without flashing firmware.
 ## Architecture
 
 ```
-automojo.protocols.uefi.workflows.capsuleupdate/
+ccai.protocols.uefi.workflows.capsuleupdate/
     __init__.py                 # re-exports
     capsuleupdateworkflow.py    # CapsuleUpdateWorkflow + convenience fn
     capsuleupdatereport.py      # CapsuleUpdateReport dataclass
@@ -258,8 +258,8 @@ run against production targets for staging validation.
 
 ### Integration tests
 
-* OVMF with test-signed capsule (gated by `AUTOMOJO_OVMF_TEST=1` and
-  `AUTOMOJO_CAPSULE_FIXTURE`).
+* OVMF with test-signed capsule (gated by `CCAI_OVMF_TEST=1` and
+  `CCAI_CAPSULE_FIXTURE`).
 * OVMF without ESRT — assert `UefiCapsuleError` at preflight.
 * OVMF with malformed capsule — assert `UefiCapsuleError` at preflight.
 

@@ -1,9 +1,9 @@
-# automojo-uefi — Feature Specification Plan
+# codecraftai-protocol-uefi — Feature Specification Plan
 
 ## Purpose
 
 This document is the authoritative index of features to be implemented in the
-`automojo-uefi` interop library.  It organizes those features into six layers of the
+`codecraftai-protocol-uefi` interop library.  It organizes those features into six layers of the
 software stack and, for each feature, sketches the content that will later be expanded
 into a Kiro-style spec folder.
 
@@ -29,7 +29,7 @@ the starting point for authoring the per-feature specifications.
 
 Every layer-3 (client), layer-4 (base / agent / session), layer-5 (domain), and
 layer-6 (workflow) feature in this library **must** honor the *measured interop*
-pattern established by `automojo-protocol-ssh`.  The pattern is:
+pattern established by `codecraftai-protocol-ssh`.  The pattern is:
 
 1. **Behavior is packaged, not decorated.**  Retry, timeout, logging, and
    connection behavior is carried by a `Freezable` `UefiAspects` (or
@@ -153,7 +153,7 @@ every higher layer uses.
 **Description.** The `UefiAspects` and `UefiCmdAspects` `Freezable` behavior-package
 classes, plus the `ActionPattern` and `LoggingPattern` enums and the module-level
 `DEFAULT_ASPECTS` / `DEFAULT_CMD_ASPECTS` / `UNDER_CONSTRUCTION_ASPECTS` constants.
-Mirrors `automojo-protocol-ssh`'s `sshaspects.py` almost exactly but parameterized
+Mirrors `codecraftai-protocol-ssh`'s `sshaspects.py` almost exactly but parameterized
 for UEFI command semantics (no `pty_params`, additional `prompt_pattern`,
 `response_encoding`, and `transport_kind` fields).
 
@@ -223,7 +223,7 @@ registry of well-known UEFI GUIDs (`EFI_GLOBAL_VARIABLE_GUID`,
 ## 1-exceptions
 
 **Description.** UEFI-specific exception hierarchy layered on top of the shared
-`automojo.errors.exceptions` module.  Provides `UefiError`, `UefiShellError`,
+`ccai.errors.exceptions` module.  Provides `UefiError`, `UefiShellError`,
 `UefiVariableError`, `UefiCapsuleError`, `UefiSecureBootError`,
 `UefiTransportError`, and `UefiProtocolError`.
 
@@ -256,7 +256,7 @@ registry of well-known UEFI GUIDs (`EFI_GLOBAL_VARIABLE_GUID`,
 that gates the shell), `UefiRedfishCredential` (URL base, username, password or
 token, CA-bundle, TLS-verify flag), and `UefiIpmiCredential` (host, user,
 password, interface).  The SSH-to-host transport reuses the existing
-`automojo.credentials.sshcredential.SshCredential`.
+`ccai.credentials.sshcredential.SshCredential`.
 
 **Key Requirements.**
 - Each credential class shall provide a `validate()` method that raises
@@ -302,9 +302,9 @@ wrapper), `MonitoredScope` (re-export or thin wrapper), `indent_lines`.
 
 ## 1-logging
 
-**Description.** Thin integration layer with `automojo.xmodules.xlogging` that
+**Description.** Thin integration layer with `ccai.xmodules.xlogging` that
 provides `get_uefi_logger()` and the `LoggingPattern`-driven result templates
-used by layer 4.  Mirrors `automojo-protocol-ssh`'s logging integration but with
+used by layer 4.  Mirrors `codecraftai-protocol-ssh`'s logging integration but with
 UEFI-specific channel names (`uefi.shell`, `uefi.variable`, `uefi.capsule`,
 `uefi.transport`).
 
@@ -412,7 +412,7 @@ out-of-band management controller.  Supports UEFI variable access via the
 
 ## 2-transport-ssh-host
 
-**Description.** Transport that reuses `automojo-protocol-ssh` to reach a
+**Description.** Transport that reuses `codecraftai-protocol-ssh` to reach a
 *booted* operating system on the target and run OS-resident UEFI tooling
 (`efibootmgr`, `efivar`, `efivar-tests`, `fwupdmgr`,
 `chattr /sys/firmware/efi/efivars/...`).  This transport cannot be used pre-boot
@@ -463,7 +463,7 @@ the serial transport.
 **Key Tasks.**
 - [ ] Author `uefiipmisoltransport.py`.
 - [ ] Mocked `ipmitool` subprocess tests.
-- [ ] Integration test gated by `AUTOMOJO_IPMI_HOST` env var.
+- [ ] Integration test gated by `CCAI_IPMI_HOST` env var.
 
 ---
 
@@ -666,7 +666,7 @@ spec).
 
 **Key Design Points.**
 - One module per command family: `shellmap.py`, `shellbcfg.py`,
-  `shellsetvar.py`, etc., all under `packages/automojo/protocols/uefi/shell/`.
+  `shellsetvar.py`, etc., all under `packages/ccai/protocols/uefi/shell/`.
 - Regex parsers are compiled at module-import time and tested against a
   fixtures corpus of captured real-world shell output.
 

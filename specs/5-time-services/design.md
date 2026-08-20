@@ -19,7 +19,7 @@ edge.
 ## Architecture
 
 ```
-automojo.protocols.uefi.time/
+ccai.protocols.uefi.time/
     __init__.py           # re-exports TimeServices
     timeservices.py       # TimeServices facade
     shellbackend.py       # Shell `time` command backend

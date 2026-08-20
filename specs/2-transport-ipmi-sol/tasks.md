@@ -1,7 +1,7 @@
 # Tasks — IPMI-SOL Transport
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/transport/ipmisol/`.
+      `source/packages/ccai/protocols/uefi/transport/ipmisol/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `UefiIpmiSolTransport`.
   - [ ] 1.2 Add a module-level docstring naming the composition
         relationship with `2-transport-serial` and the pre-boot capability.
@@ -78,7 +78,7 @@
 
 - [ ] 8. Wire up line-ending normalization via the serial transport.
   - [ ] 8.1 Import `normalize(mode)` from
-        `automojo.protocols.uefi.transport.serial`.
+        `ccai.protocols.uefi.transport.serial`.
   - [ ] 8.2 Apply to inbound bytes only; outbound is literal.
   - [ ] 8.3 Reuse `2-transport-serial`'s normalization tests as a shared
         fixture.
@@ -103,7 +103,7 @@
   - References: Requirement 10.
 
 - [ ] 11. Integration tests.
-  - [ ] 11.1 Gate under `AUTOMOJO_IPMI_HOST` env var.
+  - [ ] 11.1 Gate under `CCAI_IPMI_HOST` env var.
   - [ ] 11.2 Round-trip: activate → send `\r\n` → read prompt →
         deactivate.
   - [ ] 11.3 Eviction race: spawn two transports; second with

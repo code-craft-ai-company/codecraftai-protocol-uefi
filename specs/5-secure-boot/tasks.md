@@ -1,7 +1,7 @@
 # Tasks — Secure Boot
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/secureboot/`.
+      `source/packages/ccai/protocols/uefi/secureboot/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `SecureBootInspector`,
         `SecureBootEnroller`, `SecureBootState`, `Signature`,
         `SignatureType`, `SignatureListCodec`, `AuditLogger`.

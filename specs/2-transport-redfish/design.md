@@ -23,7 +23,7 @@ decorator-based retry is used (per the coding standards in
 ## Architecture
 
 ```
-automojo.protocols.uefi.transport.redfish/
+ccai.protocols.uefi.transport.redfish/
     __init__.py            # re-exports UefiRedfishTransport, RedfishResponse
     redfishtransport.py    # UefiRedfishTransport (IUefiTransport)
     auth.py                # BasicAuth, SessionAuth, token lifecycle

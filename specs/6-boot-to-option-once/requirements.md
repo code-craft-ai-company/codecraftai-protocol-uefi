@@ -207,7 +207,7 @@ option.
 
 #### Acceptance Criteria
 
-1. WHEN the test suite runs with `AUTOMOJO_OVMF_TEST=1` THEN the system
+1. WHEN the test suite runs with `CCAI_OVMF_TEST=1` THEN the system
    SHALL boot an OVMF VM that has a known UEFI Shell `Boot####` entry
    and drive the workflow against that option.
 2. WHEN the integration test completes THEN the system SHALL assert

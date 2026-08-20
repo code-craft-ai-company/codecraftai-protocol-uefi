@@ -24,7 +24,7 @@ where the codec is not available (the raw bytes are always exposed).
 ## Architecture
 
 ```
-automojo.protocols.uefi.bootmanager/
+ccai.protocols.uefi.bootmanager/
     __init__.py        # re-exports public surface
     attributes.py      # LoadOptionAttributes IntFlag
     load_option.py     # BootOption dataclass + decode/encode + factories

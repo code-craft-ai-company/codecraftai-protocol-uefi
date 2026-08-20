@@ -1,7 +1,7 @@
 # Tasks — Shell Commands
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/shell/`.
+      `source/packages/ccai/protocols/uefi/shell/`.
   - [ ] 1.1 Add `__init__.py` that re-exports every wrapper function,
         every result dataclass, and the `BcfgTarget`, `ResetKind`,
         `MemoryType`, and `FileAttribute` enums.

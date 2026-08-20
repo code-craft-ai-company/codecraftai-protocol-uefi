@@ -1,7 +1,7 @@
 # Tasks — System Reset
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/reset/`.
+      `source/packages/ccai/protocols/uefi/reset/`.
   - [ ] 1.1 Add `__init__.py` exporting `SystemReset`, `ResetKind`,
         `ResetFailedError`.
   - [ ] 1.2 Module docstring summarizing UEFI §8.5.1 scope and the
@@ -125,7 +125,7 @@
         `aspects.completion_timeout`.
   - [ ] 13.2 Shutdown an OVMF VM; verify IPMI / QEMU agent confirms
         power off.
-  - [ ] 13.3 Gate on `AUTOMOJO_UEFI_OVMF_VM` env var.
+  - [ ] 13.3 Gate on `CCAI_UEFI_OVMF_VM` env var.
   - References: Requirement 2, Requirement 4, Requirement 6.
 
 - [ ] 14. Documentation.

@@ -5,7 +5,7 @@
 System Reset issues UEFI-spec-defined resets (UEFI §8.5.1) and blocks
 until the target is verified responsive.  The design is a direct port of
 the `SshAgent.reboot()` pattern
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshagent.py:132-185`):
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshagent.py:132-185`):
 issue the reset, sleep a bounded "tearing down" window, poll
 `verify_connectivity()` until success or timeout, raise on elapse.
 
@@ -19,7 +19,7 @@ Platform-specific reset subtypes pack a GUID plus opaque data per UEFI
 ## Architecture
 
 ```
-automojo.protocols.uefi.reset/
+ccai.protocols.uefi.reset/
     __init__.py           # re-exports SystemReset, ResetKind, ResetFailedError
     resetkind.py          # ResetKind enum
     errors.py             # ResetFailedError
@@ -353,11 +353,11 @@ Exact algorithm, modeled on `SshAgent.reboot()`:
    a. Increment `attempt_count`.
    b. Call `agent.verify_connectivity(aspects=aspects)`.
       * Verification command per transport:
-        * `serial` / `ipmi-sol`: UEFI Shell `echo AUTOMOJO_VERIFY` then
+        * `serial` / `ipmi-sol`: UEFI Shell `echo CCAI_VERIFY` then
           match prompt pattern within `aspects.connection_timeout`.
         * `redfish`: `GET /redfish/v1/Systems/{id}` returns 200 with a
           `PowerState == "On"` body.
-        * `ssh-host`: SSH connect + `echo AUTOMOJO_VERIFY` matching
+        * `ssh-host`: SSH connect + `echo CCAI_VERIFY` matching
           output, mirroring `SshAgent.verify_connectivity`.
       * Return `True` on success.
    c. If success → log success, return.
@@ -489,7 +489,7 @@ transport-specific issue modules.
 * 2-transport-redfish — `ComputerSystem.Reset` POST + task polling.
 * 2-transport-ssh-host — OS-mediated reset + capability probe.
 * 4-agent — owns `verify_connectivity()`; modeled on `SshAgent.reboot()`
-  at `/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshagent.py:132-185`.
+  at `/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshagent.py:132-185`.
 
 Downstream workflow features (`6-reboot-and-verify`,
 `6-capsule-update-workflow`, `6-boot-to-setup`, `6-boot-to-option-once`)

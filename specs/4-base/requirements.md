@@ -6,11 +6,11 @@
 `UefiAgent` and `UefiSession`.  It owns the credentials, default aspects,
 host / transport configuration, and the library's generic action-pattern
 engine.  It is the direct analog of `SshBase`
-(`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshbase.py`)
+(`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshbase.py`)
 and must implement every one of the five `ActionPattern` values declared
 by `1-aspects`, wrap every inner call in a `MonitoredScope`, and drive
 retry loops with a `TimeoutContext` from
-`automojo.waiting.waitmodel.TimeoutContext`.
+`ccai.waiting.waitmodel.TimeoutContext`.
 
 `UefiBase` additionally implements `IUefiSystemContext`, the library's
 UEFI-flavored extension of the shared `ISystemContext` interface.  This

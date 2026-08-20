@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "automojo-protocols.uefi"
-description = "Automation Mojo - UEFI Protocol Interop Library"
+name = "codecraftai-protocol-uefi"
+description = "Code Craft AI - UEFI Protocol Interop Library"
 version = "0.0.1"
-authors = []
+authors = ["Myron Walker <myron.walker@gmail.com>"]
 readme = "README.rst"
-license = "LICENSE.txt"
+license = "LicenseRef-CodeCraftAI-Dual-License"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Operating System :: POSIX"
 ]
 keywords = [
@@ -17,22 +17,22 @@ keywords = [
     "interop",
     "automation"
 ]
-packages = [{include="automojo", from="source/packages"}]
+packages = [{include="ccai", from="source/packages"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
 cryptography = "^46.0.5"
 pyserial = "^3.5"
 requests = "^2.32.0"
-automojo-errors = { git = "https://github.com/automationmojo/automojo-errors.git", branch = "main" }
-automojo-credentials = { git = "https://github.com/automationmojo/automojo-credentials.git", branch = "main" }
-automojo-xmodules = { git = "https://github.com/automationmojo/automojo-xmodules.git", branch = "main" }
-# automojo-protocols-ssh is an OPTIONAL runtime dependency used only by the
-# UefiSshHostTransport; it has a transitive dep on automojo-interop that
+codecraftai-errors = { git = "https://github.com/code-craft-ai-company/codecraftai-errors.git", branch = "main" }
+codecraftai-credentials = { git = "https://github.com/code-craft-ai-company/codecraftai-credentials.git", branch = "main" }
+codecraftai-xmodules = { git = "https://github.com/code-craft-ai-company/codecraftai-xmodules.git", branch = "main" }
+# codecraftai-protocol-ssh is an OPTIONAL runtime dependency used only by the
+# UefiSshHostTransport; it has a transitive dep on codecraftai-interop that
 # conflicts with cryptography pinning in this project. When absent,
 # UefiSshHostTransport construction raises ConfigurationError. Install
 # separately in downstream projects that need the ssh-host transport:
-#   pip install automojo-protocols-ssh automojo-interop
+#   pip install codecraftai-protocol-ssh codecraftai-interop
 
 [tool.poetry.group.dev.dependencies]
 

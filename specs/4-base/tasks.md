@@ -1,7 +1,7 @@
 # Tasks — UefiBase
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/base/`.
+      `source/packages/ccai/protocols/uefi/base/`.
   - [ ] 1.1 Add `__init__.py` that re-exports `UefiBase` and
         `default_client_factory`.
   - [ ] 1.2 Add a module-level docstring summarizing the five-pattern

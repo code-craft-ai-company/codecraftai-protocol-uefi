@@ -1,7 +1,7 @@
 # Tasks — Loaded Image
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/loadedimage/`.
+      `source/packages/ccai/protocols/uefi/loadedimage/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `LoadedImage`,
         `CoffFileHeader`, `PeOptionalHeader`, `DataDirectoryEntry`,
         `CoffSection`, `AttributeCertificate`, `Machine`, `Subsystem`,

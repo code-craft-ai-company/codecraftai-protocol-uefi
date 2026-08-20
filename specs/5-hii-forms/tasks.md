@@ -1,7 +1,7 @@
 # Tasks — HII Forms Navigation
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/hii/`.
+      `source/packages/ccai/protocols/uefi/hii/`.
   - [ ] 1.1 Add `__init__.py` exporting `HiiFormNavigator`,
         `ScreenShape`, `HiiFormItem`, `Screen`.
   - [ ] 1.2 Add module docstring stating the screen-scrape-only
@@ -114,7 +114,7 @@
 - [ ] 14. OVMF integration test.
   - [ ] 14.1 Enter Setup, toggle a boolean, save, reboot, verify
         persistence.
-  - [ ] 14.2 Gate on `AUTOMOJO_UEFI_OVMF_VM` env var.
+  - [ ] 14.2 Gate on `CCAI_UEFI_OVMF_VM` env var.
   - References: Requirement 4, Requirement 7.
 
 - [ ] 15. Documentation.

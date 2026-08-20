@@ -1,7 +1,7 @@
 # Tasks — Reboot and Verify Workflow
 
 - [ ] 1. Create package skeleton at
-      `source/packages/automojo/protocols/uefi/workflows/rebootverify/`.
+      `source/packages/ccai/protocols/uefi/workflows/rebootverify/`.
   - [ ] 1.1 Add `__init__.py` re-exporting `RebootAndVerifyWorkflow`,
         `RebootAndVerifyReport`, and the `reboot_and_verify` convenience
         function.
@@ -78,7 +78,7 @@
         `shell_verified` and `state_replayed` are `True`.
   - [ ] 10.3 `test_ovmf_warm_reset.py`.
   - [ ] 10.4 `test_ovmf_shutdown.py`.
-  - [ ] 10.5 Gate integration tests behind `AUTOMOJO_OVMF_TEST=1`.
+  - [ ] 10.5 Gate integration tests behind `CCAI_OVMF_TEST=1`.
   - References: Requirement 9.
 
 - [ ] 11. Report-shape tests.
@@ -89,7 +89,7 @@
 
 - [ ] 12. Coverage gate.
   - [ ] 12.1 Configure pytest-cov to enforce 95%+ line coverage for
-        `automojo.protocols.uefi.workflows.rebootverify`.
+        `ccai.protocols.uefi.workflows.rebootverify`.
   - [ ] 12.2 Add a CI step failing on drop.
   - References: Testing Strategy.
 

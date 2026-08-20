@@ -13,7 +13,7 @@ action over Redfish.
 
 Every reset call is followed by a reconnect-verify loop modeled directly
 on `SshAgent.reboot()` at
-`/Users/myron/repos/automojo-protocol-ssh/source/packages/automojo/protocols/ssh/sshagent.py:132-185`.
+`/Users/myron/repos/codecraftai-protocol-ssh/source/packages/ccai/protocols/ssh/sshagent.py:132-185`.
 The loop consumes `aspects.completion_timeout`,
 `aspects.completion_interval`, and `aspects.connection_interval`, and uses
 the agent's `verify_connectivity()` primitive as the verification command.
