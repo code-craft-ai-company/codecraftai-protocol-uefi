@@ -32,7 +32,16 @@ import time
 
 from typing import Any, BinaryIO, Dict, Optional, Tuple
 
-import requests
+try:
+    import requests
+except ImportError:
+    # 'requests' is an optional extra.  We soft-import so that merely
+    # importing this module does not fail in installs that do not use the
+    # Redfish transport.  Construction of :class:`UefiRedfishTransport`
+    # raises :class:`ConfigurationError` when 'requests' is not available.
+    # Annotations naming 'requests' are quoted so that they are not
+    # evaluated while the module is being imported.
+    requests = None  # type: ignore[assignment]
 
 from ccai.errors.exceptions import ConfigurationError, SemanticError
 
@@ -119,6 +128,15 @@ class UefiRedfishTransport:
 
             :raises: ConfigurationError
         """
+        if requests is None:
+            err_msg_lines = [
+                "UefiRedfishTransport requires the 'requests' package.",
+                "Install the 'redfish' extra to use this transport:",
+                "    pip install codecraftai-protocol-uefi[redfish]",
+            ]
+            err_msg = os.linesep.join(err_msg_lines)
+            raise ConfigurationError(err_msg) from None
+
         if not isinstance(credential, UefiRedfishCredential):
             err_msg_lines = [
                 "'credential' must be a UefiRedfishCredential instance.",
@@ -142,7 +160,7 @@ class UefiRedfishTransport:
         self._verify: Any = self._resolve_verify_setting(credential=credential)
 
         # Runtime-owned resources
-        self._session: Optional[requests.Session] = None
+        self._session: "Optional[requests.Session]" = None
         self._connected: bool = False
 
         # Authentication state
@@ -767,7 +785,7 @@ class UefiRedfishTransport:
 
     def _send_once(self, method: str, url: str,
                          body: Optional[Dict[str, Any]],
-                         files: Optional[Dict[str, Any]]) -> requests.Response:
+                         files: Optional[Dict[str, Any]]) -> "requests.Response":
         """
             Emit a single HTTP request with all mandatory headers attached.
             GET requests include ``If-None-Match`` when a cached ETag is
@@ -938,7 +956,7 @@ class UefiRedfishTransport:
         # Unreachable; present for static analyzers.
         return {}
 
-    def _decode_json_body(self, response: requests.Response) -> Dict[str, Any]:
+    def _decode_json_body(self, response: "requests.Response") -> Dict[str, Any]:
         """
             Decode a JSON response body, tolerating empty / non-JSON bodies
             by returning an empty dict.
@@ -961,7 +979,7 @@ class UefiRedfishTransport:
 
         return rtnval
 
-    def _safe_body_excerpt(self, response: requests.Response) -> str:
+    def _safe_body_excerpt(self, response: "requests.Response") -> str:
         """
             Render a short printable excerpt of a failing response body for
             inclusion in exception ``details``.
@@ -1004,7 +1022,7 @@ class UefiRedfishTransport:
         rtnval = self._etag_cache[url]
         return rtnval
 
-    def _record_etag(self, url: str, response: requests.Response) -> None:
+    def _record_etag(self, url: str, response: "requests.Response") -> None:
         """
             Cache the response body keyed by URL if the response carried an
             ``ETag`` header.  Enforces the LRU cap.

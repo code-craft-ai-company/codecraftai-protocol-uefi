@@ -44,7 +44,9 @@ Mirrors the `codecraftai-protocol-ssh` layout; every feature below rides on thes
 
 ## Transports
 * Serial-console transport with PTY-style prompt matching against the UEFI Shell.
+  Requires the `serial` extra (`pyserial`).
 * Redfish / REST-over-HTTPS transport for BMC-managed systems (UEFI spec §29.7).
+  Requires the `redfish` extra (`requests`).
 * SSH-to-host transport (depends on `codecraftai-protocol-ssh`) for OS-resident UEFI tooling such as
   `efibootmgr`, `efivar`, `fwupd`, and `/sys/firmware/efi/*`.
 * IPMI / Serial-Over-LAN transport for out-of-band console redirection.

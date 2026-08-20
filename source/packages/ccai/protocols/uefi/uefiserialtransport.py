@@ -28,9 +28,16 @@ import time
 from typing import Callable, Optional, Tuple, Union
 from urllib.parse import urlparse
 
-import serial
-
-from serial import Serial, SerialException
+try:
+    from serial import Serial, SerialException
+except ImportError:
+    # 'pyserial' is an optional extra.  We soft-import so that merely
+    # importing this module does not fail in installs that do not use the
+    # serial-console transport.  Construction of
+    # :class:`UefiSerialTransport` raises :class:`ConfigurationError` when
+    # 'pyserial' is not available.
+    Serial = None  # type: ignore[assignment,misc]
+    SerialException = None  # type: ignore[assignment,misc]
 
 from ccai.protocols.uefi.uefiaspects import (
     DEFAULT_CMD_ASPECTS,
@@ -374,6 +381,15 @@ class UefiSerialTransport:
 
             :raises: ConfigurationError
         """
+        if Serial is None:
+            err_msg_lines = [
+                "UefiSerialTransport requires the 'pyserial' package.",
+                "Install the 'serial' extra to use this transport:",
+                "    pip install codecraftai-protocol-uefi[serial]",
+            ]
+            err_msg = os.linesep.join(err_msg_lines)
+            raise ConfigurationError(err_msg) from None
+
         if not isinstance(credential, UefiSerialCredential):
             err_msg_lines = [
                 "UefiSerialTransport requires a UefiSerialCredential.",

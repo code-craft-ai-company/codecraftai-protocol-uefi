@@ -21,18 +21,34 @@ packages = [{include="ccai", from="source/packages"}]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
-cryptography = "^46.0.5"
-pyserial = "^3.5"
-requests = "^2.32.0"
 codecraftai-errors = { git = "https://github.com/code-craft-ai-company/codecraftai-errors.git", branch = "main" }
 codecraftai-credentials = { git = "https://github.com/code-craft-ai-company/codecraftai-credentials.git", branch = "main" }
 codecraftai-xmodules = { git = "https://github.com/code-craft-ai-company/codecraftai-xmodules.git", branch = "main" }
+
+# Each third-party package below is used by exactly one feature, so each is
+# an extra rather than a base dependency.  The transport modules soft-import
+# them and raise ConfigurationError at construction when the extra is absent,
+# which is the same pattern UefiSshHostTransport already uses.
+#   pyserial  -> uefiserialtransport   (the serial-console transport)
+#   requests  -> uefiredfishtransport  (the Redfish / REST-over-HTTPS transport)
+# 'cryptography' is NOT imported anywhere in this package.  The signing APIs
+# in uefisecureboot and uefivariables accept caller-constructed private-key
+# and X.509 certificate objects, so it is the caller that needs it; the
+# 'signing' extra exists to make that obligation installable.
+pyserial = { version = "^3.5", optional = true }
+requests = { version = "^2.32.0", optional = true }
+cryptography = { version = "^46.0.5", optional = true }
+
 # codecraftai-protocol-ssh is an OPTIONAL runtime dependency used only by the
-# UefiSshHostTransport; it has a transitive dep on codecraftai-interop that
-# conflicts with cryptography pinning in this project. When absent,
-# UefiSshHostTransport construction raises ConfigurationError. Install
+# UefiSshHostTransport; it has a transitive dep on codecraftai-interop. When
+# absent, UefiSshHostTransport construction raises ConfigurationError. Install
 # separately in downstream projects that need the ssh-host transport:
 #   pip install codecraftai-protocol-ssh codecraftai-interop
+
+[tool.poetry.extras]
+serial = ["pyserial"]
+redfish = ["requests"]
+signing = ["cryptography"]
 
 [tool.poetry.group.dev.dependencies]
 
