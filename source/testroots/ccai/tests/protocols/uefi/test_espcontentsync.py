@@ -18,9 +18,12 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+import atexit
+
+from ccai import testbase
+
 import hashlib
 import os
-import unittest
 
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -253,91 +256,94 @@ class _FakeEspFileProvider:
 # ---------------------------------------------------------------------------
 
 
-class TestHelperFunctions(unittest.TestCase):
-    """
-        Exercises the module-level helpers (``_sha256_of_bytes``,
-        ``_matches_any``, ``_normalize_relative_posix``,
-        ``_flatten_remote_tree``).
-    """
+# ----------------------------------------------------------------------
+# TestHelperFunctions
+# ----------------------------------------------------------------------
 
-    def test_sha256_of_bytes_stable(self) -> None:
-        """Hash digests are stable across calls."""
-        digest_a = _sha256_of_bytes(data=b"hello")
-        digest_b = _sha256_of_bytes(data=b"hello")
-        self.assertEqual(digest_a, digest_b)
-        expected = hashlib.sha256(b"hello").hexdigest()
-        self.assertEqual(digest_a, expected)
-        return
+"""
+    Exercises the module-level helpers (``_sha256_of_bytes``,
+    ``_matches_any``, ``_normalize_relative_posix``,
+    ``_flatten_remote_tree``).
+"""
 
-    def test_matches_any_true(self) -> None:
-        """A glob match returns True."""
-        rtnval = _matches_any(
-            rel_posix="foo/bar.efi",
-            patterns=["*.efi", "*.txt"],
-        )
-        self.assertTrue(rtnval)
-        return
+def test_sha256_of_bytes_stable() -> None:
+    """Hash digests are stable across calls."""
+    digest_a = _sha256_of_bytes(data=b"hello")
+    digest_b = _sha256_of_bytes(data=b"hello")
+    testbase.assert_equal(digest_a, digest_b)
+    expected = hashlib.sha256(b"hello").hexdigest()
+    testbase.assert_equal(digest_a, expected)
+    return
 
-    def test_matches_any_false(self) -> None:
-        """No glob match returns False."""
-        rtnval = _matches_any(
-            rel_posix="foo/bar.bin",
-            patterns=["*.efi", "*.txt"],
-        )
-        self.assertFalse(rtnval)
-        return
+def test_matches_any_true() -> None:
+    """A glob match returns True."""
+    rtnval = _matches_any(
+        rel_posix="foo/bar.efi",
+        patterns=["*.efi", "*.txt"],
+    )
+    testbase.assert_true(rtnval)
+    return
 
-    def test_matches_any_empty(self) -> None:
-        """An empty pattern list returns False."""
-        rtnval = _matches_any(rel_posix="foo", patterns=[])
-        self.assertFalse(rtnval)
-        return
+def test_matches_any_false() -> None:
+    """No glob match returns False."""
+    rtnval = _matches_any(
+        rel_posix="foo/bar.bin",
+        patterns=["*.efi", "*.txt"],
+    )
+    testbase.assert_false(rtnval)
+    return
 
-    def test_normalize_relative_posix_flips_backslashes(self) -> None:
-        """Back-slashes are flipped and leading/trailing separators removed."""
-        rtnval = _normalize_relative_posix(rel_path="\\EFI\\BOOT\\foo.efi")
-        self.assertEqual(rtnval, "EFI/BOOT/foo.efi")
-        return
+def test_matches_any_empty() -> None:
+    """An empty pattern list returns False."""
+    rtnval = _matches_any(rel_posix="foo", patterns=[])
+    testbase.assert_false(rtnval)
+    return
 
-    def test_normalize_relative_posix_none_raises(self) -> None:
-        """A ``None`` value raises :class:`UefiError`."""
-        with self.assertRaises(UefiError):
-            _normalize_relative_posix(rel_path=None)
-        return
+def test_normalize_relative_posix_flips_backslashes() -> None:
+    """Back-slashes are flipped and leading/trailing separators removed."""
+    rtnval = _normalize_relative_posix(rel_path="\\EFI\\BOOT\\foo.efi")
+    testbase.assert_equal(rtnval, "EFI/BOOT/foo.efi")
+    return
 
-    def test_flatten_remote_tree_empty(self) -> None:
-        """An empty tree yields an empty accumulator."""
-        acc: List[str] = []
-        _flatten_remote_tree(tree=None, rel_prefix="", accumulator=acc)
-        self.assertEqual(acc, [])
-        return
+def test_normalize_relative_posix_none_raises() -> None:
+    """A ``None`` value raises :class:`UefiError`."""
+    with testbase.raises(UefiError):
+        _normalize_relative_posix(rel_path=None)
+    return
 
-    def test_flatten_remote_tree_nested(self) -> None:
-        """Nested children are reported as joined relative paths."""
-        tree = {
-            "path": "/remote",
-            "entries": {
-                "sub": EspDirEntry(name="sub", size=0, is_directory=True),
-                "top.txt": EspDirEntry(name="top.txt", size=1, is_directory=False),
-            },
-            "children": {
-                "sub": {
-                    "path": "/remote/sub",
-                    "entries": {
-                        "leaf.bin": EspDirEntry(
-                            name="leaf.bin", size=2, is_directory=False,
-                        ),
-                    },
-                    "children": {},
+def test_flatten_remote_tree_empty() -> None:
+    """An empty tree yields an empty accumulator."""
+    acc: List[str] = []
+    _flatten_remote_tree(tree=None, rel_prefix="", accumulator=acc)
+    testbase.assert_equal(acc, [])
+    return
+
+def test_flatten_remote_tree_nested() -> None:
+    """Nested children are reported as joined relative paths."""
+    tree = {
+        "path": "/remote",
+        "entries": {
+            "sub": EspDirEntry(name="sub", size=0, is_directory=True),
+            "top.txt": EspDirEntry(name="top.txt", size=1, is_directory=False),
+        },
+        "children": {
+            "sub": {
+                "path": "/remote/sub",
+                "entries": {
+                    "leaf.bin": EspDirEntry(
+                        name="leaf.bin", size=2, is_directory=False,
+                    ),
                 },
+                "children": {},
             },
-        }
-        acc: List[str] = []
-        _flatten_remote_tree(tree=tree, rel_prefix="", accumulator=acc)
-        self.assertIn("top.txt", acc)
-        self.assertIn("sub/leaf.bin", acc)
-        self.assertEqual(len(acc), 2)
-        return
+        },
+    }
+    acc: List[str] = []
+    _flatten_remote_tree(tree=tree, rel_prefix="", accumulator=acc)
+    testbase.assert_true("top.txt" in acc)
+    testbase.assert_true("sub/leaf.bin" in acc)
+    testbase.assert_equal(len(acc), 2)
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -345,342 +351,341 @@ class TestHelperFunctions(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestEspContentSync(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestEspContentSync
+# ----------------------------------------------------------------------
+
+"""
+    End-to-end tests of the :meth:`EspContentSync.sync` workflow using
+    the in-memory :class:`_FakeEspFileProvider`.
+"""
+
+def _write_local_file(root: Path, rel: str, content: bytes) -> Path:
     """
-        End-to-end tests of the :meth:`EspContentSync.sync` workflow using
-        the in-memory :class:`_FakeEspFileProvider`.
+        Write a local file and return its absolute path.
     """
+    target = root / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with open(target, "wb") as stream:
+        stream.write(content)
 
-    def _write_local_file(self, root: Path, rel: str, content: bytes) -> Path:
-        """
-            Write a local file and return its absolute path.
-        """
-        target = root / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with open(target, "wb") as stream:
-            stream.write(content)
+    rtnval = target
+    return rtnval
 
-        rtnval = target
-        return rtnval
+def _make_tmp_root() -> Path:
+    """
+        Build a temporary directory rooted at ``tempfile.mkdtemp`` and
+        register it for teardown.
+    """
+    import tempfile
+    root = Path(tempfile.mkdtemp(prefix="espsync-test-"))
+    atexit.register(_rmtree, root=root)
 
-    def _make_tmp_root(self) -> Path:
-        """
-            Build a temporary directory rooted at ``tempfile.mkdtemp`` and
-            register it for teardown.
-        """
-        import tempfile
-        root = Path(tempfile.mkdtemp(prefix="espsync-test-"))
-        self.addCleanup(self._rmtree, root=root)
+    rtnval = root
+    return rtnval
 
-        rtnval = root
-        return rtnval
+def _rmtree(root: Path) -> None:
+    """
+        Remove a directory tree safely during teardown.
+    """
+    import shutil
+    try:
+        shutil.rmtree(root)
+    except OSError:
+        pass
+    return
 
-    def _rmtree(self, root: Path) -> None:
-        """
-            Remove a directory tree safely during teardown.
-        """
-        import shutil
-        try:
-            shutil.rmtree(root)
-        except OSError:
-            pass
-        return
+# ------------------------------------------------------------------
+# No-op on matching SHA-256
+# ------------------------------------------------------------------
 
-    # ------------------------------------------------------------------
-    # No-op on matching SHA-256
-    # ------------------------------------------------------------------
+def test_noop_on_matching_sha256() -> None:
+    """Files with equal local and remote SHA-256 are skipped, not pushed."""
+    local_root = _make_tmp_root()
+    content = b"hello-efi-world"
+    _write_local_file(root=local_root, rel="EFI/vendor/loader.efi",
+                           content=content)
 
-    def test_noop_on_matching_sha256(self) -> None:
-        """Files with equal local and remote SHA-256 are skipped, not pushed."""
-        local_root = self._make_tmp_root()
-        content = b"hello-efi-world"
-        self._write_local_file(root=local_root, rel="EFI/vendor/loader.efi",
-                               content=content)
+    remote_root = "/EFI/vendor-remote"
+    fake = _FakeEspFileProvider(
+        remote_root=remote_root,
+        initial_files={"EFI/vendor/loader.efi": content},
+    )
 
-        remote_root = "/EFI/vendor-remote"
-        fake = _FakeEspFileProvider(
+    workflow = EspContentSync(esp=fake, aspects=DEFAULT_CMD_ASPECTS)
+    stats = workflow.sync(
+        local_root=str(local_root),
+        remote_root=remote_root,
+    )
+
+    testbase.assert_true(isinstance(stats, SyncStats))
+    testbase.assert_equal(stats.pushed, 0)
+    testbase.assert_equal(stats.skipped, 1)
+    testbase.assert_equal(stats.deleted, 0)
+    testbase.assert_equal(stats.total_bytes, 0)
+    testbase.assert_equal(len(fake.push_calls), 0)
+    testbase.assert_equal(len(fake.pull_calls), 1)
+    return
+
+# ------------------------------------------------------------------
+# Push on content mismatch
+# ------------------------------------------------------------------
+
+def test_push_on_content_mismatch() -> None:
+    """Different local and remote bytes trigger a push."""
+    local_root = _make_tmp_root()
+    _write_local_file(
+        root=local_root, rel="EFI/vendor/loader.efi",
+        content=b"LOCAL-VERSION-2",
+    )
+
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(
+        remote_root=remote_root,
+        initial_files={"EFI/vendor/loader.efi": b"OLD-VERSION-1"},
+    )
+
+    workflow = EspContentSync(esp=fake, aspects=DEFAULT_CMD_ASPECTS)
+    stats = workflow.sync(
+        local_root=str(local_root),
+        remote_root=remote_root,
+    )
+
+    testbase.assert_equal(stats.pushed, 1)
+    testbase.assert_equal(stats.skipped, 0)
+    testbase.assert_equal(stats.deleted, 0)
+    testbase.assert_equal(stats.total_bytes, len(b"LOCAL-VERSION-2"))
+    testbase.assert_equal(len(fake.push_calls), 1)
+
+    stored = fake.stored_files["EFI/vendor/loader.efi"]
+    testbase.assert_equal(stored, b"LOCAL-VERSION-2")
+    return
+
+# ------------------------------------------------------------------
+# Missing remote => push
+# ------------------------------------------------------------------
+
+def test_push_when_remote_missing() -> None:
+    """A local file with no remote counterpart is pushed."""
+    local_root = _make_tmp_root()
+    _write_local_file(
+        root=local_root, rel="EFI/vendor/new.efi",
+        content=b"NEW-BINARY",
+    )
+
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(
+        remote_root=remote_root, initial_files={},
+    )
+
+    workflow = EspContentSync(esp=fake)
+    stats = workflow.sync(
+        local_root=str(local_root),
+        remote_root=remote_root,
+    )
+
+    testbase.assert_equal(stats.pushed, 1)
+    testbase.assert_equal(stats.skipped, 0)
+    testbase.assert_equal(stats.total_bytes, len(b"NEW-BINARY"))
+    testbase.assert_equal(len(fake.pull_calls), 0)
+    return
+
+# ------------------------------------------------------------------
+# include filter
+# ------------------------------------------------------------------
+
+def test_include_filter_restricts_scope() -> None:
+    """Only files matching an include glob are considered."""
+    local_root = _make_tmp_root()
+    _write_local_file(
+        root=local_root, rel="a.efi", content=b"EFI",
+    )
+    _write_local_file(
+        root=local_root, rel="b.txt", content=b"TXT",
+    )
+
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(
+        remote_root=remote_root, initial_files={},
+    )
+
+    workflow = EspContentSync(esp=fake)
+    stats = workflow.sync(
+        local_root=str(local_root),
+        remote_root=remote_root,
+        include=["*.efi"],
+    )
+
+    testbase.assert_equal(stats.pushed, 1)
+    testbase.assert_true("a.efi" in fake.stored_files)
+    testbase.assert_true("b.txt" not in fake.stored_files)
+    return
+
+# ------------------------------------------------------------------
+# exclude filter (wins over include)
+# ------------------------------------------------------------------
+
+def test_exclude_wins_over_include() -> None:
+    """A file matching both include and exclude is excluded."""
+    local_root = _make_tmp_root()
+    _write_local_file(
+        root=local_root, rel="keep.efi", content=b"KEEP",
+    )
+    _write_local_file(
+        root=local_root, rel="skip.efi", content=b"SKIP",
+    )
+
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(
+        remote_root=remote_root, initial_files={},
+    )
+
+    workflow = EspContentSync(esp=fake)
+    stats = workflow.sync(
+        local_root=str(local_root),
+        remote_root=remote_root,
+        include=["*.efi"],
+        exclude=["skip.*"],
+    )
+
+    testbase.assert_equal(stats.pushed, 1)
+    testbase.assert_true("keep.efi" in fake.stored_files)
+    testbase.assert_true("skip.efi" not in fake.stored_files)
+    return
+
+# ------------------------------------------------------------------
+# delete mode removes orphans
+# ------------------------------------------------------------------
+
+def test_delete_mode_removes_orphans() -> None:
+    """Remote files missing locally are deleted when ``delete=True``."""
+    local_root = _make_tmp_root()
+    _write_local_file(
+        root=local_root, rel="kept.efi", content=b"KEPT",
+    )
+
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(
+        remote_root=remote_root,
+        initial_files={
+            "kept.efi": b"KEPT",
+            "orphan.efi": b"ORPHAN",
+            "nested/orphan2.bin": b"O2",
+        },
+    )
+
+    workflow = EspContentSync(esp=fake)
+    stats = workflow.sync(
+        local_root=str(local_root),
+        remote_root=remote_root,
+        delete=True,
+    )
+
+    testbase.assert_equal(stats.pushed, 0)
+    testbase.assert_equal(stats.skipped, 1)
+    testbase.assert_equal(stats.deleted, 2)
+    testbase.assert_true("kept.efi" in fake.stored_files)
+    testbase.assert_true("orphan.efi" not in fake.stored_files)
+    testbase.assert_true("nested/orphan2.bin" not in fake.stored_files)
+    return
+
+# ------------------------------------------------------------------
+# default (delete=False) does NOT delete
+# ------------------------------------------------------------------
+
+def test_default_delete_is_false() -> None:
+    """Orphans remain intact when the caller omits ``delete``."""
+    local_root = _make_tmp_root()
+    _write_local_file(
+        root=local_root, rel="a.efi", content=b"A",
+    )
+
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(
+        remote_root=remote_root,
+        initial_files={
+            "a.efi": b"A",
+            "leftover.efi": b"OLD",
+        },
+    )
+
+    workflow = EspContentSync(esp=fake)
+    stats = workflow.sync(
+        local_root=str(local_root),
+        remote_root=remote_root,
+        include=["*.efi"],
+    )
+
+    testbase.assert_equal(stats.deleted, 0)
+    testbase.assert_true("leftover.efi" in fake.stored_files)
+    testbase.assert_equal(len(fake.delete_calls), 0)
+    return
+
+# ------------------------------------------------------------------
+# include without delete does NOT delete (different axis)
+# ------------------------------------------------------------------
+
+def test_include_without_delete_does_not_delete() -> None:
+    """Include filtering alone must not trigger deletion."""
+    local_root = _make_tmp_root()
+    _write_local_file(
+        root=local_root, rel="new.efi", content=b"NEW",
+    )
+
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(
+        remote_root=remote_root,
+        initial_files={
+            "old.efi": b"OLD",
+        },
+    )
+
+    workflow = EspContentSync(esp=fake)
+    stats = workflow.sync(
+        local_root=str(local_root),
+        remote_root=remote_root,
+        include=["*.efi"],
+    )
+
+    # delete must default to False even when include is supplied.
+    testbase.assert_equal(stats.deleted, 0)
+    testbase.assert_true("old.efi" in fake.stored_files)
+    testbase.assert_true("new.efi" in fake.stored_files)
+    return
+
+# ------------------------------------------------------------------
+# Missing local_root
+# ------------------------------------------------------------------
+
+def test_missing_local_root_raises() -> None:
+    """A local_root that does not exist raises :class:`UefiError`."""
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(remote_root=remote_root)
+    workflow = EspContentSync(esp=fake)
+
+    with testbase.raises(UefiError):
+        workflow.sync(
+            local_root="/non/existent/path/nowhere",
             remote_root=remote_root,
-            initial_files={"EFI/vendor/loader.efi": content},
         )
+    return
 
-        workflow = EspContentSync(esp=fake, aspects=DEFAULT_CMD_ASPECTS)
-        stats = workflow.sync(
+# ------------------------------------------------------------------
+# Malformed include list
+# ------------------------------------------------------------------
+
+def test_include_must_be_list_of_str() -> None:
+    """Non-str include elements raise :class:`UefiError`."""
+    local_root = _make_tmp_root()
+
+    remote_root = "/EFI/vendor"
+    fake = _FakeEspFileProvider(remote_root=remote_root)
+    workflow = EspContentSync(esp=fake)
+
+    with testbase.raises(UefiError):
+        workflow.sync(
             local_root=str(local_root),
             remote_root=remote_root,
+            include=[123],  # type: ignore[list-item]
         )
-
-        self.assertIsInstance(stats, SyncStats)
-        self.assertEqual(stats.pushed, 0)
-        self.assertEqual(stats.skipped, 1)
-        self.assertEqual(stats.deleted, 0)
-        self.assertEqual(stats.total_bytes, 0)
-        self.assertEqual(len(fake.push_calls), 0)
-        self.assertEqual(len(fake.pull_calls), 1)
-        return
-
-    # ------------------------------------------------------------------
-    # Push on content mismatch
-    # ------------------------------------------------------------------
-
-    def test_push_on_content_mismatch(self) -> None:
-        """Different local and remote bytes trigger a push."""
-        local_root = self._make_tmp_root()
-        self._write_local_file(
-            root=local_root, rel="EFI/vendor/loader.efi",
-            content=b"LOCAL-VERSION-2",
-        )
-
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(
-            remote_root=remote_root,
-            initial_files={"EFI/vendor/loader.efi": b"OLD-VERSION-1"},
-        )
-
-        workflow = EspContentSync(esp=fake, aspects=DEFAULT_CMD_ASPECTS)
-        stats = workflow.sync(
-            local_root=str(local_root),
-            remote_root=remote_root,
-        )
-
-        self.assertEqual(stats.pushed, 1)
-        self.assertEqual(stats.skipped, 0)
-        self.assertEqual(stats.deleted, 0)
-        self.assertEqual(stats.total_bytes, len(b"LOCAL-VERSION-2"))
-        self.assertEqual(len(fake.push_calls), 1)
-
-        stored = fake.stored_files["EFI/vendor/loader.efi"]
-        self.assertEqual(stored, b"LOCAL-VERSION-2")
-        return
-
-    # ------------------------------------------------------------------
-    # Missing remote => push
-    # ------------------------------------------------------------------
-
-    def test_push_when_remote_missing(self) -> None:
-        """A local file with no remote counterpart is pushed."""
-        local_root = self._make_tmp_root()
-        self._write_local_file(
-            root=local_root, rel="EFI/vendor/new.efi",
-            content=b"NEW-BINARY",
-        )
-
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(
-            remote_root=remote_root, initial_files={},
-        )
-
-        workflow = EspContentSync(esp=fake)
-        stats = workflow.sync(
-            local_root=str(local_root),
-            remote_root=remote_root,
-        )
-
-        self.assertEqual(stats.pushed, 1)
-        self.assertEqual(stats.skipped, 0)
-        self.assertEqual(stats.total_bytes, len(b"NEW-BINARY"))
-        self.assertEqual(len(fake.pull_calls), 0)
-        return
-
-    # ------------------------------------------------------------------
-    # include filter
-    # ------------------------------------------------------------------
-
-    def test_include_filter_restricts_scope(self) -> None:
-        """Only files matching an include glob are considered."""
-        local_root = self._make_tmp_root()
-        self._write_local_file(
-            root=local_root, rel="a.efi", content=b"EFI",
-        )
-        self._write_local_file(
-            root=local_root, rel="b.txt", content=b"TXT",
-        )
-
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(
-            remote_root=remote_root, initial_files={},
-        )
-
-        workflow = EspContentSync(esp=fake)
-        stats = workflow.sync(
-            local_root=str(local_root),
-            remote_root=remote_root,
-            include=["*.efi"],
-        )
-
-        self.assertEqual(stats.pushed, 1)
-        self.assertIn("a.efi", fake.stored_files)
-        self.assertNotIn("b.txt", fake.stored_files)
-        return
-
-    # ------------------------------------------------------------------
-    # exclude filter (wins over include)
-    # ------------------------------------------------------------------
-
-    def test_exclude_wins_over_include(self) -> None:
-        """A file matching both include and exclude is excluded."""
-        local_root = self._make_tmp_root()
-        self._write_local_file(
-            root=local_root, rel="keep.efi", content=b"KEEP",
-        )
-        self._write_local_file(
-            root=local_root, rel="skip.efi", content=b"SKIP",
-        )
-
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(
-            remote_root=remote_root, initial_files={},
-        )
-
-        workflow = EspContentSync(esp=fake)
-        stats = workflow.sync(
-            local_root=str(local_root),
-            remote_root=remote_root,
-            include=["*.efi"],
-            exclude=["skip.*"],
-        )
-
-        self.assertEqual(stats.pushed, 1)
-        self.assertIn("keep.efi", fake.stored_files)
-        self.assertNotIn("skip.efi", fake.stored_files)
-        return
-
-    # ------------------------------------------------------------------
-    # delete mode removes orphans
-    # ------------------------------------------------------------------
-
-    def test_delete_mode_removes_orphans(self) -> None:
-        """Remote files missing locally are deleted when ``delete=True``."""
-        local_root = self._make_tmp_root()
-        self._write_local_file(
-            root=local_root, rel="kept.efi", content=b"KEPT",
-        )
-
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(
-            remote_root=remote_root,
-            initial_files={
-                "kept.efi": b"KEPT",
-                "orphan.efi": b"ORPHAN",
-                "nested/orphan2.bin": b"O2",
-            },
-        )
-
-        workflow = EspContentSync(esp=fake)
-        stats = workflow.sync(
-            local_root=str(local_root),
-            remote_root=remote_root,
-            delete=True,
-        )
-
-        self.assertEqual(stats.pushed, 0)
-        self.assertEqual(stats.skipped, 1)
-        self.assertEqual(stats.deleted, 2)
-        self.assertIn("kept.efi", fake.stored_files)
-        self.assertNotIn("orphan.efi", fake.stored_files)
-        self.assertNotIn("nested/orphan2.bin", fake.stored_files)
-        return
-
-    # ------------------------------------------------------------------
-    # default (delete=False) does NOT delete
-    # ------------------------------------------------------------------
-
-    def test_default_delete_is_false(self) -> None:
-        """Orphans remain intact when the caller omits ``delete``."""
-        local_root = self._make_tmp_root()
-        self._write_local_file(
-            root=local_root, rel="a.efi", content=b"A",
-        )
-
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(
-            remote_root=remote_root,
-            initial_files={
-                "a.efi": b"A",
-                "leftover.efi": b"OLD",
-            },
-        )
-
-        workflow = EspContentSync(esp=fake)
-        stats = workflow.sync(
-            local_root=str(local_root),
-            remote_root=remote_root,
-            include=["*.efi"],
-        )
-
-        self.assertEqual(stats.deleted, 0)
-        self.assertIn("leftover.efi", fake.stored_files)
-        self.assertEqual(len(fake.delete_calls), 0)
-        return
-
-    # ------------------------------------------------------------------
-    # include without delete does NOT delete (different axis)
-    # ------------------------------------------------------------------
-
-    def test_include_without_delete_does_not_delete(self) -> None:
-        """Include filtering alone must not trigger deletion."""
-        local_root = self._make_tmp_root()
-        self._write_local_file(
-            root=local_root, rel="new.efi", content=b"NEW",
-        )
-
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(
-            remote_root=remote_root,
-            initial_files={
-                "old.efi": b"OLD",
-            },
-        )
-
-        workflow = EspContentSync(esp=fake)
-        stats = workflow.sync(
-            local_root=str(local_root),
-            remote_root=remote_root,
-            include=["*.efi"],
-        )
-
-        # delete must default to False even when include is supplied.
-        self.assertEqual(stats.deleted, 0)
-        self.assertIn("old.efi", fake.stored_files)
-        self.assertIn("new.efi", fake.stored_files)
-        return
-
-    # ------------------------------------------------------------------
-    # Missing local_root
-    # ------------------------------------------------------------------
-
-    def test_missing_local_root_raises(self) -> None:
-        """A local_root that does not exist raises :class:`UefiError`."""
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(remote_root=remote_root)
-        workflow = EspContentSync(esp=fake)
-
-        with self.assertRaises(UefiError):
-            workflow.sync(
-                local_root="/non/existent/path/nowhere",
-                remote_root=remote_root,
-            )
-        return
-
-    # ------------------------------------------------------------------
-    # Malformed include list
-    # ------------------------------------------------------------------
-
-    def test_include_must_be_list_of_str(self) -> None:
-        """Non-str include elements raise :class:`UefiError`."""
-        local_root = self._make_tmp_root()
-
-        remote_root = "/EFI/vendor"
-        fake = _FakeEspFileProvider(remote_root=remote_root)
-        workflow = EspContentSync(esp=fake)
-
-        with self.assertRaises(UefiError):
-            workflow.sync(
-                local_root=str(local_root),
-                remote_root=remote_root,
-                include=[123],  # type: ignore[list-item]
-            )
-        return
-
-
-if __name__ == "__main__":
-    unittest.main()
+    return

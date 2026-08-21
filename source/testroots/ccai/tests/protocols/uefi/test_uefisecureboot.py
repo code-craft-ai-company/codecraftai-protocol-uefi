@@ -28,9 +28,10 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from ccai import testbase
+
 import datetime
 import struct
-import unittest
 import uuid
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -301,450 +302,464 @@ def _ephemeral_key_and_cert() -> Tuple[Any, Any]:
 # SignatureList / SignatureDatabase codec tests
 # ---------------------------------------------------------------------------
 
-class SignatureListRoundTripTests(unittest.TestCase):
-    """
-        Verify :class:`SignatureList` round-trips through
-        :meth:`from_bytes` and :meth:`to_bytes` for SHA-256 and X.509
-        payload types.
-    """
+# ----------------------------------------------------------------------
+# SignatureListRoundTripTests
+# ----------------------------------------------------------------------
 
-    def test_sha256_list_roundtrips(self) -> None:
-        entries = [
-            (_TEST_OWNER_GUID, bytes(range(32))),
-            (_TEST_OWNER_GUID, bytes(range(1, 33))),
-        ]
-        raw_buffer = _build_sha256_esl(owner_entries=entries)
+"""
+    Verify :class:`SignatureList` round-trips through
+    :meth:`from_bytes` and :meth:`to_bytes` for SHA-256 and X.509
+    payload types.
+"""
 
-        parsed = SignatureList.from_bytes(raw_buffer)
-        self.assertEqual(parsed.signature_type, EFI_CERT_SHA256_GUID)
-        self.assertEqual(parsed.header, b"")
-        self.assertEqual(len(parsed.signatures), 2)
-        self.assertEqual(parsed.signatures[0].owner, _TEST_OWNER_GUID)
-        self.assertEqual(parsed.signatures[0].payload, bytes(range(32)))
-        self.assertEqual(parsed.signatures[1].payload, bytes(range(1, 33)))
+def test_sha256_list_roundtrips() -> None:
+    entries = [
+        (_TEST_OWNER_GUID, bytes(range(32))),
+        (_TEST_OWNER_GUID, bytes(range(1, 33))),
+    ]
+    raw_buffer = _build_sha256_esl(owner_entries=entries)
 
-        re_encoded = parsed.to_bytes()
-        self.assertEqual(re_encoded, raw_buffer)
-        return
+    parsed = SignatureList.from_bytes(raw_buffer)
+    testbase.assert_equal(parsed.signature_type, EFI_CERT_SHA256_GUID)
+    testbase.assert_equal(parsed.header, b"")
+    testbase.assert_equal(len(parsed.signatures), 2)
+    testbase.assert_equal(parsed.signatures[0].owner, _TEST_OWNER_GUID)
+    testbase.assert_equal(parsed.signatures[0].payload, bytes(range(32)))
+    testbase.assert_equal(parsed.signatures[1].payload, bytes(range(1, 33)))
 
-    def test_x509_list_roundtrips(self) -> None:
-        fake_cert_bytes = bytes(range(256))  # 256 bytes of pseudo-DER
-        raw_buffer = _build_x509_esl(
-            owner_guid=_TEST_OWNER_GUID, cert_bytes=fake_cert_bytes,
-        )
+    re_encoded = parsed.to_bytes()
+    testbase.assert_equal(re_encoded, raw_buffer)
+    return
 
-        parsed = SignatureList.from_bytes(raw_buffer)
-        self.assertEqual(parsed.signature_type, EFI_CERT_X509_GUID)
-        self.assertEqual(len(parsed.signatures), 1)
-        self.assertEqual(parsed.signatures[0].payload, fake_cert_bytes)
+def test_x509_list_roundtrips() -> None:
+    fake_cert_bytes = bytes(range(256))  # 256 bytes of pseudo-DER
+    raw_buffer = _build_x509_esl(
+        owner_guid=_TEST_OWNER_GUID, cert_bytes=fake_cert_bytes,
+    )
 
-        re_encoded = parsed.to_bytes()
-        self.assertEqual(re_encoded, raw_buffer)
-        return
+    parsed = SignatureList.from_bytes(raw_buffer)
+    testbase.assert_equal(parsed.signature_type, EFI_CERT_X509_GUID)
+    testbase.assert_equal(len(parsed.signatures), 1)
+    testbase.assert_equal(parsed.signatures[0].payload, fake_cert_bytes)
 
-    def test_malformed_size_raises(self) -> None:
-        entries = [(_TEST_OWNER_GUID, bytes(range(32)))]
-        raw_buffer = _build_sha256_esl(owner_entries=entries)
+    re_encoded = parsed.to_bytes()
+    testbase.assert_equal(re_encoded, raw_buffer)
+    return
 
-        # Truncate the buffer but leave the declared list size unchanged.
-        bad_buffer = raw_buffer[:-4]
+def test_malformed_size_raises() -> None:
+    entries = [(_TEST_OWNER_GUID, bytes(range(32)))]
+    raw_buffer = _build_sha256_esl(owner_entries=entries)
 
-        with self.assertRaises(UefiSecureBootError):
-            SignatureList.from_bytes(bad_buffer)
-        return
+    # Truncate the buffer but leave the declared list size unchanged.
+    bad_buffer = raw_buffer[:-4]
 
-    def test_too_short_buffer_raises(self) -> None:
-        with self.assertRaises(UefiSecureBootError):
-            SignatureList.from_bytes(b"\x00\x01\x02")
-        return
+    with testbase.raises(UefiSecureBootError):
+        SignatureList.from_bytes(bad_buffer)
+    return
+
+def test_too_short_buffer_raises() -> None:
+    with testbase.raises(UefiSecureBootError):
+        SignatureList.from_bytes(b"\x00\x01\x02")
+    return
 
 
-class SignatureDatabaseMultiListTests(unittest.TestCase):
-    """
-        Verify :meth:`SignatureDatabase.from_bytes` parses multiple
-        concatenated ESLs and round-trips through :meth:`to_bytes`.
-    """
+# ----------------------------------------------------------------------
+# SignatureDatabaseMultiListTests
+# ----------------------------------------------------------------------
 
-    def test_multiple_lists_decode_and_reencode(self) -> None:
-        sha_buffer = _build_sha256_esl(owner_entries=[
-            (_TEST_OWNER_GUID, bytes(range(32))),
-        ])
-        x509_buffer = _build_x509_esl(
-            owner_guid=_TEST_OWNER_GUID, cert_bytes=bytes(range(128)),
-        )
-        combined = sha_buffer + x509_buffer
+"""
+    Verify :meth:`SignatureDatabase.from_bytes` parses multiple
+    concatenated ESLs and round-trips through :meth:`to_bytes`.
+"""
 
-        database = SignatureDatabase.from_bytes(combined)
-        self.assertEqual(len(database.lists), 2)
-        self.assertEqual(database.lists[0].signature_type, EFI_CERT_SHA256_GUID)
-        self.assertEqual(database.lists[1].signature_type, EFI_CERT_X509_GUID)
+def test_multiple_lists_decode_and_reencode() -> None:
+    sha_buffer = _build_sha256_esl(owner_entries=[
+        (_TEST_OWNER_GUID, bytes(range(32))),
+    ])
+    x509_buffer = _build_x509_esl(
+        owner_guid=_TEST_OWNER_GUID, cert_bytes=bytes(range(128)),
+    )
+    combined = sha_buffer + x509_buffer
 
-        re_encoded = database.to_bytes()
-        self.assertEqual(re_encoded, combined)
-        return
+    database = SignatureDatabase.from_bytes(combined)
+    testbase.assert_equal(len(database.lists), 2)
+    testbase.assert_equal(database.lists[0].signature_type, EFI_CERT_SHA256_GUID)
+    testbase.assert_equal(database.lists[1].signature_type, EFI_CERT_X509_GUID)
 
-    def test_empty_buffer_decodes_to_empty_database(self) -> None:
-        database = SignatureDatabase.from_bytes(b"")
-        self.assertEqual(database.lists, ())
-        self.assertEqual(database.to_bytes(), b"")
-        return
+    re_encoded = database.to_bytes()
+    testbase.assert_equal(re_encoded, combined)
+    return
 
-    def test_trailing_garbage_raises(self) -> None:
-        sha_buffer = _build_sha256_esl(owner_entries=[
-            (_TEST_OWNER_GUID, bytes(range(32))),
-        ])
-        bad_buffer = sha_buffer + b"\x01\x02"
+def test_empty_buffer_decodes_to_empty_database() -> None:
+    database = SignatureDatabase.from_bytes(b"")
+    testbase.assert_equal(database.lists, ())
+    testbase.assert_equal(database.to_bytes(), b"")
+    return
 
-        with self.assertRaises(UefiSecureBootError):
-            SignatureDatabase.from_bytes(bad_buffer)
-        return
+def test_trailing_garbage_raises() -> None:
+    sha_buffer = _build_sha256_esl(owner_entries=[
+        (_TEST_OWNER_GUID, bytes(range(32))),
+    ])
+    bad_buffer = sha_buffer + b"\x01\x02"
+
+    with testbase.raises(UefiSecureBootError):
+        SignatureDatabase.from_bytes(bad_buffer)
+    return
 
 
 # ---------------------------------------------------------------------------
 # SecureBootManager.read_state tests
 # ---------------------------------------------------------------------------
 
-class SecureBootManagerReadStateTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# SecureBootManagerReadStateTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify :meth:`SecureBootManager.read_state` reads the four mode
+    variables and derives :class:`SecureBootMode` correctly.
+"""
+
+def _build_manager(secure_boot: int, setup_mode: int,
+                         audit_mode: int, deployed_mode: int) -> Tuple[SecureBootManager, _FakeVariableStore]:
     """
-        Verify :meth:`SecureBootManager.read_state` reads the four mode
-        variables and derives :class:`SecureBootMode` correctly.
+        Construct a manager plus fake store seeded with the four mode
+        variables.
     """
+    seed = _seed_mode_variables(
+        secure_boot=secure_boot,
+        setup_mode=setup_mode,
+        audit_mode=audit_mode,
+        deployed_mode=deployed_mode,
+    )
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store, aspects=DEFAULT_CMD_ASPECTS)
+    rtnval = (manager, store)
+    return rtnval
 
-    def _build_manager(self, secure_boot: int, setup_mode: int,
-                             audit_mode: int, deployed_mode: int) -> Tuple[SecureBootManager, _FakeVariableStore]:
-        """
-            Construct a manager plus fake store seeded with the four mode
-            variables.
-        """
-        seed = _seed_mode_variables(
-            secure_boot=secure_boot,
-            setup_mode=setup_mode,
-            audit_mode=audit_mode,
-            deployed_mode=deployed_mode,
-        )
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store, aspects=DEFAULT_CMD_ASPECTS)
-        rtnval = (manager, store)
-        return rtnval
+def test_setup_mode_precedes_other_flags() -> None:
+    manager, _ = _build_manager(
+        secure_boot=0, setup_mode=1, audit_mode=0, deployed_mode=0,
+    )
+    state = manager.read_state()
+    testbase.assert_true(isinstance(state, SecureBootState))
+    testbase.assert_equal(state.mode, SecureBootMode.SETUP)
+    testbase.assert_true(state.setup_mode)
+    testbase.assert_false(state.secure_boot)
+    return
 
-    def test_setup_mode_precedes_other_flags(self) -> None:
-        manager, _ = self._build_manager(
-            secure_boot=0, setup_mode=1, audit_mode=0, deployed_mode=0,
-        )
-        state = manager.read_state()
-        self.assertIsInstance(state, SecureBootState)
-        self.assertEqual(state.mode, SecureBootMode.SETUP)
-        self.assertTrue(state.setup_mode)
-        self.assertFalse(state.secure_boot)
-        return
+def test_audit_mode_without_setup() -> None:
+    manager, _ = _build_manager(
+        secure_boot=0, setup_mode=0, audit_mode=1, deployed_mode=0,
+    )
+    state = manager.read_state()
+    testbase.assert_equal(state.mode, SecureBootMode.AUDIT)
+    testbase.assert_true(state.audit_mode)
+    return
 
-    def test_audit_mode_without_setup(self) -> None:
-        manager, _ = self._build_manager(
-            secure_boot=0, setup_mode=0, audit_mode=1, deployed_mode=0,
-        )
-        state = manager.read_state()
-        self.assertEqual(state.mode, SecureBootMode.AUDIT)
-        self.assertTrue(state.audit_mode)
-        return
+def test_deployed_mode_without_setup_or_audit() -> None:
+    manager, _ = _build_manager(
+        secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
+    )
+    state = manager.read_state()
+    testbase.assert_equal(state.mode, SecureBootMode.DEPLOYED)
+    testbase.assert_true(state.deployed_mode)
+    testbase.assert_true(state.secure_boot)
+    return
 
-    def test_deployed_mode_without_setup_or_audit(self) -> None:
-        manager, _ = self._build_manager(
-            secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
-        )
-        state = manager.read_state()
-        self.assertEqual(state.mode, SecureBootMode.DEPLOYED)
-        self.assertTrue(state.deployed_mode)
-        self.assertTrue(state.secure_boot)
-        return
+def test_user_mode_is_default() -> None:
+    manager, _ = _build_manager(
+        secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=0,
+    )
+    state = manager.read_state()
+    testbase.assert_equal(state.mode, SecureBootMode.USER)
+    testbase.assert_true(state.secure_boot)
+    return
 
-    def test_user_mode_is_default(self) -> None:
-        manager, _ = self._build_manager(
-            secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=0,
-        )
-        state = manager.read_state()
-        self.assertEqual(state.mode, SecureBootMode.USER)
-        self.assertTrue(state.secure_boot)
-        return
+def test_missing_variable_raises() -> None:
+    # Seed only three of the four mode variables.
+    seed = _seed_mode_variables(
+        secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=0,
+    )
+    del seed[("DeployedMode", EFI_GLOBAL_VARIABLE_GUID)]
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_missing_variable_raises(self) -> None:
-        # Seed only three of the four mode variables.
-        seed = _seed_mode_variables(
-            secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=0,
-        )
-        del seed[("DeployedMode", EFI_GLOBAL_VARIABLE_GUID)]
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store, aspects=DEFAULT_CMD_ASPECTS)
-
-        with self.assertRaises(UefiSecureBootError):
-            manager.read_state()
-        return
+    with testbase.raises(UefiSecureBootError):
+        manager.read_state()
+    return
 
 
 # ---------------------------------------------------------------------------
 # enroll_signature_database — SetupMode guard tests
 # ---------------------------------------------------------------------------
 
-class SecureBootManagerEnrollGateTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# SecureBootManagerEnrollGateTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify the SetupMode / force / ack decision tree in
+    :meth:`SecureBootManager.enroll_signature_database`.
+"""
+
+def _build_signing_time() -> datetime.datetime:
     """
-        Verify the SetupMode / force / ack decision tree in
-        :meth:`SecureBootManager.enroll_signature_database`.
+        Produce a timezone-aware :class:`datetime.datetime`.
     """
+    rtnval = datetime.datetime(2030, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    return rtnval
 
-    def _build_signing_time(self) -> datetime.datetime:
-        """
-            Produce a timezone-aware :class:`datetime.datetime`.
-        """
-        rtnval = datetime.datetime(2030, 1, 1, 12, 0, 0, tzinfo=datetime.timezone.utc)
-        return rtnval
+def _build_small_database() -> SignatureDatabase:
+    """
+        Build a minimal single-entry :class:`SignatureDatabase` for
+        use in enrollment write tests.
+    """
+    entry = SignatureEntry(
+        signature_type=EFI_CERT_SHA256_GUID,
+        owner=_TEST_OWNER_GUID,
+        payload=bytes(range(32)),
+    )
+    sig_list = SignatureList(
+        signature_type=EFI_CERT_SHA256_GUID,
+        header=b"",
+        signatures=(entry,),
+    )
+    rtnval = SignatureDatabase(lists=(sig_list,))
+    return rtnval
 
-    def _build_small_database(self) -> SignatureDatabase:
-        """
-            Build a minimal single-entry :class:`SignatureDatabase` for
-            use in enrollment write tests.
-        """
-        entry = SignatureEntry(
-            signature_type=EFI_CERT_SHA256_GUID,
-            owner=_TEST_OWNER_GUID,
-            payload=bytes(range(32)),
-        )
-        sig_list = SignatureList(
-            signature_type=EFI_CERT_SHA256_GUID,
-            header=b"",
-            signatures=(entry,),
-        )
-        rtnval = SignatureDatabase(lists=(sig_list,))
-        return rtnval
+def test_refuses_outside_setup_mode_without_force() -> None:
+    seed = _seed_mode_variables(
+        secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
+    )
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store)
 
-    def test_refuses_outside_setup_mode_without_force(self) -> None:
-        seed = _seed_mode_variables(
-            secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
-        )
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store)
+    database = _build_small_database()
+    signing_time = _build_signing_time()
 
-        database = self._build_small_database()
-        signing_time = self._build_signing_time()
-
-        with self.assertRaises(UefiSecureBootError) as ctx:
-            manager.enroll_signature_database(
-                name="db",
-                database=database,
-                signer_key=object(),
-                signer_cert=object(),
-                signing_time=signing_time,
-            )
-        rendered = str(ctx.exception)
-        self.assertIn("db", rendered)
-        self.assertEqual(len(store.set_calls), 0)
-        return
-
-    def test_force_without_ack_raises(self) -> None:
-        seed = _seed_mode_variables(
-            secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
-        )
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store)
-
-        database = self._build_small_database()
-        signing_time = self._build_signing_time()
-
-        with self.assertRaises(UefiSecureBootError) as ctx:
-            manager.enroll_signature_database(
-                name="db",
-                database=database,
-                signer_key=object(),
-                signer_cert=object(),
-                signing_time=signing_time,
-                force=True,
-                ack=None,
-            )
-        rendered = str(ctx.exception)
-        self.assertIn("operator", rendered)
-        self.assertIn("ticket", rendered)
-        self.assertEqual(len(store.set_calls), 0)
-        return
-
-    def test_force_with_empty_ack_fields_raises(self) -> None:
-        seed = _seed_mode_variables(
-            secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
-        )
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store)
-
-        database = self._build_small_database()
-        signing_time = self._build_signing_time()
-
-        bad_ack: Dict[str, str] = {"operator": "", "ticket": ""}
-        with self.assertRaises(UefiSecureBootError):
-            manager.enroll_signature_database(
-                name="db",
-                database=database,
-                signer_key=object(),
-                signer_cert=object(),
-                signing_time=signing_time,
-                force=True,
-                ack=bad_ack,
-            )
-        self.assertEqual(len(store.set_calls), 0)
-        return
-
-    def test_force_with_ack_writes(self) -> None:
-        seed = _seed_mode_variables(
-            secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
-        )
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store)
-
-        database = self._build_small_database()
-        signing_time = self._build_signing_time()
-
-        signer_key, signer_cert = _ephemeral_key_and_cert()
-
+    with testbase.raises(UefiSecureBootError) as ctx:
         manager.enroll_signature_database(
             name="db",
             database=database,
-            signer_key=signer_key,
-            signer_cert=signer_cert,
+            signer_key=object(),
+            signer_cert=object(),
+            signing_time=signing_time,
+        )
+    rendered = str(ctx.exception)
+    testbase.assert_true("db" in rendered)
+    testbase.assert_equal(len(store.set_calls), 0)
+    return
+
+def test_force_without_ack_raises() -> None:
+    seed = _seed_mode_variables(
+        secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
+    )
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store)
+
+    database = _build_small_database()
+    signing_time = _build_signing_time()
+
+    with testbase.raises(UefiSecureBootError) as ctx:
+        manager.enroll_signature_database(
+            name="db",
+            database=database,
+            signer_key=object(),
+            signer_cert=object(),
             signing_time=signing_time,
             force=True,
-            ack={"operator": "alice", "ticket": "JIRA-1234"},
+            ack=None,
         )
+    rendered = str(ctx.exception)
+    testbase.assert_true("operator" in rendered)
+    testbase.assert_true("ticket" in rendered)
+    testbase.assert_equal(len(store.set_calls), 0)
+    return
 
-        self.assertEqual(len(store.set_calls), 1)
-        recorded = store.set_calls[0]
-        self.assertEqual(recorded["name"], "db")
-        self.assertEqual(recorded["vendor_guid"], EFI_IMAGE_SECURITY_DATABASE_GUID)
-        time_bit = int(UefiVariableAttributes.TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
-        self.assertNotEqual(int(recorded["attributes"]) & time_bit, 0)
-        append_bit = int(UefiVariableAttributes.APPEND_WRITE)
-        self.assertEqual(int(recorded["attributes"]) & append_bit, 0)
-        self.assertEqual(recorded["signer_key"], signer_key)
-        self.assertEqual(recorded["signer_cert"], signer_cert)
-        self.assertEqual(recorded["signing_time"], signing_time)
-        self.assertEqual(recorded["data"], database.to_bytes())
-        return
+def test_force_with_empty_ack_fields_raises() -> None:
+    seed = _seed_mode_variables(
+        secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
+    )
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store)
 
-    def test_setup_mode_enrollment_does_not_require_force(self) -> None:
-        seed = _seed_mode_variables(
-            secure_boot=0, setup_mode=1, audit_mode=0, deployed_mode=0,
-        )
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store)
+    database = _build_small_database()
+    signing_time = _build_signing_time()
 
-        database = self._build_small_database()
-        signing_time = self._build_signing_time()
-
-        signer_key, signer_cert = _ephemeral_key_and_cert()
-
+    bad_ack: Dict[str, str] = {"operator": "", "ticket": ""}
+    with testbase.raises(UefiSecureBootError):
         manager.enroll_signature_database(
-            name="KEK",
+            name="db",
             database=database,
-            signer_key=signer_key,
-            signer_cert=signer_cert,
+            signer_key=object(),
+            signer_cert=object(),
+            signing_time=signing_time,
+            force=True,
+            ack=bad_ack,
+        )
+    testbase.assert_equal(len(store.set_calls), 0)
+    return
+
+def test_force_with_ack_writes() -> None:
+    seed = _seed_mode_variables(
+        secure_boot=1, setup_mode=0, audit_mode=0, deployed_mode=1,
+    )
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store)
+
+    database = _build_small_database()
+    signing_time = _build_signing_time()
+
+    signer_key, signer_cert = _ephemeral_key_and_cert()
+
+    manager.enroll_signature_database(
+        name="db",
+        database=database,
+        signer_key=signer_key,
+        signer_cert=signer_cert,
+        signing_time=signing_time,
+        force=True,
+        ack={"operator": "alice", "ticket": "JIRA-1234"},
+    )
+
+    testbase.assert_equal(len(store.set_calls), 1)
+    recorded = store.set_calls[0]
+    testbase.assert_equal(recorded["name"], "db")
+    testbase.assert_equal(recorded["vendor_guid"], EFI_IMAGE_SECURITY_DATABASE_GUID)
+    time_bit = int(UefiVariableAttributes.TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
+    testbase.assert_not_equal(int(recorded["attributes"]) & time_bit, 0)
+    append_bit = int(UefiVariableAttributes.APPEND_WRITE)
+    testbase.assert_equal(int(recorded["attributes"]) & append_bit, 0)
+    testbase.assert_equal(recorded["signer_key"], signer_key)
+    testbase.assert_equal(recorded["signer_cert"], signer_cert)
+    testbase.assert_equal(recorded["signing_time"], signing_time)
+    testbase.assert_equal(recorded["data"], database.to_bytes())
+    return
+
+def test_setup_mode_enrollment_does_not_require_force() -> None:
+    seed = _seed_mode_variables(
+        secure_boot=0, setup_mode=1, audit_mode=0, deployed_mode=0,
+    )
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store)
+
+    database = _build_small_database()
+    signing_time = _build_signing_time()
+
+    signer_key, signer_cert = _ephemeral_key_and_cert()
+
+    manager.enroll_signature_database(
+        name="KEK",
+        database=database,
+        signer_key=signer_key,
+        signer_cert=signer_cert,
+        signing_time=signing_time,
+    )
+
+    testbase.assert_equal(len(store.set_calls), 1)
+    recorded = store.set_calls[0]
+    testbase.assert_equal(recorded["name"], "KEK")
+    testbase.assert_equal(recorded["vendor_guid"], EFI_GLOBAL_VARIABLE_GUID)
+    return
+
+def test_unknown_database_name_raises_configuration_error() -> None:
+    seed = _seed_mode_variables(
+        secure_boot=0, setup_mode=1, audit_mode=0, deployed_mode=0,
+    )
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store)
+
+    database = _build_small_database()
+    signing_time = _build_signing_time()
+
+    with testbase.raises(ConfigurationError):
+        manager.enroll_signature_database(
+            name="nonsense",
+            database=database,
+            signer_key=object(),
+            signer_cert=object(),
             signing_time=signing_time,
         )
-
-        self.assertEqual(len(store.set_calls), 1)
-        recorded = store.set_calls[0]
-        self.assertEqual(recorded["name"], "KEK")
-        self.assertEqual(recorded["vendor_guid"], EFI_GLOBAL_VARIABLE_GUID)
-        return
-
-    def test_unknown_database_name_raises_configuration_error(self) -> None:
-        seed = _seed_mode_variables(
-            secure_boot=0, setup_mode=1, audit_mode=0, deployed_mode=0,
-        )
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store)
-
-        database = self._build_small_database()
-        signing_time = self._build_signing_time()
-
-        with self.assertRaises(ConfigurationError):
-            manager.enroll_signature_database(
-                name="nonsense",
-                database=database,
-                signer_key=object(),
-                signer_cert=object(),
-                signing_time=signing_time,
-            )
-        return
+    return
 
 
 # ---------------------------------------------------------------------------
 # append_to_dbx — APPEND_WRITE attribute tests
 # ---------------------------------------------------------------------------
 
-class SecureBootManagerAppendToDbxTests(unittest.TestCase):
-    """
-        Verify :meth:`SecureBootManager.append_to_dbx` sets the
-        ``APPEND_WRITE`` attribute and writes to the
-        :data:`EFI_IMAGE_SECURITY_DATABASE_GUID` namespace.
-    """
+# ----------------------------------------------------------------------
+# SecureBootManagerAppendToDbxTests
+# ----------------------------------------------------------------------
 
-    def test_dbx_append_sets_append_write_bit(self) -> None:
-        seed = _seed_mode_variables(
-            secure_boot=0, setup_mode=1, audit_mode=0, deployed_mode=0,
-        )
-        store = _FakeVariableStore(initial=seed)
-        manager = SecureBootManager(variable_store=store)
+"""
+    Verify :meth:`SecureBootManager.append_to_dbx` sets the
+    ``APPEND_WRITE`` attribute and writes to the
+    :data:`EFI_IMAGE_SECURITY_DATABASE_GUID` namespace.
+"""
 
-        entry = SignatureEntry(
-            signature_type=EFI_CERT_SHA256_GUID,
-            owner=_TEST_OWNER_GUID,
-            payload=bytes(range(32)),
-        )
-        sig_list = SignatureList(
-            signature_type=EFI_CERT_SHA256_GUID,
-            header=b"",
-            signatures=(entry,),
-        )
-        database = SignatureDatabase(lists=(sig_list,))
+def test_dbx_append_sets_append_write_bit() -> None:
+    seed = _seed_mode_variables(
+        secure_boot=0, setup_mode=1, audit_mode=0, deployed_mode=0,
+    )
+    store = _FakeVariableStore(initial=seed)
+    manager = SecureBootManager(variable_store=store)
 
-        signing_time = datetime.datetime(2030, 6, 15, 9, 30, 0, tzinfo=datetime.timezone.utc)
-        signer_key, signer_cert = _ephemeral_key_and_cert()
+    entry = SignatureEntry(
+        signature_type=EFI_CERT_SHA256_GUID,
+        owner=_TEST_OWNER_GUID,
+        payload=bytes(range(32)),
+    )
+    sig_list = SignatureList(
+        signature_type=EFI_CERT_SHA256_GUID,
+        header=b"",
+        signatures=(entry,),
+    )
+    database = SignatureDatabase(lists=(sig_list,))
 
-        manager.append_to_dbx(
-            database=database,
-            signer_key=signer_key,
-            signer_cert=signer_cert,
-            signing_time=signing_time,
-        )
+    signing_time = datetime.datetime(2030, 6, 15, 9, 30, 0, tzinfo=datetime.timezone.utc)
+    signer_key, signer_cert = _ephemeral_key_and_cert()
 
-        self.assertEqual(len(store.set_calls), 1)
-        recorded = store.set_calls[0]
-        self.assertEqual(recorded["name"], "dbx")
-        self.assertEqual(recorded["vendor_guid"], EFI_IMAGE_SECURITY_DATABASE_GUID)
+    manager.append_to_dbx(
+        database=database,
+        signer_key=signer_key,
+        signer_cert=signer_cert,
+        signing_time=signing_time,
+    )
 
-        attribute_value = int(recorded["attributes"])
-        append_bit = int(UefiVariableAttributes.APPEND_WRITE)
-        time_bit = int(UefiVariableAttributes.TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
-        self.assertNotEqual(attribute_value & append_bit, 0)
-        self.assertNotEqual(attribute_value & time_bit, 0)
-        return
+    testbase.assert_equal(len(store.set_calls), 1)
+    recorded = store.set_calls[0]
+    testbase.assert_equal(recorded["name"], "dbx")
+    testbase.assert_equal(recorded["vendor_guid"], EFI_IMAGE_SECURITY_DATABASE_GUID)
+
+    attribute_value = int(recorded["attributes"])
+    append_bit = int(UefiVariableAttributes.APPEND_WRITE)
+    time_bit = int(UefiVariableAttributes.TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
+    testbase.assert_not_equal(attribute_value & append_bit, 0)
+    testbase.assert_not_equal(attribute_value & time_bit, 0)
+    return
 
 
 # ---------------------------------------------------------------------------
 # SIGNATURE_DATABASE_MAP shape sanity check
 # ---------------------------------------------------------------------------
 
-class SignatureDatabaseMapShapeTests(unittest.TestCase):
-    """
-        Verify :data:`SIGNATURE_DATABASE_MAP` covers the six expected
-        names and routes each to the correct vendor GUID.
-    """
+# ----------------------------------------------------------------------
+# SignatureDatabaseMapShapeTests
+# ----------------------------------------------------------------------
 
-    def test_map_covers_expected_names(self) -> None:
-        expected_names = {"PK", "KEK", "db", "dbx", "dbt", "dbr"}
-        self.assertEqual(set(SIGNATURE_DATABASE_MAP.keys()), expected_names)
-        self.assertEqual(SIGNATURE_DATABASE_MAP["PK"], EFI_GLOBAL_VARIABLE_GUID)
-        self.assertEqual(SIGNATURE_DATABASE_MAP["KEK"], EFI_GLOBAL_VARIABLE_GUID)
-        self.assertEqual(SIGNATURE_DATABASE_MAP["db"], EFI_IMAGE_SECURITY_DATABASE_GUID)
-        self.assertEqual(SIGNATURE_DATABASE_MAP["dbx"], EFI_IMAGE_SECURITY_DATABASE_GUID)
-        self.assertEqual(SIGNATURE_DATABASE_MAP["dbt"], EFI_IMAGE_SECURITY_DATABASE_GUID)
-        self.assertEqual(SIGNATURE_DATABASE_MAP["dbr"], EFI_IMAGE_SECURITY_DATABASE_GUID)
-        return
+"""
+    Verify :data:`SIGNATURE_DATABASE_MAP` covers the six expected
+    names and routes each to the correct vendor GUID.
+"""
 
-
-if __name__ == "__main__":
-    unittest.main()
+def test_map_covers_expected_names() -> None:
+    expected_names = {"PK", "KEK", "db", "dbx", "dbt", "dbr"}
+    testbase.assert_equal(set(SIGNATURE_DATABASE_MAP.keys()), expected_names)
+    testbase.assert_equal(SIGNATURE_DATABASE_MAP["PK"], EFI_GLOBAL_VARIABLE_GUID)
+    testbase.assert_equal(SIGNATURE_DATABASE_MAP["KEK"], EFI_GLOBAL_VARIABLE_GUID)
+    testbase.assert_equal(SIGNATURE_DATABASE_MAP["db"], EFI_IMAGE_SECURITY_DATABASE_GUID)
+    testbase.assert_equal(SIGNATURE_DATABASE_MAP["dbx"], EFI_IMAGE_SECURITY_DATABASE_GUID)
+    testbase.assert_equal(SIGNATURE_DATABASE_MAP["dbt"], EFI_IMAGE_SECURITY_DATABASE_GUID)
+    testbase.assert_equal(SIGNATURE_DATABASE_MAP["dbr"], EFI_IMAGE_SECURITY_DATABASE_GUID)
+    return

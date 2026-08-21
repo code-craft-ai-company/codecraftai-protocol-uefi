@@ -24,8 +24,9 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from ccai import testbase
+
 import logging
-import unittest
 
 from typing import List, Optional, Sequence, Tuple, Union
 
@@ -244,123 +245,126 @@ def _fast_aspects(action_pattern: ActionPattern = ActionPattern.SINGLE_CALL,
 # ---------------------------------------------------------------------------
 
 
-class UefiBaseConstructionTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBaseConstructionTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify that :class:`UefiBase` construction initializes every
+    documented instance variable, that invalid inputs raise
+    :class:`ConfigurationError`, and that ``_target_tag`` follows
+    the documented formation rule.
+"""
+
+def test_construct_with_valid_inputs() -> None:
     """
-        Verify that :class:`UefiBase` construction initializes every
-        documented instance variable, that invalid inputs raise
-        :class:`ConfigurationError`, and that ``_target_tag`` follows
-        the documented formation rule.
+        A minimal valid construction must populate every documented
+        instance attribute.
     """
+    base = _TestableBase(host="host-1")
 
-    def test_construct_with_valid_inputs(self) -> None:
-        """
-            A minimal valid construction must populate every documented
-            instance attribute.
-        """
-        base = _TestableBase(host="host-1")
+    testbase.assert_equal(base.host, "host-1")
+    testbase.assert_equal(base.transport_kind, "serial")
+    testbase.assert_equal(base.primary_credential, "fake-credential")
+    testbase.assert_true(base.jump is None)
+    testbase.assert_true(base.users is None)
+    testbase.assert_true(base.called_id is None)
+    testbase.assert_equal(base.target_tag, "host-1")
+    testbase.assert_true(isinstance(base.aspects, UefiCmdAspects))
+    testbase.assert_true(base.firmware_vendor is None)
+    testbase.assert_true(base.firmware_revision is None)
+    testbase.assert_true(base.secure_boot_state is None)
 
-        self.assertEqual(base.host, "host-1")
-        self.assertEqual(base.transport_kind, "serial")
-        self.assertEqual(base.primary_credential, "fake-credential")
-        self.assertIsNone(base.jump)
-        self.assertIsNone(base.users)
-        self.assertIsNone(base.called_id)
-        self.assertEqual(base.target_tag, "host-1")
-        self.assertIsInstance(base.aspects, UefiCmdAspects)
-        self.assertIsNone(base.firmware_vendor)
-        self.assertIsNone(base.firmware_revision)
-        self.assertIsNone(base.secure_boot_state)
+    return
 
-        return
+def test_target_tag_uses_called_id_when_set() -> None:
+    """
+        When ``called_id`` is set, ``_target_tag`` must be
+        ``"[called_id]"``.
+    """
+    base = _TestableBase(host="host-1", called_id="primary")
 
-    def test_target_tag_uses_called_id_when_set(self) -> None:
-        """
-            When ``called_id`` is set, ``_target_tag`` must be
-            ``"[called_id]"``.
-        """
-        base = _TestableBase(host="host-1", called_id="primary")
+    testbase.assert_equal(base.target_tag, "[primary]")
+    testbase.assert_equal(base.called_id, "primary")
 
-        self.assertEqual(base.target_tag, "[primary]")
-        self.assertEqual(base.called_id, "primary")
+    return
 
-        return
+def test_target_tag_defaults_to_host_when_called_id_none() -> None:
+    """
+        When ``called_id`` is ``None`` the tag equals the host.
+    """
+    base = _TestableBase(host="target-host")
 
-    def test_target_tag_defaults_to_host_when_called_id_none(self) -> None:
-        """
-            When ``called_id`` is ``None`` the tag equals the host.
-        """
-        base = _TestableBase(host="target-host")
+    testbase.assert_equal(base.target_tag, "target-host")
 
-        self.assertEqual(base.target_tag, "target-host")
+    return
 
-        return
+def test_construct_rejects_empty_host() -> None:
+    """
+        An empty host string must raise :class:`ConfigurationError`.
+    """
+    with testbase.raises(ConfigurationError):
+        _TestableBase(host="")
 
-    def test_construct_rejects_empty_host(self) -> None:
-        """
-            An empty host string must raise :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            _TestableBase(host="")
+    return
 
-        return
+def test_construct_rejects_non_string_host() -> None:
+    """
+        A non-string host must raise :class:`ConfigurationError`.
+    """
+    with testbase.raises(ConfigurationError):
+        _TestableBase(host=12345)  # type: ignore[arg-type]
 
-    def test_construct_rejects_non_string_host(self) -> None:
-        """
-            A non-string host must raise :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            _TestableBase(host=12345)  # type: ignore[arg-type]
+    return
 
-        return
+def test_construct_rejects_unknown_transport_kind() -> None:
+    """
+        An unknown transport-kind literal must raise
+        :class:`ConfigurationError`.
+    """
+    with testbase.raises(ConfigurationError):
+        _TestableBase(transport_kind="telepathy")
 
-    def test_construct_rejects_unknown_transport_kind(self) -> None:
-        """
-            An unknown transport-kind literal must raise
-            :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            _TestableBase(transport_kind="telepathy")
+    return
 
-        return
+def test_construct_rejects_none_credential() -> None:
+    """
+        A ``None`` primary credential must raise
+        :class:`ConfigurationError`.
+    """
+    with testbase.raises(ConfigurationError):
+        _TestableBase(primary_credential=None)
 
-    def test_construct_rejects_none_credential(self) -> None:
-        """
-            A ``None`` primary credential must raise
-            :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            _TestableBase(primary_credential=None)
+    return
 
-        return
+def test_construct_rejects_non_cmd_aspects() -> None:
+    """
+        A non-:class:`UefiCmdAspects` ``aspects`` value must raise
+        :class:`ConfigurationError`.
+    """
+    with testbase.raises(ConfigurationError):
+        _TestableBase(aspects="not-a-aspects")  # type: ignore[arg-type]
 
-    def test_construct_rejects_non_cmd_aspects(self) -> None:
-        """
-            A non-:class:`UefiCmdAspects` ``aspects`` value must raise
-            :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            _TestableBase(aspects="not-a-aspects")  # type: ignore[arg-type]
+    return
 
-        return
+def test_construct_rejects_non_string_called_id() -> None:
+    """
+        A non-string ``called_id`` must raise
+        :class:`ConfigurationError`.
+    """
+    with testbase.raises(ConfigurationError):
+        _TestableBase(called_id=17)  # type: ignore[arg-type]
 
-    def test_construct_rejects_non_string_called_id(self) -> None:
-        """
-            A non-string ``called_id`` must raise
-            :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            _TestableBase(called_id=17)  # type: ignore[arg-type]
+    return
 
-        return
+def test_construct_rejects_non_dict_users() -> None:
+    """
+        A non-dict ``users`` must raise :class:`ConfigurationError`.
+    """
+    with testbase.raises(ConfigurationError):
+        _TestableBase(users=["not", "a", "dict"])  # type: ignore[arg-type]
 
-    def test_construct_rejects_non_dict_users(self) -> None:
-        """
-            A non-dict ``users`` must raise :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            _TestableBase(users=["not", "a", "dict"])  # type: ignore[arg-type]
-
-        return
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -377,69 +381,72 @@ class _AbstractBase(UefiBase):
     """
 
 
-class UefiBaseAbstractMethodTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBaseAbstractMethodTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify that the three abstract methods raise
+    :class:`AbstractMethodError` with the subclass name included.
+"""
+
+def _make_abstract() -> "_AbstractBase":
     """
-        Verify that the three abstract methods raise
-        :class:`AbstractMethodError` with the subclass name included.
+        Construct a minimal abstract-base instance for the tests.
+
+        :returns: An :class:`_AbstractBase` instance.
     """
+    instance = _AbstractBase(
+        host="abstract-host",
+        primary_credential="cred",
+        transport_kind="serial",
+    )
+    return instance
 
-    def _make_abstract(self) -> "_AbstractBase":
-        """
-            Construct a minimal abstract-base instance for the tests.
+def test_create_client_raises_abstract() -> None:
+    """
+        :meth:`UefiBase._create_client` must raise
+        :class:`AbstractMethodError` naming the subclass.
+    """
+    base = _make_abstract()
 
-            :returns: An :class:`_AbstractBase` instance.
-        """
-        instance = _AbstractBase(
-            host="abstract-host",
-            primary_credential="cred",
-            transport_kind="serial",
-        )
-        return instance
+    with testbase.raises(AbstractMethodError) as ctx:
+        base._create_client()
 
-    def test_create_client_raises_abstract(self) -> None:
-        """
-            :meth:`UefiBase._create_client` must raise
-            :class:`AbstractMethodError` naming the subclass.
-        """
-        base = self._make_abstract()
+    rendered = str(ctx.exception)
+    testbase.assert_true("_AbstractBase" in rendered)
 
-        with self.assertRaises(AbstractMethodError) as ctx:
-            base._create_client()
+    return
 
-        rendered = str(ctx.exception)
-        self.assertIn("_AbstractBase", rendered)
+def test_run_cmd_raises_abstract() -> None:
+    """
+        :meth:`UefiBase.run_cmd` must raise
+        :class:`AbstractMethodError` naming the subclass.
+    """
+    base = _make_abstract()
 
-        return
+    with testbase.raises(AbstractMethodError) as ctx:
+        base.run_cmd(command="ver")
 
-    def test_run_cmd_raises_abstract(self) -> None:
-        """
-            :meth:`UefiBase.run_cmd` must raise
-            :class:`AbstractMethodError` naming the subclass.
-        """
-        base = self._make_abstract()
+    rendered = str(ctx.exception)
+    testbase.assert_true("_AbstractBase" in rendered)
 
-        with self.assertRaises(AbstractMethodError) as ctx:
-            base.run_cmd(command="ver")
+    return
 
-        rendered = str(ctx.exception)
-        self.assertIn("_AbstractBase", rendered)
+def test_reboot_raises_abstract() -> None:
+    """
+        :meth:`UefiBase.reboot` must raise
+        :class:`AbstractMethodError` naming the subclass.
+    """
+    base = _make_abstract()
 
-        return
+    with testbase.raises(AbstractMethodError) as ctx:
+        base.reboot()
 
-    def test_reboot_raises_abstract(self) -> None:
-        """
-            :meth:`UefiBase.reboot` must raise
-            :class:`AbstractMethodError` naming the subclass.
-        """
-        base = self._make_abstract()
+    rendered = str(ctx.exception)
+    testbase.assert_true("_AbstractBase" in rendered)
 
-        with self.assertRaises(AbstractMethodError) as ctx:
-            base.reboot()
-
-        rendered = str(ctx.exception)
-        self.assertIn("_AbstractBase", rendered)
-
-        return
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -447,48 +454,51 @@ class UefiBaseAbstractMethodTestCase(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UefiBasePropertyImmutabilityTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBasePropertyImmutabilityTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify every public property on :class:`UefiBase` is read-only;
+    assignment must raise :class:`AttributeError`.
+"""
+
+def _assert_readonly(base: _TestableBase, name: str) -> None:
     """
-        Verify every public property on :class:`UefiBase` is read-only;
-        assignment must raise :class:`AttributeError`.
+        Assert that ``setattr(base, name, ...)`` raises
+        :class:`AttributeError`.
+
+        :param base: The base instance.
+        :param name: The property name.
     """
+    with testbase.raises(AttributeError):
+        setattr(base, name, object())
+    return
 
-    def _assert_readonly(self, base: _TestableBase, name: str) -> None:
-        """
-            Assert that ``setattr(base, name, ...)`` raises
-            :class:`AttributeError`.
+def test_all_properties_are_read_only() -> None:
+    """
+        Assignment to any public property must raise
+        :class:`AttributeError`.
+    """
+    base = _TestableBase(host="host-1", called_id="id-1")
 
-            :param base: The base instance.
-            :param name: The property name.
-        """
-        with self.assertRaises(AttributeError):
-            setattr(base, name, object())
-        return
+    readonly_names = (
+        "host",
+        "primary_credential",
+        "transport_kind",
+        "users",
+        "jump",
+        "called_id",
+        "target_tag",
+        "aspects",
+        "firmware_vendor",
+        "firmware_revision",
+        "secure_boot_state",
+    )
+    for name in readonly_names:
+        _assert_readonly(base=base, name=name)
 
-    def test_all_properties_are_read_only(self) -> None:
-        """
-            Assignment to any public property must raise
-            :class:`AttributeError`.
-        """
-        base = _TestableBase(host="host-1", called_id="id-1")
-
-        readonly_names = (
-            "host",
-            "primary_credential",
-            "transport_kind",
-            "users",
-            "jump",
-            "called_id",
-            "target_tag",
-            "aspects",
-            "firmware_vendor",
-            "firmware_revision",
-            "secure_boot_state",
-        )
-        for name in readonly_names:
-            self._assert_readonly(base=base, name=name)
-
-        return
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -518,154 +528,157 @@ class _LogCapturingHandler(logging.Handler):
         return
 
 
-class UefiBaseLogCommandResultTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBaseLogCommandResultTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify that :meth:`UefiBase._log_command_result` honors every
+    :class:`LoggingPattern` value and handles int / sequence
+    ``exp_status`` comparison correctly.
+"""
+
+def _install_capture(base: _TestableBase) -> _LogCapturingHandler:
     """
-        Verify that :meth:`UefiBase._log_command_result` honors every
-        :class:`LoggingPattern` value and handles int / sequence
-        ``exp_status`` comparison correctly.
+        Attach a :class:`_LogCapturingHandler` to the base's logger.
+
+        :param base: The base instance whose logger should be
+                     captured.
+
+        :returns: The installed capturing handler.
     """
+    handler = _LogCapturingHandler()
+    handler.setLevel(logging.DEBUG)
+    base._logger.addHandler(handler)
+    base._logger.setLevel(logging.DEBUG)
+    return handler
 
-    def _install_capture(self, base: _TestableBase) -> _LogCapturingHandler:
-        """
-            Attach a :class:`_LogCapturingHandler` to the base's logger.
+def _uninstall_capture(base: _TestableBase,
+                             handler: _LogCapturingHandler) -> None:
+    """
+        Remove the capturing handler.
+    """
+    base._logger.removeHandler(handler)
+    return
 
-            :param base: The base instance whose logger should be
-                         captured.
+def test_success_all_results_logs_info() -> None:
+    """
+        A status that matches ``exp_status`` under
+        :data:`LoggingPattern.ALL_RESULTS` must emit an INFO record.
+    """
+    base = _TestableBase()
+    handler = _install_capture(base=base)
+    try:
+        base._log_command_result(
+            command="ver", status=0, stdout="UEFI", stderr="",
+            exp_status=0, logging_pattern=LoggingPattern.ALL_RESULTS,
+        )
+    finally:
+        _uninstall_capture(base=base, handler=handler)
 
-            :returns: The installed capturing handler.
-        """
-        handler = _LogCapturingHandler()
-        handler.setLevel(logging.DEBUG)
-        base._logger.addHandler(handler)
-        base._logger.setLevel(logging.DEBUG)
-        return handler
+    info_records = [r for r in handler.records if r.levelno == logging.INFO]
+    testbase.assert_equal(len(info_records), 1)
 
-    def _uninstall_capture(self, base: _TestableBase,
-                                 handler: _LogCapturingHandler) -> None:
-        """
-            Remove the capturing handler.
-        """
-        base._logger.removeHandler(handler)
-        return
+    return
 
-    def test_success_all_results_logs_info(self) -> None:
-        """
-            A status that matches ``exp_status`` under
-            :data:`LoggingPattern.ALL_RESULTS` must emit an INFO record.
-        """
-        base = _TestableBase()
-        handler = self._install_capture(base=base)
-        try:
-            base._log_command_result(
-                command="ver", status=0, stdout="UEFI", stderr="",
-                exp_status=0, logging_pattern=LoggingPattern.ALL_RESULTS,
-            )
-        finally:
-            self._uninstall_capture(base=base, handler=handler)
+def test_success_failure_only_suppresses_log() -> None:
+    """
+        A success under :data:`LoggingPattern.FAILURE_ONLY` must not
+        emit any record.
+    """
+    base = _TestableBase()
+    handler = _install_capture(base=base)
+    try:
+        base._log_command_result(
+            command="ver", status=0, stdout="UEFI", stderr="",
+            exp_status=0, logging_pattern=LoggingPattern.FAILURE_ONLY,
+        )
+    finally:
+        _uninstall_capture(base=base, handler=handler)
 
-        info_records = [r for r in handler.records if r.levelno == logging.INFO]
-        self.assertEqual(len(info_records), 1)
+    testbase.assert_equal(len(handler.records), 0)
 
-        return
+    return
 
-    def test_success_failure_only_suppresses_log(self) -> None:
-        """
-            A success under :data:`LoggingPattern.FAILURE_ONLY` must not
-            emit any record.
-        """
-        base = _TestableBase()
-        handler = self._install_capture(base=base)
-        try:
-            base._log_command_result(
-                command="ver", status=0, stdout="UEFI", stderr="",
-                exp_status=0, logging_pattern=LoggingPattern.FAILURE_ONLY,
-            )
-        finally:
-            self._uninstall_capture(base=base, handler=handler)
+def test_failure_success_only_suppresses_log() -> None:
+    """
+        A failure under :data:`LoggingPattern.SUCCESS_ONLY` must not
+        emit any record.
+    """
+    base = _TestableBase()
+    handler = _install_capture(base=base)
+    try:
+        base._log_command_result(
+            command="ver", status=5, stdout="bad", stderr="boom",
+            exp_status=0, logging_pattern=LoggingPattern.SUCCESS_ONLY,
+        )
+    finally:
+        _uninstall_capture(base=base, handler=handler)
 
-        self.assertEqual(len(handler.records), 0)
+    testbase.assert_equal(len(handler.records), 0)
 
-        return
+    return
 
-    def test_failure_success_only_suppresses_log(self) -> None:
-        """
-            A failure under :data:`LoggingPattern.SUCCESS_ONLY` must not
-            emit any record.
-        """
-        base = _TestableBase()
-        handler = self._install_capture(base=base)
-        try:
-            base._log_command_result(
-                command="ver", status=5, stdout="bad", stderr="boom",
-                exp_status=0, logging_pattern=LoggingPattern.SUCCESS_ONLY,
-            )
-        finally:
-            self._uninstall_capture(base=base, handler=handler)
+def test_failure_failure_only_logs_error() -> None:
+    """
+        A failure under :data:`LoggingPattern.FAILURE_ONLY` must emit
+        an ERROR record.
+    """
+    base = _TestableBase()
+    handler = _install_capture(base=base)
+    try:
+        base._log_command_result(
+            command="ver", status=5, stdout="bad", stderr="boom",
+            exp_status=0, logging_pattern=LoggingPattern.FAILURE_ONLY,
+        )
+    finally:
+        _uninstall_capture(base=base, handler=handler)
 
-        self.assertEqual(len(handler.records), 0)
+    error_records = [r for r in handler.records if r.levelno == logging.ERROR]
+    testbase.assert_equal(len(error_records), 1)
 
-        return
+    return
 
-    def test_failure_failure_only_logs_error(self) -> None:
-        """
-            A failure under :data:`LoggingPattern.FAILURE_ONLY` must emit
-            an ERROR record.
-        """
-        base = _TestableBase()
-        handler = self._install_capture(base=base)
-        try:
-            base._log_command_result(
-                command="ver", status=5, stdout="bad", stderr="boom",
-                exp_status=0, logging_pattern=LoggingPattern.FAILURE_ONLY,
-            )
-        finally:
-            self._uninstall_capture(base=base, handler=handler)
+def test_exp_status_as_tuple_matches_in() -> None:
+    """
+        A status that is ``in`` the tuple-form ``exp_status`` counts
+        as a match.
+    """
+    base = _TestableBase()
+    handler = _install_capture(base=base)
+    try:
+        base._log_command_result(
+            command="ver", status=2, stdout="", stderr="",
+            exp_status=(0, 1, 2), logging_pattern=LoggingPattern.SUCCESS_ONLY,
+        )
+    finally:
+        _uninstall_capture(base=base, handler=handler)
 
-        error_records = [r for r in handler.records if r.levelno == logging.ERROR]
-        self.assertEqual(len(error_records), 1)
+    info_records = [r for r in handler.records if r.levelno == logging.INFO]
+    testbase.assert_equal(len(info_records), 1)
 
-        return
+    return
 
-    def test_exp_status_as_tuple_matches_in(self) -> None:
-        """
-            A status that is ``in`` the tuple-form ``exp_status`` counts
-            as a match.
-        """
-        base = _TestableBase()
-        handler = self._install_capture(base=base)
-        try:
-            base._log_command_result(
-                command="ver", status=2, stdout="", stderr="",
-                exp_status=(0, 1, 2), logging_pattern=LoggingPattern.SUCCESS_ONLY,
-            )
-        finally:
-            self._uninstall_capture(base=base, handler=handler)
+def test_exp_status_as_tuple_mismatch_counts_failure() -> None:
+    """
+        A status that is NOT ``in`` the tuple-form ``exp_status`` is
+        a failure; under :data:`LoggingPattern.FAILURE_ONLY` this
+        must emit an ERROR record.
+    """
+    base = _TestableBase()
+    handler = _install_capture(base=base)
+    try:
+        base._log_command_result(
+            command="ver", status=99, stdout="", stderr="",
+            exp_status=(0, 1, 2), logging_pattern=LoggingPattern.FAILURE_ONLY,
+        )
+    finally:
+        _uninstall_capture(base=base, handler=handler)
 
-        info_records = [r for r in handler.records if r.levelno == logging.INFO]
-        self.assertEqual(len(info_records), 1)
+    error_records = [r for r in handler.records if r.levelno == logging.ERROR]
+    testbase.assert_equal(len(error_records), 1)
 
-        return
-
-    def test_exp_status_as_tuple_mismatch_counts_failure(self) -> None:
-        """
-            A status that is NOT ``in`` the tuple-form ``exp_status`` is
-            a failure; under :data:`LoggingPattern.FAILURE_ONLY` this
-            must emit an ERROR record.
-        """
-        base = _TestableBase()
-        handler = self._install_capture(base=base)
-        try:
-            base._log_command_result(
-                command="ver", status=99, stdout="", stderr="",
-                exp_status=(0, 1, 2), logging_pattern=LoggingPattern.FAILURE_ONLY,
-            )
-        finally:
-            self._uninstall_capture(base=base, handler=handler)
-
-        error_records = [r for r in handler.records if r.levelno == logging.ERROR]
-        self.assertEqual(len(error_records), 1)
-
-        return
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -673,180 +686,195 @@ class UefiBaseLogCommandResultTestCase(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UefiBaseRunSingleCallTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBaseRunSingleCallTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify that :data:`ActionPattern.SINGLE_CALL` runs the command
+    exactly once and returns the programmed triple.
+"""
+
+def test_single_call_runs_once() -> None:
     """
-        Verify that :data:`ActionPattern.SINGLE_CALL` runs the command
-        exactly once and returns the programmed triple.
+        ``SINGLE_CALL`` must invoke ``execute`` exactly once and
+        return the programmed triple.
     """
+    aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
+    base = _TestableBase(aspects=aspects)
+    base.stub_client.program(responses=[(0, "hello-stdout", "hello-stderr")])
 
-    def test_single_call_runs_once(self) -> None:
-        """
-            ``SINGLE_CALL`` must invoke ``execute`` exactly once and
-            return the programmed triple.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
-        base = _TestableBase(aspects=aspects)
-        base.stub_client.program(responses=[(0, "hello-stdout", "hello-stderr")])
+    status, stdout, stderr = base.run_cmd(command="ver")
 
-        status, stdout, stderr = base.run_cmd(command="ver")
+    testbase.assert_equal(len(base.stub_client.execute_calls), 1)
+    testbase.assert_equal(status, 0)
+    testbase.assert_equal(stdout, "hello-stdout")
+    testbase.assert_equal(stderr, "hello-stderr")
 
-        self.assertEqual(len(base.stub_client.execute_calls), 1)
-        self.assertEqual(status, 0)
-        self.assertEqual(stdout, "hello-stdout")
-        self.assertEqual(stderr, "hello-stderr")
-
-        return
+    return
 
 
-class UefiBaseRunDoUntilSuccessTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBaseRunDoUntilSuccessTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify the happy-path and timeout-path behavior of
+    :data:`ActionPattern.DO_UNTIL_SUCCESS`.
+"""
+
+def test_do_until_success_happy_path() -> None:
     """
-        Verify the happy-path and timeout-path behavior of
-        :data:`ActionPattern.DO_UNTIL_SUCCESS`.
+        Two failures followed by a success must produce exactly
+        three ``execute`` calls and return the final triple.
     """
+    aspects = _fast_aspects(action_pattern=ActionPattern.DO_UNTIL_SUCCESS)
+    base = _TestableBase(aspects=aspects)
+    base.stub_client.program(responses=[
+        (1, "try-1", ""),
+        (2, "try-2", ""),
+        (0, "win", ""),
+    ])
 
-    def test_do_until_success_happy_path(self) -> None:
-        """
-            Two failures followed by a success must produce exactly
-            three ``execute`` calls and return the final triple.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.DO_UNTIL_SUCCESS)
-        base = _TestableBase(aspects=aspects)
-        base.stub_client.program(responses=[
-            (1, "try-1", ""),
-            (2, "try-2", ""),
-            (0, "win", ""),
-        ])
+    status, stdout, _ = base.run_cmd(command="probe")
 
-        status, stdout, _ = base.run_cmd(command="probe")
+    testbase.assert_equal(len(base.stub_client.execute_calls), 3)
+    testbase.assert_equal(status, 0)
+    testbase.assert_equal(stdout, "win")
 
-        self.assertEqual(len(base.stub_client.execute_calls), 3)
-        self.assertEqual(status, 0)
-        self.assertEqual(stdout, "win")
+    return
 
-        return
-
-    def test_do_until_success_timeout_raises(self) -> None:
-        """
-            A perpetually failing command must raise :class:`TimeoutError`
-            after ``completion_timeout`` elapses.  The error details must
-            include the command, STDOUT, and STDERR markers.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.DO_UNTIL_SUCCESS)
-        base = _TestableBase(aspects=aspects)
-
-        # Prime enough fallback default_response triples; also set
-        # response_sequence to a repeating failure.  The default_response
-        # keeps feeding failures once the sequence is exhausted.
-        base.stub_client.default_response = (42, "nope", "boom")
-
-        with self.assertRaises(TimeoutError) as ctx:
-            base.run_cmd(command="probe-cmd")
-
-        rendered = str(ctx.exception)
-        self.assertIn("CMD: probe-cmd", rendered)
-        self.assertIn("STDOUT:", rendered)
-        self.assertIn("STDERR:", rendered)
-        self.assertIn("nope", rendered)
-        self.assertIn("boom", rendered)
-
-        return
-
-
-class UefiBaseRunDoWhileSuccessTestCase(unittest.TestCase):
+def test_do_until_success_timeout_raises() -> None:
     """
-        Verify the happy-path and timeout-path behavior of
-        :data:`ActionPattern.DO_WHILE_SUCCESS`.
+        A perpetually failing command must raise :class:`TimeoutError`
+        after ``completion_timeout`` elapses.  The error details must
+        include the command, STDOUT, and STDERR markers.
     """
+    aspects = _fast_aspects(action_pattern=ActionPattern.DO_UNTIL_SUCCESS)
+    base = _TestableBase(aspects=aspects)
 
-    def test_do_while_success_exits_on_divergence(self) -> None:
-        """
-            Two successes followed by a divergence must produce exactly
-            three ``execute`` calls and return the final (divergent)
-            triple.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.DO_WHILE_SUCCESS)
-        base = _TestableBase(aspects=aspects)
-        base.stub_client.program(responses=[
-            (0, "ok-1", ""),
-            (0, "ok-2", ""),
-            (7, "fail", "details"),
-        ])
+    # Prime enough fallback default_response triples; also set
+    # response_sequence to a repeating failure.  The default_response
+    # keeps feeding failures once the sequence is exhausted.
+    base.stub_client.default_response = (42, "nope", "boom")
 
-        status, stdout, _ = base.run_cmd(command="watch")
+    with testbase.raises(TimeoutError) as ctx:
+        base.run_cmd(command="probe-cmd")
 
-        self.assertEqual(len(base.stub_client.execute_calls), 3)
-        self.assertEqual(status, 7)
-        self.assertEqual(stdout, "fail")
+    rendered = str(ctx.exception)
+    testbase.assert_true("CMD: probe-cmd" in rendered)
+    testbase.assert_true("STDOUT:" in rendered)
+    testbase.assert_true("STDERR:" in rendered)
+    testbase.assert_true("nope" in rendered)
+    testbase.assert_true("boom" in rendered)
 
-        return
-
-    def test_do_while_success_timeout_raises(self) -> None:
-        """
-            A perpetually succeeding command must raise
-            :class:`TimeoutError` after ``completion_timeout`` elapses.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.DO_WHILE_SUCCESS)
-        base = _TestableBase(aspects=aspects)
-        base.stub_client.default_response = (0, "still-ok", "")
-
-        with self.assertRaises(TimeoutError) as ctx:
-            base.run_cmd(command="watch-cmd")
-
-        rendered = str(ctx.exception)
-        self.assertIn("CMD: watch-cmd", rendered)
-        self.assertIn("STDOUT:", rendered)
-        self.assertIn("STDERR:", rendered)
-
-        return
+    return
 
 
-class UefiBaseRunSingleConnectedCallTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBaseRunDoWhileSuccessTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify the happy-path and timeout-path behavior of
+    :data:`ActionPattern.DO_WHILE_SUCCESS`.
+"""
+
+def test_do_while_success_exits_on_divergence() -> None:
     """
-        Verify that :data:`ActionPattern.SINGLE_CONNECTED_CALL` raises
-        :class:`SemanticError` at this base-class layer (it is a
-        session-only pattern).
+        Two successes followed by a divergence must produce exactly
+        three ``execute`` calls and return the final (divergent)
+        triple.
     """
+    aspects = _fast_aspects(action_pattern=ActionPattern.DO_WHILE_SUCCESS)
+    base = _TestableBase(aspects=aspects)
+    base.stub_client.program(responses=[
+        (0, "ok-1", ""),
+        (0, "ok-2", ""),
+        (7, "fail", "details"),
+    ])
 
-    def test_single_connected_call_raises_semantic_error(self) -> None:
-        """
-            ``SINGLE_CONNECTED_CALL`` must raise :class:`SemanticError`
-            when dispatched through :class:`UefiBase`.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
-        base = _TestableBase(aspects=aspects)
+    status, stdout, _ = base.run_cmd(command="watch")
 
-        with self.assertRaises(SemanticError) as ctx:
-            base.run_cmd(command="connected")
+    testbase.assert_equal(len(base.stub_client.execute_calls), 3)
+    testbase.assert_equal(status, 7)
+    testbase.assert_equal(stdout, "fail")
 
-        rendered = str(ctx.exception)
-        self.assertIn("SINGLE_CONNECTED_CALL", rendered)
+    return
 
-        return
-
-
-class UefiBaseRunDoUntilConnectionFailureTestCase(unittest.TestCase):
+def test_do_while_success_timeout_raises() -> None:
     """
-        Verify that :data:`ActionPattern.DO_UNTIL_CONNECTION_FAILURE`
-        raises :class:`SemanticError` at this base-class layer (it is a
-        session-only pattern).
+        A perpetually succeeding command must raise
+        :class:`TimeoutError` after ``completion_timeout`` elapses.
     """
+    aspects = _fast_aspects(action_pattern=ActionPattern.DO_WHILE_SUCCESS)
+    base = _TestableBase(aspects=aspects)
+    base.stub_client.default_response = (0, "still-ok", "")
 
-    def test_do_until_connection_failure_raises_semantic_error(self) -> None:
-        """
-            ``DO_UNTIL_CONNECTION_FAILURE`` must raise
-            :class:`SemanticError` when dispatched through
-            :class:`UefiBase`.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.DO_UNTIL_CONNECTION_FAILURE)
-        base = _TestableBase(aspects=aspects)
+    with testbase.raises(TimeoutError) as ctx:
+        base.run_cmd(command="watch-cmd")
 
-        with self.assertRaises(SemanticError) as ctx:
-            base.run_cmd(command="loop-until-disconnect")
+    rendered = str(ctx.exception)
+    testbase.assert_true("CMD: watch-cmd" in rendered)
+    testbase.assert_true("STDOUT:" in rendered)
+    testbase.assert_true("STDERR:" in rendered)
 
-        rendered = str(ctx.exception)
-        self.assertIn("DO_UNTIL_CONNECTION_FAILURE", rendered)
+    return
 
-        return
+
+# ----------------------------------------------------------------------
+# UefiBaseRunSingleConnectedCallTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify that :data:`ActionPattern.SINGLE_CONNECTED_CALL` raises
+    :class:`SemanticError` at this base-class layer (it is a
+    session-only pattern).
+"""
+
+def test_single_connected_call_raises_semantic_error() -> None:
+    """
+        ``SINGLE_CONNECTED_CALL`` must raise :class:`SemanticError`
+        when dispatched through :class:`UefiBase`.
+    """
+    aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
+    base = _TestableBase(aspects=aspects)
+
+    with testbase.raises(SemanticError) as ctx:
+        base.run_cmd(command="connected")
+
+    rendered = str(ctx.exception)
+    testbase.assert_true("SINGLE_CONNECTED_CALL" in rendered)
+
+    return
+
+
+# ----------------------------------------------------------------------
+# UefiBaseRunDoUntilConnectionFailureTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify that :data:`ActionPattern.DO_UNTIL_CONNECTION_FAILURE`
+    raises :class:`SemanticError` at this base-class layer (it is a
+    session-only pattern).
+"""
+
+def test_do_until_connection_failure_raises_semantic_error() -> None:
+    """
+        ``DO_UNTIL_CONNECTION_FAILURE`` must raise
+        :class:`SemanticError` when dispatched through
+        :class:`UefiBase`.
+    """
+    aspects = _fast_aspects(action_pattern=ActionPattern.DO_UNTIL_CONNECTION_FAILURE)
+    base = _TestableBase(aspects=aspects)
+
+    with testbase.raises(SemanticError) as ctx:
+        base.run_cmd(command="loop-until-disconnect")
+
+    rendered = str(ctx.exception)
+    testbase.assert_true("DO_UNTIL_CONNECTION_FAILURE" in rendered)
+
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -854,60 +882,63 @@ class UefiBaseRunDoUntilConnectionFailureTestCase(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UefiBaseVerifyConnectivityTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBaseVerifyConnectivityTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify :meth:`UefiBase.verify_connectivity` for the happy-path
+    shell transport.  The probe issues ``echo Hello`` and expects
+    the response to contain ``"Hello"`` with exit status ``0``.
+"""
+
+def test_verify_connectivity_happy_path() -> None:
     """
-        Verify :meth:`UefiBase.verify_connectivity` for the happy-path
-        shell transport.  The probe issues ``echo Hello`` and expects
-        the response to contain ``"Hello"`` with exit status ``0``.
+        A clean ``(0, "Hello\\n", "")`` response must return
+        ``True``.
     """
+    aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
+    base = _TestableBase(transport_kind="serial", aspects=aspects)
+    base.stub_client.program(responses=[(0, "Hello\n", "")])
 
-    def test_verify_connectivity_happy_path(self) -> None:
-        """
-            A clean ``(0, "Hello\\n", "")`` response must return
-            ``True``.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
-        base = _TestableBase(transport_kind="serial", aspects=aspects)
-        base.stub_client.program(responses=[(0, "Hello\n", "")])
+    result = base.verify_connectivity()
 
-        result = base.verify_connectivity()
+    testbase.assert_true(result)
+    testbase.assert_equal(len(base.stub_client.execute_calls), 1)
+    dispatched_command, _ = base.stub_client.execute_calls[0]
+    testbase.assert_equal(dispatched_command, "echo Hello")
 
-        self.assertTrue(result)
-        self.assertEqual(len(base.stub_client.execute_calls), 1)
-        dispatched_command, _ = base.stub_client.execute_calls[0]
-        self.assertEqual(dispatched_command, "echo Hello")
+    return
 
-        return
+def test_verify_connectivity_ssh_host_exact_match() -> None:
+    """
+        Under ``transport_kind='ssh-host'`` the stdout must equal
+        ``"Hello"`` after ``strip()``.
+    """
+    aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
+    base = _TestableBase(transport_kind="ssh-host", aspects=aspects)
+    base.stub_client.program(responses=[(0, "Hello\n", "")])
 
-    def test_verify_connectivity_ssh_host_exact_match(self) -> None:
-        """
-            Under ``transport_kind='ssh-host'`` the stdout must equal
-            ``"Hello"`` after ``strip()``.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
-        base = _TestableBase(transport_kind="ssh-host", aspects=aspects)
-        base.stub_client.program(responses=[(0, "Hello\n", "")])
+    result = base.verify_connectivity()
 
-        result = base.verify_connectivity()
+    testbase.assert_true(result)
 
-        self.assertTrue(result)
+    return
 
-        return
+def test_verify_connectivity_connection_error_returns_false() -> None:
+    """
+        When the underlying runner raises :class:`ConnectionError`
+        the method must return ``False``.
+    """
+    aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
+    base = _TestableBase(transport_kind="serial", aspects=aspects)
+    base.stub_client.program_exceptions(exceptions=[ConnectionError("down")])
 
-    def test_verify_connectivity_connection_error_returns_false(self) -> None:
-        """
-            When the underlying runner raises :class:`ConnectionError`
-            the method must return ``False``.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
-        base = _TestableBase(transport_kind="serial", aspects=aspects)
-        base.stub_client.program_exceptions(exceptions=[ConnectionError("down")])
+    result = base.verify_connectivity()
 
-        result = base.verify_connectivity()
+    testbase.assert_false(result)
 
-        self.assertFalse(result)
-
-        return
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -915,70 +946,69 @@ class UefiBaseVerifyConnectivityTestCase(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UefiBaseLookupHelpersTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiBaseLookupHelpersTestCase
+# ----------------------------------------------------------------------
+
+"""
+    Verify the ``lookup_user_by_uid`` and ``lookup_group_by_gid``
+    helpers.  Both dispatch ``id -n -u <id>`` / ``id -n -g <id>`` via
+    :meth:`run_cmd` and cache the result on success.
+"""
+
+def test_lookup_user_by_uid_happy_path() -> None:
     """
-        Verify the ``lookup_user_by_uid`` and ``lookup_group_by_gid``
-        helpers.  Both dispatch ``id -n -u <id>`` / ``id -n -g <id>`` via
-        :meth:`run_cmd` and cache the result on success.
+        A clean ``status==0`` response must set the cache and
+        return the stripped username.
     """
+    aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
+    base = _TestableBase(transport_kind="ssh-host", aspects=aspects)
+    base.stub_client.program(responses=[(0, "alice\n", "")])
 
-    def test_lookup_user_by_uid_happy_path(self) -> None:
-        """
-            A clean ``status==0`` response must set the cache and
-            return the stripped username.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
-        base = _TestableBase(transport_kind="ssh-host", aspects=aspects)
-        base.stub_client.program(responses=[(0, "alice\n", "")])
+    resolved = base.lookup_user_by_uid(uid=1001)
 
-        resolved = base.lookup_user_by_uid(uid=1001)
+    testbase.assert_equal(resolved, "alice")
+    cached = base.lookup_user_by_uid(uid=1001, update=False)
+    testbase.assert_equal(cached, "alice")
+    # Second call must hit the cache, so execute_calls is still 1.
+    testbase.assert_equal(len(base.stub_client.execute_calls), 1)
 
-        self.assertEqual(resolved, "alice")
-        cached = base.lookup_user_by_uid(uid=1001, update=False)
-        self.assertEqual(cached, "alice")
-        # Second call must hit the cache, so execute_calls is still 1.
-        self.assertEqual(len(base.stub_client.execute_calls), 1)
+    return
 
-        return
+def test_lookup_group_by_gid_happy_path() -> None:
+    """
+        A clean ``status==0`` response must set the cache and
+        return the stripped group name.
+    """
+    aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
+    base = _TestableBase(transport_kind="ssh-host", aspects=aspects)
+    base.stub_client.program(responses=[(0, "staff\n", "")])
 
-    def test_lookup_group_by_gid_happy_path(self) -> None:
-        """
-            A clean ``status==0`` response must set the cache and
-            return the stripped group name.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
-        base = _TestableBase(transport_kind="ssh-host", aspects=aspects)
-        base.stub_client.program(responses=[(0, "staff\n", "")])
+    resolved = base.lookup_group_by_gid(gid=50)
 
-        resolved = base.lookup_group_by_gid(gid=50)
+    testbase.assert_equal(resolved, "staff")
+    cached = base.lookup_group_by_gid(gid=50, update=False)
+    testbase.assert_equal(cached, "staff")
+    testbase.assert_equal(len(base.stub_client.execute_calls), 1)
 
-        self.assertEqual(resolved, "staff")
-        cached = base.lookup_group_by_gid(gid=50, update=False)
-        self.assertEqual(cached, "staff")
-        self.assertEqual(len(base.stub_client.execute_calls), 1)
+    return
 
-        return
+def test_lookup_user_by_uid_update_false_does_not_query() -> None:
+    """
+        When ``update=False`` and the UID is not already cached,
+        the helper must return ``None`` without issuing a command.
+    """
+    aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
+    base = _TestableBase(transport_kind="ssh-host", aspects=aspects)
 
-    def test_lookup_user_by_uid_update_false_does_not_query(self) -> None:
-        """
-            When ``update=False`` and the UID is not already cached,
-            the helper must return ``None`` without issuing a command.
-        """
-        aspects = _fast_aspects(action_pattern=ActionPattern.SINGLE_CALL)
-        base = _TestableBase(transport_kind="ssh-host", aspects=aspects)
+    resolved = base.lookup_user_by_uid(uid=9999, update=False)
 
-        resolved = base.lookup_user_by_uid(uid=9999, update=False)
+    testbase.assert_true(resolved is None)
+    testbase.assert_equal(len(base.stub_client.execute_calls), 0)
 
-        self.assertIsNone(resolved)
-        self.assertEqual(len(base.stub_client.execute_calls), 0)
-
-        return
+    return
 
 
 # ---------------------------------------------------------------------------
 # Entry-point: let tests run under `python -m unittest`
 # ---------------------------------------------------------------------------
-
-
-if __name__ == "__main__":
-    unittest.main()

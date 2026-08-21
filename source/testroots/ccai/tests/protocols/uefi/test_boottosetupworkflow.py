@@ -20,7 +20,8 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+from ccai import testbase
+
 import uuid
 
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -237,269 +238,280 @@ def _make_workflow() -> Tuple[BootToSetupWorkflow, _FakeAgent, _FakeVariableStor
 # ---------------------------------------------------------------------------
 
 
-class TestEnterSetupCapabilityProbe(unittest.TestCase):
-    """
-        Tests covering the capability-probe step of :meth:`enter_setup`.
-    """
+# ----------------------------------------------------------------------
+# TestEnterSetupCapabilityProbe
+# ----------------------------------------------------------------------
 
-    def test_reads_os_indications_supported_first(self) -> None:
-        """The workflow reads ``OsIndicationsSupported`` before writing."""
-        workflow, _, variable_store, _ = _make_workflow()
+"""
+    Tests covering the capability-probe step of :meth:`enter_setup`.
+"""
 
-        variable_store.seed(
-            name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS
-            | UefiVariableAttributes.RUNTIME_ACCESS,
-            data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
-        )
+def test_reads_os_indications_supported_first() -> None:
+    """The workflow reads ``OsIndicationsSupported`` before writing."""
+    workflow, _, variable_store, _ = _make_workflow()
 
+    variable_store.seed(
+        name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS
+        | UefiVariableAttributes.RUNTIME_ACCESS,
+        data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
+    )
+
+    workflow.enter_setup()
+
+    # First get_call must be OsIndicationsSupported.
+    testbase.assert_greater(len(variable_store.get_calls), 0)
+    first_name, first_guid = variable_store.get_calls[0]
+    testbase.assert_equal(first_name, OS_INDICATIONS_SUPPORTED_VARIABLE_NAME)
+    testbase.assert_equal(first_guid, EFI_GLOBAL_VARIABLE_GUID)
+    return
+
+def test_missing_boot_to_fw_ui_raises() -> None:
+    """A supported mask without BOOT_TO_FW_UI raises :class:`UefiError`."""
+    workflow, _, variable_store, reboot_workflow = _make_workflow()
+
+    # Seed supported WITHOUT the BOOT_TO_FW_UI bit.
+    variable_store.seed(
+        name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS
+        | UefiVariableAttributes.RUNTIME_ACCESS,
+        data=_encode_u64_le(EFI_OS_INDICATIONS_START_OS_RECOVERY),
+    )
+
+    with testbase.raises(UefiError):
         workflow.enter_setup()
 
-        # First get_call must be OsIndicationsSupported.
-        self.assertGreater(len(variable_store.get_calls), 0)
-        first_name, first_guid = variable_store.get_calls[0]
-        self.assertEqual(first_name, OS_INDICATIONS_SUPPORTED_VARIABLE_NAME)
-        self.assertEqual(first_guid, EFI_GLOBAL_VARIABLE_GUID)
-        return
-
-    def test_missing_boot_to_fw_ui_raises(self) -> None:
-        """A supported mask without BOOT_TO_FW_UI raises :class:`UefiError`."""
-        workflow, _, variable_store, reboot_workflow = _make_workflow()
-
-        # Seed supported WITHOUT the BOOT_TO_FW_UI bit.
-        variable_store.seed(
-            name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS
-            | UefiVariableAttributes.RUNTIME_ACCESS,
-            data=_encode_u64_le(EFI_OS_INDICATIONS_START_OS_RECOVERY),
-        )
-
-        with self.assertRaises(UefiError):
-            workflow.enter_setup()
-
-        # Workflow must not have attempted to write or reboot.
-        self.assertEqual(len(variable_store.set_calls), 0)
-        self.assertEqual(len(reboot_workflow.reboot_calls), 0)
-        return
+    # Workflow must not have attempted to write or reboot.
+    testbase.assert_equal(len(variable_store.set_calls), 0)
+    testbase.assert_equal(len(reboot_workflow.reboot_calls), 0)
+    return
 
 
-class TestEnterSetupMutation(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestEnterSetupMutation
+# ----------------------------------------------------------------------
+
+"""
+    Tests covering the read-modify-write of ``OsIndications``.
+"""
+
+def test_bit_is_ored_with_prior_value() -> None:
     """
-        Tests covering the read-modify-write of ``OsIndications``.
+        When ``OsIndications`` already carries unrelated bits, the
+        workflow preserves them and ORs in BOOT_TO_FW_UI.
     """
+    workflow, _, variable_store, _ = _make_workflow()
 
-    def test_bit_is_ored_with_prior_value(self) -> None:
-        """
-            When ``OsIndications`` already carries unrelated bits, the
-            workflow preserves them and ORs in BOOT_TO_FW_UI.
-        """
-        workflow, _, variable_store, _ = _make_workflow()
+    variable_store.seed(
+        name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS
+        | UefiVariableAttributes.RUNTIME_ACCESS,
+        data=_encode_u64_le(
+            EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+            | EFI_OS_INDICATIONS_START_OS_RECOVERY,
+        ),
+    )
 
-        variable_store.seed(
-            name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS
-            | UefiVariableAttributes.RUNTIME_ACCESS,
-            data=_encode_u64_le(
-                EFI_OS_INDICATIONS_BOOT_TO_FW_UI
-                | EFI_OS_INDICATIONS_START_OS_RECOVERY,
-            ),
-        )
+    # OsIndications carries a non-BOOT_TO_FW_UI bit.
+    prior = EFI_OS_INDICATIONS_START_OS_RECOVERY
+    variable_store.seed(
+        name=OS_INDICATIONS_VARIABLE_NAME,
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes.NON_VOLATILE
+        | UefiVariableAttributes.BOOTSERVICE_ACCESS
+        | UefiVariableAttributes.RUNTIME_ACCESS,
+        data=_encode_u64_le(prior),
+    )
 
-        # OsIndications carries a non-BOOT_TO_FW_UI bit.
-        prior = EFI_OS_INDICATIONS_START_OS_RECOVERY
-        variable_store.seed(
-            name=OS_INDICATIONS_VARIABLE_NAME,
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes.NON_VOLATILE
-            | UefiVariableAttributes.BOOTSERVICE_ACCESS
-            | UefiVariableAttributes.RUNTIME_ACCESS,
-            data=_encode_u64_le(prior),
-        )
+    result = workflow.enter_setup()
 
-        result = workflow.enter_setup()
+    testbase.assert_true(isinstance(result, BootToSetupResult))
+    testbase.assert_true(result.success)
+    testbase.assert_equal(result.prior_os_indications, prior)
+    testbase.assert_true(result.hii_navigator is None)
 
-        self.assertIsInstance(result, BootToSetupResult)
-        self.assertTrue(result.success)
-        self.assertEqual(result.prior_os_indications, prior)
-        self.assertIsNone(result.hii_navigator)
+    # Exactly one write of OsIndications.
+    testbase.assert_equal(len(variable_store.set_calls), 1)
+    written = variable_store.set_calls[0]
+    testbase.assert_equal(written.name, OS_INDICATIONS_VARIABLE_NAME)
+    testbase.assert_equal(written.vendor_guid, EFI_GLOBAL_VARIABLE_GUID)
 
-        # Exactly one write of OsIndications.
-        self.assertEqual(len(variable_store.set_calls), 1)
-        written = variable_store.set_calls[0]
-        self.assertEqual(written.name, OS_INDICATIONS_VARIABLE_NAME)
-        self.assertEqual(written.vendor_guid, EFI_GLOBAL_VARIABLE_GUID)
+    expected_attrs = (
+        UefiVariableAttributes.NON_VOLATILE
+        | UefiVariableAttributes.BOOTSERVICE_ACCESS
+        | UefiVariableAttributes.RUNTIME_ACCESS
+    )
+    testbase.assert_equal(written.attributes, expected_attrs)
 
-        expected_attrs = (
-            UefiVariableAttributes.NON_VOLATILE
-            | UefiVariableAttributes.BOOTSERVICE_ACCESS
-            | UefiVariableAttributes.RUNTIME_ACCESS
-        )
-        self.assertEqual(written.attributes, expected_attrs)
+    written_value = int.from_bytes(
+        written.data, byteorder="little", signed=False,
+    )
+    expected_value = prior | EFI_OS_INDICATIONS_BOOT_TO_FW_UI
+    testbase.assert_equal(written_value, expected_value)
+    return
 
-        written_value = int.from_bytes(
-            written.data, byteorder="little", signed=False,
-        )
-        expected_value = prior | EFI_OS_INDICATIONS_BOOT_TO_FW_UI
-        self.assertEqual(written_value, expected_value)
-        return
-
-    def test_missing_os_indications_treated_as_zero(self) -> None:
-        """
-            When ``OsIndications`` does not exist the workflow treats the
-            prior value as ``0`` and writes ``BOOT_TO_FW_UI`` verbatim.
-        """
-        workflow, _, variable_store, _ = _make_workflow()
-
-        variable_store.seed(
-            name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS,
-            data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
-        )
-        # OsIndications intentionally NOT seeded.
-
-        result = workflow.enter_setup()
-
-        self.assertEqual(result.prior_os_indications, 0)
-
-        self.assertEqual(len(variable_store.set_calls), 1)
-        written_value = int.from_bytes(
-            variable_store.set_calls[0].data,
-            byteorder="little",
-            signed=False,
-        )
-        self.assertEqual(written_value, EFI_OS_INDICATIONS_BOOT_TO_FW_UI)
-        return
-
-
-class TestEnterSetupReboot(unittest.TestCase):
+def test_missing_os_indications_treated_as_zero() -> None:
     """
-        Tests covering the reboot invocation.
+        When ``OsIndications`` does not exist the workflow treats the
+        prior value as ``0`` and writes ``BOOT_TO_FW_UI`` verbatim.
     """
+    workflow, _, variable_store, _ = _make_workflow()
 
-    def test_reboot_is_called_with_wait_for_shell_false(self) -> None:
-        """The workflow calls reboot exactly once with ``wait_for_shell=False``."""
-        workflow, _, variable_store, reboot_workflow = _make_workflow()
+    variable_store.seed(
+        name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS,
+        data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
+    )
+    # OsIndications intentionally NOT seeded.
 
-        variable_store.seed(
-            name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS,
-            data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
-        )
+    result = workflow.enter_setup()
 
+    testbase.assert_equal(result.prior_os_indications, 0)
+
+    testbase.assert_equal(len(variable_store.set_calls), 1)
+    written_value = int.from_bytes(
+        variable_store.set_calls[0].data,
+        byteorder="little",
+        signed=False,
+    )
+    testbase.assert_equal(written_value, EFI_OS_INDICATIONS_BOOT_TO_FW_UI)
+    return
+
+
+# ----------------------------------------------------------------------
+# TestEnterSetupReboot
+# ----------------------------------------------------------------------
+
+"""
+    Tests covering the reboot invocation.
+"""
+
+def test_reboot_is_called_with_wait_for_shell_false() -> None:
+    """The workflow calls reboot exactly once with ``wait_for_shell=False``."""
+    workflow, _, variable_store, reboot_workflow = _make_workflow()
+
+    variable_store.seed(
+        name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS,
+        data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
+    )
+
+    workflow.enter_setup()
+
+    testbase.assert_equal(len(reboot_workflow.reboot_calls), 1)
+    call = reboot_workflow.reboot_calls[0]
+    testbase.assert_false(call["wait_for_shell"])
+    # The aspects forwarded to reboot should be the effective aspects
+    # (instance-default in this test since no per-call override was
+    # supplied).
+    testbase.assert_true(call["aspects"] is DEFAULT_CMD_ASPECTS)
+    return
+
+def test_reboot_workflow_without_reboot_method_raises() -> None:
+    """A reboot workflow that lacks ``reboot()`` raises :class:`UefiError`."""
+
+    class _Broken:
+        pass
+
+    agent = _FakeAgent(transport_kind="serial")
+    variable_store = _FakeVariableStore()
+    variable_store.seed(
+        name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS,
+        data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
+    )
+    workflow = BootToSetupWorkflow(
+        agent=agent,
+        variable_store=variable_store,
+        reboot_workflow=_Broken(),
+    )
+
+    with testbase.raises(UefiError):
         workflow.enter_setup()
-
-        self.assertEqual(len(reboot_workflow.reboot_calls), 1)
-        call = reboot_workflow.reboot_calls[0]
-        self.assertFalse(call["wait_for_shell"])
-        # The aspects forwarded to reboot should be the effective aspects
-        # (instance-default in this test since no per-call override was
-        # supplied).
-        self.assertIs(call["aspects"], DEFAULT_CMD_ASPECTS)
-        return
-
-    def test_reboot_workflow_without_reboot_method_raises(self) -> None:
-        """A reboot workflow that lacks ``reboot()`` raises :class:`UefiError`."""
-
-        class _Broken:
-            pass
-
-        agent = _FakeAgent(transport_kind="serial")
-        variable_store = _FakeVariableStore()
-        variable_store.seed(
-            name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS,
-            data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
-        )
-        workflow = BootToSetupWorkflow(
-            agent=agent,
-            variable_store=variable_store,
-            reboot_workflow=_Broken(),
-        )
-
-        with self.assertRaises(UefiError):
-            workflow.enter_setup()
-        return
+    return
 
 
-class TestRestoreIndications(unittest.TestCase):
-    """
-        Tests covering :meth:`BootToSetupWorkflow.restore_indications`.
-    """
+# ----------------------------------------------------------------------
+# TestRestoreIndications
+# ----------------------------------------------------------------------
 
-    def test_writes_prior_value(self) -> None:
-        """The prior value is written back verbatim on restore."""
-        workflow, _, variable_store, _ = _make_workflow()
+"""
+    Tests covering :meth:`BootToSetupWorkflow.restore_indications`.
+"""
 
-        prior = EFI_OS_INDICATIONS_START_OS_RECOVERY
-        workflow.restore_indications(prior_os_indications=prior)
+def test_writes_prior_value() -> None:
+    """The prior value is written back verbatim on restore."""
+    workflow, _, variable_store, _ = _make_workflow()
 
-        self.assertEqual(len(variable_store.set_calls), 1)
-        written = variable_store.set_calls[0]
-        self.assertEqual(written.name, OS_INDICATIONS_VARIABLE_NAME)
-        self.assertEqual(written.vendor_guid, EFI_GLOBAL_VARIABLE_GUID)
+    prior = EFI_OS_INDICATIONS_START_OS_RECOVERY
+    workflow.restore_indications(prior_os_indications=prior)
 
-        written_value = int.from_bytes(
-            written.data, byteorder="little", signed=False,
-        )
-        self.assertEqual(written_value, prior)
-        return
+    testbase.assert_equal(len(variable_store.set_calls), 1)
+    written = variable_store.set_calls[0]
+    testbase.assert_equal(written.name, OS_INDICATIONS_VARIABLE_NAME)
+    testbase.assert_equal(written.vendor_guid, EFI_GLOBAL_VARIABLE_GUID)
 
-    def test_zero_prior_is_written(self) -> None:
-        """``0`` is a valid prior value and is written back verbatim."""
-        workflow, _, variable_store, _ = _make_workflow()
-        workflow.restore_indications(prior_os_indications=0)
+    written_value = int.from_bytes(
+        written.data, byteorder="little", signed=False,
+    )
+    testbase.assert_equal(written_value, prior)
+    return
 
-        self.assertEqual(len(variable_store.set_calls), 1)
-        written_value = int.from_bytes(
-            variable_store.set_calls[0].data,
-            byteorder="little",
-            signed=False,
-        )
-        self.assertEqual(written_value, 0)
-        return
+def test_zero_prior_is_written() -> None:
+    """``0`` is a valid prior value and is written back verbatim."""
+    workflow, _, variable_store, _ = _make_workflow()
+    workflow.restore_indications(prior_os_indications=0)
 
-    def test_negative_prior_rejected(self) -> None:
-        """A negative prior value raises :class:`UefiError`."""
-        workflow, _, _, _ = _make_workflow()
-        with self.assertRaises(UefiError):
-            workflow.restore_indications(prior_os_indications=-1)
-        return
+    testbase.assert_equal(len(variable_store.set_calls), 1)
+    written_value = int.from_bytes(
+        variable_store.set_calls[0].data,
+        byteorder="little",
+        signed=False,
+    )
+    testbase.assert_equal(written_value, 0)
+    return
 
-    def test_non_int_prior_rejected(self) -> None:
-        """A non-int prior value raises :class:`UefiError`."""
-        workflow, _, _, _ = _make_workflow()
-        with self.assertRaises(UefiError):
-            workflow.restore_indications(prior_os_indications="zero")  # type: ignore[arg-type]
-        return
+def test_negative_prior_rejected() -> None:
+    """A negative prior value raises :class:`UefiError`."""
+    workflow, _, _, _ = _make_workflow()
+    with testbase.raises(UefiError):
+        workflow.restore_indications(prior_os_indications=-1)
+    return
 
-
-class TestBootToSetupResultShape(unittest.TestCase):
-    """
-        Tests covering the :class:`BootToSetupResult` fields returned by
-        :meth:`enter_setup` when ``expose_navigator`` is not requested.
-    """
-
-    def test_default_result_has_no_navigator(self) -> None:
-        """Omitting expose_navigator yields a ``None`` navigator."""
-        workflow, _, variable_store, _ = _make_workflow()
-        variable_store.seed(
-            name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS,
-            data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
-        )
-
-        result = workflow.enter_setup()
-        self.assertIsNone(result.hii_navigator)
-        self.assertTrue(result.success)
-        return
+def test_non_int_prior_rejected() -> None:
+    """A non-int prior value raises :class:`UefiError`."""
+    workflow, _, _, _ = _make_workflow()
+    with testbase.raises(UefiError):
+        workflow.restore_indications(prior_os_indications="zero")  # type: ignore[arg-type]
+    return
 
 
-if __name__ == "__main__":
-    unittest.main()
+# ----------------------------------------------------------------------
+# TestBootToSetupResultShape
+# ----------------------------------------------------------------------
+
+"""
+    Tests covering the :class:`BootToSetupResult` fields returned by
+    :meth:`enter_setup` when ``expose_navigator`` is not requested.
+"""
+
+def test_default_result_has_no_navigator() -> None:
+    """Omitting expose_navigator yields a ``None`` navigator."""
+    workflow, _, variable_store, _ = _make_workflow()
+    variable_store.seed(
+        name=OS_INDICATIONS_SUPPORTED_VARIABLE_NAME,
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes.BOOTSERVICE_ACCESS,
+        data=_encode_u64_le(EFI_OS_INDICATIONS_BOOT_TO_FW_UI),
+    )
+
+    result = workflow.enter_setup()
+    testbase.assert_true(result.hii_navigator is None)
+    testbase.assert_true(result.success)
+    return

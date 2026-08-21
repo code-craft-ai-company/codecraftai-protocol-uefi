@@ -24,9 +24,10 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from ccai import testbase
+
 import datetime
 import json
-import unittest
 
 from typing import Any, Callable, List, Optional, Tuple
 
@@ -205,532 +206,573 @@ class _FakeClockAgent(_FakeUefiAgent):
 # Parser tests
 # ---------------------------------------------------------------------------
 
-class ParseShellTimeOutputTests(unittest.TestCase):
-    """
-        Verify :func:`_parse_shell_time_output` across AMI / tianocore
-        shell output variations.
-    """
+# ----------------------------------------------------------------------
+# ParseShellTimeOutputTests
+# ----------------------------------------------------------------------
 
-    def test_ami_format_is_parsed(self) -> None:
-        output = "12:34:56 04/17/2026"
-        result = _parse_shell_time_output(stdout=output)
-        self.assertEqual(result.year, 2026)
-        self.assertEqual(result.month, 4)
-        self.assertEqual(result.day, 17)
-        self.assertEqual(result.hour, 12)
-        self.assertEqual(result.minute, 34)
-        self.assertEqual(result.second, 56)
-        self.assertIs(result.tzinfo, datetime.timezone.utc)
-        return
+"""
+    Verify :func:`_parse_shell_time_output` across AMI / tianocore
+    shell output variations.
+"""
 
-    def test_reversed_format_is_parsed(self) -> None:
-        output = "04/17/2026 12:34:56"
-        result = _parse_shell_time_output(stdout=output)
-        self.assertEqual(result.year, 2026)
-        self.assertEqual(result.month, 4)
-        self.assertEqual(result.day, 17)
-        self.assertEqual(result.hour, 12)
-        self.assertEqual(result.minute, 34)
-        self.assertEqual(result.second, 56)
-        return
+def test_ami_format_is_parsed() -> None:
+    output = "12:34:56 04/17/2026"
+    result = _parse_shell_time_output(stdout=output)
+    testbase.assert_equal(result.year, 2026)
+    testbase.assert_equal(result.month, 4)
+    testbase.assert_equal(result.day, 17)
+    testbase.assert_equal(result.hour, 12)
+    testbase.assert_equal(result.minute, 34)
+    testbase.assert_equal(result.second, 56)
+    testbase.assert_true(result.tzinfo is datetime.timezone.utc)
+    return
 
-    def test_tolerant_whitespace_is_parsed(self) -> None:
-        output = "Shell> time\r\n 01 : 02 : 03  01 / 02 / 2030 \r\nShell>"
-        result = _parse_shell_time_output(stdout=output)
-        self.assertEqual(result.year, 2030)
-        self.assertEqual(result.month, 1)
-        self.assertEqual(result.day, 2)
-        self.assertEqual(result.hour, 1)
-        self.assertEqual(result.minute, 2)
-        self.assertEqual(result.second, 3)
-        return
+def test_reversed_format_is_parsed() -> None:
+    output = "04/17/2026 12:34:56"
+    result = _parse_shell_time_output(stdout=output)
+    testbase.assert_equal(result.year, 2026)
+    testbase.assert_equal(result.month, 4)
+    testbase.assert_equal(result.day, 17)
+    testbase.assert_equal(result.hour, 12)
+    testbase.assert_equal(result.minute, 34)
+    testbase.assert_equal(result.second, 56)
+    return
 
-    def test_unrecognized_output_raises(self) -> None:
-        with self.assertRaises(UefiError):
-            _parse_shell_time_output(stdout="no digits here")
-        return
+def test_tolerant_whitespace_is_parsed() -> None:
+    output = "Shell> time\r\n 01 : 02 : 03  01 / 02 / 2030 \r\nShell>"
+    result = _parse_shell_time_output(stdout=output)
+    testbase.assert_equal(result.year, 2030)
+    testbase.assert_equal(result.month, 1)
+    testbase.assert_equal(result.day, 2)
+    testbase.assert_equal(result.hour, 1)
+    testbase.assert_equal(result.minute, 2)
+    testbase.assert_equal(result.second, 3)
+    return
 
-    def test_non_string_raises(self) -> None:
-        with self.assertRaises(UefiError):
-            _parse_shell_time_output(stdout=12345)  # type: ignore[arg-type]
-        return
+def test_unrecognized_output_raises() -> None:
+    with testbase.raises(UefiError):
+        _parse_shell_time_output(stdout="no digits here")
+    return
 
-
-class ParseHwclockIsoOutputTests(unittest.TestCase):
-    """
-        Verify :func:`_parse_hwclock_iso_output` for classic hwclock
-        output shapes.
-    """
-
-    def test_classic_output_with_microseconds(self) -> None:
-        output = "2026-04-17 12:34:56.123456+00:00"
-        result = _parse_hwclock_iso_output(stdout=output)
-        self.assertEqual(result.year, 2026)
-        self.assertEqual(result.month, 4)
-        self.assertEqual(result.day, 17)
-        self.assertEqual(result.hour, 12)
-        self.assertEqual(result.minute, 34)
-        self.assertEqual(result.second, 56)
-        self.assertEqual(result.microsecond, 123456)
-        self.assertIsNotNone(result.tzinfo)
-        self.assertEqual(result.utcoffset(), datetime.timedelta(0))
-        return
-
-    def test_output_without_fractional_seconds(self) -> None:
-        output = "2026-04-17 12:34:56+00:00"
-        result = _parse_hwclock_iso_output(stdout=output)
-        self.assertEqual(result.microsecond, 0)
-        self.assertIsNotNone(result.tzinfo)
-        return
-
-    def test_empty_output_raises(self) -> None:
-        with self.assertRaises(UefiError):
-            _parse_hwclock_iso_output(stdout="   \n ")
-        return
-
-    def test_garbage_output_raises(self) -> None:
-        with self.assertRaises(UefiError):
-            _parse_hwclock_iso_output(stdout="not-a-date")
-        return
+def test_non_string_raises() -> None:
+    with testbase.raises(UefiError):
+        _parse_shell_time_output(stdout=12345)  # type: ignore[arg-type]
+    return
 
 
-class ParseRedfishManagerDatetimeTests(unittest.TestCase):
-    """
-        Verify :func:`_parse_redfish_manager_datetime` handles Zulu,
-        fixed-offset, and naive-plus-offset combinations.
-    """
+# ----------------------------------------------------------------------
+# ParseHwclockIsoOutputTests
+# ----------------------------------------------------------------------
 
-    def test_datetime_with_zulu_suffix(self) -> None:
-        body = json.dumps({"DateTime": "2026-04-17T12:34:56Z"})
-        result = _parse_redfish_manager_datetime(body_text=body)
-        self.assertEqual(result.utcoffset(), datetime.timedelta(0))
-        self.assertEqual(result.year, 2026)
-        return
+"""
+    Verify :func:`_parse_hwclock_iso_output` for classic hwclock
+    output shapes.
+"""
 
-    def test_datetime_with_fixed_offset(self) -> None:
-        body = json.dumps({"DateTime": "2026-04-17T12:34:56-07:00"})
-        result = _parse_redfish_manager_datetime(body_text=body)
-        self.assertEqual(result.utcoffset(), datetime.timedelta(hours=-7))
-        return
+def test_classic_output_with_microseconds() -> None:
+    output = "2026-04-17 12:34:56.123456+00:00"
+    result = _parse_hwclock_iso_output(stdout=output)
+    testbase.assert_equal(result.year, 2026)
+    testbase.assert_equal(result.month, 4)
+    testbase.assert_equal(result.day, 17)
+    testbase.assert_equal(result.hour, 12)
+    testbase.assert_equal(result.minute, 34)
+    testbase.assert_equal(result.second, 56)
+    testbase.assert_equal(result.microsecond, 123456)
+    testbase.assert_true(result.tzinfo is not None)
+    testbase.assert_equal(result.utcoffset(), datetime.timedelta(0))
+    return
 
-    def test_naive_datetime_plus_offset_field(self) -> None:
-        body = json.dumps({
-            "DateTime": "2026-04-17T12:34:56",
-            "DateTimeLocalOffset": "+05:30",
-        })
-        result = _parse_redfish_manager_datetime(body_text=body)
-        expected_offset = datetime.timedelta(hours=5, minutes=30)
-        self.assertEqual(result.utcoffset(), expected_offset)
-        return
+def test_output_without_fractional_seconds() -> None:
+    output = "2026-04-17 12:34:56+00:00"
+    result = _parse_hwclock_iso_output(stdout=output)
+    testbase.assert_equal(result.microsecond, 0)
+    testbase.assert_true(result.tzinfo is not None)
+    return
 
-    def test_missing_offset_raises(self) -> None:
-        body = json.dumps({"DateTime": "2026-04-17T12:34:56"})
-        with self.assertRaises(UefiError):
-            _parse_redfish_manager_datetime(body_text=body)
-        return
+def test_empty_output_raises() -> None:
+    with testbase.raises(UefiError):
+        _parse_hwclock_iso_output(stdout="   \n ")
+    return
 
-    def test_missing_datetime_field_raises(self) -> None:
-        body = json.dumps({"SomeOtherField": "value"})
-        with self.assertRaises(UefiError):
-            _parse_redfish_manager_datetime(body_text=body)
-        return
-
-    def test_non_json_body_raises(self) -> None:
-        with self.assertRaises(UefiError):
-            _parse_redfish_manager_datetime(body_text="not json")
-        return
-
-    def test_empty_body_raises(self) -> None:
-        with self.assertRaises(UefiError):
-            _parse_redfish_manager_datetime(body_text="")
-        return
+def test_garbage_output_raises() -> None:
+    with testbase.raises(UefiError):
+        _parse_hwclock_iso_output(stdout="not-a-date")
+    return
 
 
-class ParseAdjtimexOutputTests(unittest.TestCase):
-    """
-        Verify :func:`_parse_adjtimex_output` produces sensible
-        ``(resolution_hz, accuracy_ppm)`` tuples.
-    """
+# ----------------------------------------------------------------------
+# ParseRedfishManagerDatetimeTests
+# ----------------------------------------------------------------------
 
-    def test_missing_fields_returns_defaults(self) -> None:
-        resolution_hz, accuracy_ppm = _parse_adjtimex_output(stdout="")
-        self.assertEqual(resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
-        self.assertEqual(accuracy_ppm, DEFAULT_RTC_ACCURACY_PPM)
-        return
+"""
+    Verify :func:`_parse_redfish_manager_datetime` handles Zulu,
+    fixed-offset, and naive-plus-offset combinations.
+"""
 
-    def test_non_string_returns_defaults(self) -> None:
-        resolution_hz, accuracy_ppm = _parse_adjtimex_output(stdout=None)  # type: ignore[arg-type]
-        self.assertEqual(resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
-        self.assertEqual(accuracy_ppm, DEFAULT_RTC_ACCURACY_PPM)
-        return
+def test_datetime_with_zulu_suffix() -> None:
+    body = json.dumps({"DateTime": "2026-04-17T12:34:56Z"})
+    result = _parse_redfish_manager_datetime(body_text=body)
+    testbase.assert_equal(result.utcoffset(), datetime.timedelta(0))
+    testbase.assert_equal(result.year, 2026)
+    return
+
+def test_datetime_with_fixed_offset() -> None:
+    body = json.dumps({"DateTime": "2026-04-17T12:34:56-07:00"})
+    result = _parse_redfish_manager_datetime(body_text=body)
+    testbase.assert_equal(result.utcoffset(), datetime.timedelta(hours=-7))
+    return
+
+def test_naive_datetime_plus_offset_field() -> None:
+    body = json.dumps({
+        "DateTime": "2026-04-17T12:34:56",
+        "DateTimeLocalOffset": "+05:30",
+    })
+    result = _parse_redfish_manager_datetime(body_text=body)
+    expected_offset = datetime.timedelta(hours=5, minutes=30)
+    testbase.assert_equal(result.utcoffset(), expected_offset)
+    return
+
+def test_missing_offset_raises() -> None:
+    body = json.dumps({"DateTime": "2026-04-17T12:34:56"})
+    with testbase.raises(UefiError):
+        _parse_redfish_manager_datetime(body_text=body)
+    return
+
+def test_missing_datetime_field_raises() -> None:
+    body = json.dumps({"SomeOtherField": "value"})
+    with testbase.raises(UefiError):
+        _parse_redfish_manager_datetime(body_text=body)
+    return
+
+def test_non_json_body_raises() -> None:
+    with testbase.raises(UefiError):
+        _parse_redfish_manager_datetime(body_text="not json")
+    return
+
+def test_empty_body_raises() -> None:
+    with testbase.raises(UefiError):
+        _parse_redfish_manager_datetime(body_text="")
+    return
+
+
+# ----------------------------------------------------------------------
+# ParseAdjtimexOutputTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify :func:`_parse_adjtimex_output` produces sensible
+    ``(resolution_hz, accuracy_ppm)`` tuples.
+"""
+
+def test_missing_fields_returns_defaults() -> None:
+    resolution_hz, accuracy_ppm = _parse_adjtimex_output(stdout="")
+    testbase.assert_equal(resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
+    testbase.assert_equal(accuracy_ppm, DEFAULT_RTC_ACCURACY_PPM)
+    return
+
+def test_non_string_returns_defaults() -> None:
+    resolution_hz, accuracy_ppm = _parse_adjtimex_output(stdout=None)  # type: ignore[arg-type]
+    testbase.assert_equal(resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
+    testbase.assert_equal(accuracy_ppm, DEFAULT_RTC_ACCURACY_PPM)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Validation tests
 # ---------------------------------------------------------------------------
 
-class ValidateSetTimeInputTests(unittest.TestCase):
-    """
-        Verify :func:`_validate_set_time_input` enforces the tz-aware
-        contract at the API boundary.
-    """
+# ----------------------------------------------------------------------
+# ValidateSetTimeInputTests
+# ----------------------------------------------------------------------
 
-    def test_aware_datetime_passes(self) -> None:
-        aware_dt = datetime.datetime(2026, 4, 17, 12, 0, 0, tzinfo=datetime.timezone.utc)
-        _validate_set_time_input(dt=aware_dt)
-        return
+"""
+    Verify :func:`_validate_set_time_input` enforces the tz-aware
+    contract at the API boundary.
+"""
 
-    def test_naive_datetime_raises(self) -> None:
-        naive_dt = datetime.datetime(2026, 4, 17, 12, 0, 0)
-        with self.assertRaises(ConfigurationError):
-            _validate_set_time_input(dt=naive_dt)
-        return
+def test_aware_datetime_passes() -> None:
+    aware_dt = datetime.datetime(2026, 4, 17, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    _validate_set_time_input(dt=aware_dt)
+    return
 
-    def test_non_datetime_raises(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            _validate_set_time_input(dt="2026-04-17")  # type: ignore[arg-type]
-        return
+def test_naive_datetime_raises() -> None:
+    naive_dt = datetime.datetime(2026, 4, 17, 12, 0, 0)
+    with testbase.raises(ConfigurationError):
+        _validate_set_time_input(dt=naive_dt)
+    return
 
-    def test_date_object_raises(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            _validate_set_time_input(dt=datetime.date(2026, 4, 17))  # type: ignore[arg-type]
-        return
+def test_non_datetime_raises() -> None:
+    with testbase.raises(ConfigurationError):
+        _validate_set_time_input(dt="2026-04-17")  # type: ignore[arg-type]
+    return
 
-    def test_float_raises(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            _validate_set_time_input(dt=1.0)  # type: ignore[arg-type]
-        return
+def test_date_object_raises() -> None:
+    with testbase.raises(ConfigurationError):
+        _validate_set_time_input(dt=datetime.date(2026, 4, 17))  # type: ignore[arg-type]
+    return
+
+def test_float_raises() -> None:
+    with testbase.raises(ConfigurationError):
+        _validate_set_time_input(dt=1.0)  # type: ignore[arg-type]
+    return
 
 
 # ---------------------------------------------------------------------------
 # get_time dispatch tests
 # ---------------------------------------------------------------------------
 
-class GetTimeShellTests(unittest.TestCase):
-    """
-        Verify :meth:`TimeServices.get_time` over serial / ipmi-sol.
-    """
+# ----------------------------------------------------------------------
+# GetTimeShellTests
+# ----------------------------------------------------------------------
 
-    def test_serial_get_time_parses_output(self) -> None:
-        responder = lambda command, aspects: (0, "12:34:56 04/17/2026", "")
-        agent = _FakeUefiAgent(transport_kind="serial", responder=responder)
-        svc = TimeServices(agent=agent)
+"""
+    Verify :meth:`TimeServices.get_time` over serial / ipmi-sol.
+"""
 
-        result = svc.get_time()
+def test_serial_get_time_parses_output() -> None:
+    responder = lambda command, aspects: (0, "12:34:56 04/17/2026", "")
+    agent = _FakeUefiAgent(transport_kind="serial", responder=responder)
+    svc = TimeServices(agent=agent)
 
-        self.assertEqual(len(agent.calls), 1)
-        command, aspects = agent.calls[0]
-        self.assertEqual(command, "time")
-        self.assertEqual(result.year, 2026)
-        self.assertEqual(result.month, 4)
-        self.assertEqual(result.day, 17)
-        self.assertIs(result.tzinfo, datetime.timezone.utc)
-        return
+    result = svc.get_time()
 
-    def test_ipmi_sol_get_time_parses_output(self) -> None:
-        responder = lambda command, aspects: (0, "01:02:03 01/02/2030", "")
-        agent = _FakeUefiAgent(transport_kind="ipmi-sol", responder=responder)
-        svc = TimeServices(agent=agent)
+    testbase.assert_equal(len(agent.calls), 1)
+    command, aspects = agent.calls[0]
+    testbase.assert_equal(command, "time")
+    testbase.assert_equal(result.year, 2026)
+    testbase.assert_equal(result.month, 4)
+    testbase.assert_equal(result.day, 17)
+    testbase.assert_true(result.tzinfo is datetime.timezone.utc)
+    return
 
-        result = svc.get_time()
-        self.assertEqual(result.year, 2030)
-        self.assertEqual(result.hour, 1)
-        return
+def test_ipmi_sol_get_time_parses_output() -> None:
+    responder = lambda command, aspects: (0, "01:02:03 01/02/2030", "")
+    agent = _FakeUefiAgent(transport_kind="ipmi-sol", responder=responder)
+    svc = TimeServices(agent=agent)
 
-    def test_shell_nonzero_status_raises(self) -> None:
-        responder = lambda command, aspects: (1, "", "error")
-        agent = _FakeUefiAgent(transport_kind="serial", responder=responder)
-        svc = TimeServices(agent=agent)
+    result = svc.get_time()
+    testbase.assert_equal(result.year, 2030)
+    testbase.assert_equal(result.hour, 1)
+    return
 
-        with self.assertRaises(UefiError):
-            svc.get_time()
-        return
+def test_shell_nonzero_status_raises() -> None:
+    responder = lambda command, aspects: (1, "", "error")
+    agent = _FakeUefiAgent(transport_kind="serial", responder=responder)
+    svc = TimeServices(agent=agent)
 
-
-class GetTimeHwclockTests(unittest.TestCase):
-    """
-        Verify :meth:`TimeServices.get_time` over ssh-host.
-    """
-
-    def test_ssh_host_get_time_parses_output(self) -> None:
-        canned = "2026-04-17 12:34:56.000000+00:00"
-        responder = lambda command, aspects: (0, canned, "")
-        agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
-        svc = TimeServices(agent=agent)
-
-        result = svc.get_time()
-
-        self.assertEqual(len(agent.calls), 1)
-        command, aspects = agent.calls[0]
-        self.assertEqual(command, "hwclock --show --utc")
-        self.assertEqual(result.year, 2026)
-        self.assertEqual(result.utcoffset(), datetime.timedelta(0))
-        return
-
-
-class GetTimeRedfishTests(unittest.TestCase):
-    """
-        Verify :meth:`TimeServices.get_time` over redfish parses the
-        ``DateTime`` JSON field.
-    """
-
-    def test_redfish_get_time_parses_datetime_field(self) -> None:
-        body = json.dumps({
-            "DateTime": "2026-04-17T12:34:56+00:00",
-            "DateTimeLocalOffset": "+00:00",
-        })
-        responder = lambda command, aspects: (0, body, "")
-        agent = _FakeUefiAgent(transport_kind="redfish", responder=responder, manager_id="BMC1")
-        svc = TimeServices(agent=agent)
-
-        result = svc.get_time()
-
-        self.assertEqual(len(agent.calls), 1)
-        command, aspects = agent.calls[0]
-        self.assertEqual(command, "GET /redfish/v1/Managers/BMC1")
-        self.assertEqual(result.year, 2026)
-        self.assertEqual(result.utcoffset(), datetime.timedelta(0))
-        return
-
-    def test_redfish_default_manager_id_is_self(self) -> None:
-        body = json.dumps({"DateTime": "2026-04-17T12:34:56Z"})
-        responder = lambda command, aspects: (0, body, "")
-        agent = _FakeUefiAgent(transport_kind="redfish", responder=responder)
-        svc = TimeServices(agent=agent)
-
+    with testbase.raises(UefiError):
         svc.get_time()
-        command, aspects = agent.calls[0]
-        expected_command = "GET /redfish/v1/Managers/{}".format(DEFAULT_MANAGER_ID)
-        self.assertEqual(command, expected_command)
-        return
+    return
+
+
+# ----------------------------------------------------------------------
+# GetTimeHwclockTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify :meth:`TimeServices.get_time` over ssh-host.
+"""
+
+def test_ssh_host_get_time_parses_output() -> None:
+    canned = "2026-04-17 12:34:56.000000+00:00"
+    responder = lambda command, aspects: (0, canned, "")
+    agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
+    svc = TimeServices(agent=agent)
+
+    result = svc.get_time()
+
+    testbase.assert_equal(len(agent.calls), 1)
+    command, aspects = agent.calls[0]
+    testbase.assert_equal(command, "hwclock --show --utc")
+    testbase.assert_equal(result.year, 2026)
+    testbase.assert_equal(result.utcoffset(), datetime.timedelta(0))
+    return
+
+
+# ----------------------------------------------------------------------
+# GetTimeRedfishTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify :meth:`TimeServices.get_time` over redfish parses the
+    ``DateTime`` JSON field.
+"""
+
+def test_redfish_get_time_parses_datetime_field() -> None:
+    body = json.dumps({
+        "DateTime": "2026-04-17T12:34:56+00:00",
+        "DateTimeLocalOffset": "+00:00",
+    })
+    responder = lambda command, aspects: (0, body, "")
+    agent = _FakeUefiAgent(transport_kind="redfish", responder=responder, manager_id="BMC1")
+    svc = TimeServices(agent=agent)
+
+    result = svc.get_time()
+
+    testbase.assert_equal(len(agent.calls), 1)
+    command, aspects = agent.calls[0]
+    testbase.assert_equal(command, "GET /redfish/v1/Managers/BMC1")
+    testbase.assert_equal(result.year, 2026)
+    testbase.assert_equal(result.utcoffset(), datetime.timedelta(0))
+    return
+
+def test_redfish_default_manager_id_is_self() -> None:
+    body = json.dumps({"DateTime": "2026-04-17T12:34:56Z"})
+    responder = lambda command, aspects: (0, body, "")
+    agent = _FakeUefiAgent(transport_kind="redfish", responder=responder)
+    svc = TimeServices(agent=agent)
+
+    svc.get_time()
+    command, aspects = agent.calls[0]
+    expected_command = "GET /redfish/v1/Managers/{}".format(DEFAULT_MANAGER_ID)
+    testbase.assert_equal(command, expected_command)
+    return
 
 
 # ---------------------------------------------------------------------------
 # set_time dispatch tests
 # ---------------------------------------------------------------------------
 
-class SetTimeValidationTests(unittest.TestCase):
-    """
-        Verify that :meth:`TimeServices.set_time` enforces the tz-aware
-        contract and dispatches no commands when validation fails.
-    """
+# ----------------------------------------------------------------------
+# SetTimeValidationTests
+# ----------------------------------------------------------------------
 
-    def test_naive_datetime_raises_configuration_error(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="serial")
-        svc = TimeServices(agent=agent)
+"""
+    Verify that :meth:`TimeServices.set_time` enforces the tz-aware
+    contract and dispatches no commands when validation fails.
+"""
 
-        naive = datetime.datetime(2026, 4, 17, 12, 0, 0)
-        with self.assertRaises(ConfigurationError):
-            svc.set_time(dt=naive)
-        self.assertEqual(len(agent.calls), 0)
-        return
+def test_naive_datetime_raises_configuration_error() -> None:
+    agent = _FakeUefiAgent(transport_kind="serial")
+    svc = TimeServices(agent=agent)
 
-    def test_wrong_type_raises_configuration_error(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="serial")
-        svc = TimeServices(agent=agent)
+    naive = datetime.datetime(2026, 4, 17, 12, 0, 0)
+    with testbase.raises(ConfigurationError):
+        svc.set_time(dt=naive)
+    testbase.assert_equal(len(agent.calls), 0)
+    return
 
-        with self.assertRaises(ConfigurationError):
-            svc.set_time(dt="2026-04-17")  # type: ignore[arg-type]
-        self.assertEqual(len(agent.calls), 0)
-        return
+def test_wrong_type_raises_configuration_error() -> None:
+    agent = _FakeUefiAgent(transport_kind="serial")
+    svc = TimeServices(agent=agent)
 
-
-class SetTimeShellTests(unittest.TestCase):
-    """
-        Verify :meth:`TimeServices.set_time` issues the expected shell
-        commands.
-    """
-
-    def test_serial_set_time_issues_time_and_date_commands(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="serial")
-        svc = TimeServices(agent=agent)
-
-        aware_dt = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
-        svc.set_time(dt=aware_dt)
-
-        self.assertEqual(len(agent.calls), 2)
-        command_time, _ = agent.calls[0]
-        command_date, _ = agent.calls[1]
-        self.assertEqual(command_time, "time 12:34:56")
-        self.assertEqual(command_date, "date 04/17/2026")
-        return
-
-    def test_set_time_converts_non_utc_to_utc(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="serial")
-        svc = TimeServices(agent=agent)
-
-        offset_tz = datetime.timezone(datetime.timedelta(hours=-5))
-        aware_local = datetime.datetime(2026, 4, 17, 7, 34, 56, tzinfo=offset_tz)
-        svc.set_time(dt=aware_local)
-
-        command_time, _ = agent.calls[0]
-        command_date, _ = agent.calls[1]
-        self.assertEqual(command_time, "time 12:34:56")
-        self.assertEqual(command_date, "date 04/17/2026")
-        return
+    with testbase.raises(ConfigurationError):
+        svc.set_time(dt="2026-04-17")  # type: ignore[arg-type]
+    testbase.assert_equal(len(agent.calls), 0)
+    return
 
 
-class SetTimeHwclockTests(unittest.TestCase):
-    """
-        Verify :meth:`TimeServices.set_time` over ssh-host.
-    """
+# ----------------------------------------------------------------------
+# SetTimeShellTests
+# ----------------------------------------------------------------------
 
-    def test_ssh_host_set_time_issues_hwclock_set(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="ssh-host")
-        svc = TimeServices(agent=agent)
+"""
+    Verify :meth:`TimeServices.set_time` issues the expected shell
+    commands.
+"""
 
-        aware_dt = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
-        svc.set_time(dt=aware_dt)
+def test_serial_set_time_issues_time_and_date_commands() -> None:
+    agent = _FakeUefiAgent(transport_kind="serial")
+    svc = TimeServices(agent=agent)
 
-        self.assertEqual(len(agent.calls), 1)
-        command, _ = agent.calls[0]
-        expected = "sudo hwclock --set --date '2026-04-17 12:34:56' --utc"
-        self.assertEqual(command, expected)
-        return
+    aware_dt = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
+    svc.set_time(dt=aware_dt)
+
+    testbase.assert_equal(len(agent.calls), 2)
+    command_time, _ = agent.calls[0]
+    command_date, _ = agent.calls[1]
+    testbase.assert_equal(command_time, "time 12:34:56")
+    testbase.assert_equal(command_date, "date 04/17/2026")
+    return
+
+def test_set_time_converts_non_utc_to_utc() -> None:
+    agent = _FakeUefiAgent(transport_kind="serial")
+    svc = TimeServices(agent=agent)
+
+    offset_tz = datetime.timezone(datetime.timedelta(hours=-5))
+    aware_local = datetime.datetime(2026, 4, 17, 7, 34, 56, tzinfo=offset_tz)
+    svc.set_time(dt=aware_local)
+
+    command_time, _ = agent.calls[0]
+    command_date, _ = agent.calls[1]
+    testbase.assert_equal(command_time, "time 12:34:56")
+    testbase.assert_equal(command_date, "date 04/17/2026")
+    return
 
 
-class SetTimeRedfishTests(unittest.TestCase):
-    """
-        Verify :meth:`TimeServices.set_time` over redfish.
-    """
+# ----------------------------------------------------------------------
+# SetTimeHwclockTests
+# ----------------------------------------------------------------------
 
-    def test_redfish_set_time_issues_patch_with_iso_body(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="redfish", manager_id="BMC1")
-        svc = TimeServices(agent=agent)
+"""
+    Verify :meth:`TimeServices.set_time` over ssh-host.
+"""
 
-        aware_dt = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
-        svc.set_time(dt=aware_dt)
+def test_ssh_host_set_time_issues_hwclock_set() -> None:
+    agent = _FakeUefiAgent(transport_kind="ssh-host")
+    svc = TimeServices(agent=agent)
 
-        self.assertEqual(len(agent.calls), 1)
-        command, _ = agent.calls[0]
-        self.assertTrue(command.startswith("PATCH /redfish/v1/Managers/BMC1 "))
-        body_start = command.index("{")
-        decoded = json.loads(command[body_start:])
-        self.assertEqual(decoded["DateTime"], "2026-04-17T12:34:56+00:00")
-        return
+    aware_dt = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
+    svc.set_time(dt=aware_dt)
+
+    testbase.assert_equal(len(agent.calls), 1)
+    command, _ = agent.calls[0]
+    expected = "sudo hwclock --set --date '2026-04-17 12:34:56' --utc"
+    testbase.assert_equal(command, expected)
+    return
+
+
+# ----------------------------------------------------------------------
+# SetTimeRedfishTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify :meth:`TimeServices.set_time` over redfish.
+"""
+
+def test_redfish_set_time_issues_patch_with_iso_body() -> None:
+    agent = _FakeUefiAgent(transport_kind="redfish", manager_id="BMC1")
+    svc = TimeServices(agent=agent)
+
+    aware_dt = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
+    svc.set_time(dt=aware_dt)
+
+    testbase.assert_equal(len(agent.calls), 1)
+    command, _ = agent.calls[0]
+    testbase.assert_true(command.startswith("PATCH /redfish/v1/Managers/BMC1 "))
+    body_start = command.index("{")
+    decoded = json.loads(command[body_start:])
+    testbase.assert_equal(decoded["DateTime"], "2026-04-17T12:34:56+00:00")
+    return
 
 
 # ---------------------------------------------------------------------------
 # Round-trip tests
 # ---------------------------------------------------------------------------
 
-class RoundTripTests(unittest.TestCase):
-    """
-        Verify that :meth:`TimeServices.set_time` followed by
-        :meth:`TimeServices.get_time` returns the same moment.
-    """
+# ----------------------------------------------------------------------
+# RoundTripTests
+# ----------------------------------------------------------------------
 
-    def test_shell_round_trip(self) -> None:
-        initial = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-        agent = _FakeClockAgent(transport_kind="serial", initial=initial)
-        svc = TimeServices(agent=agent)
+"""
+    Verify that :meth:`TimeServices.set_time` followed by
+    :meth:`TimeServices.get_time` returns the same moment.
+"""
 
-        written = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
-        svc.set_time(dt=written)
-        read_back = svc.get_time()
+def test_shell_round_trip() -> None:
+    initial = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    agent = _FakeClockAgent(transport_kind="serial", initial=initial)
+    svc = TimeServices(agent=agent)
 
-        self.assertEqual(read_back, written)
-        self.assertIsNotNone(read_back.tzinfo)
-        return
+    written = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
+    svc.set_time(dt=written)
+    read_back = svc.get_time()
 
-    def test_hwclock_round_trip(self) -> None:
-        initial = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-        agent = _FakeClockAgent(transport_kind="ssh-host", initial=initial)
-        svc = TimeServices(agent=agent)
+    testbase.assert_equal(read_back, written)
+    testbase.assert_true(read_back.tzinfo is not None)
+    return
 
-        written = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
-        svc.set_time(dt=written)
-        read_back = svc.get_time()
+def test_hwclock_round_trip() -> None:
+    initial = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    agent = _FakeClockAgent(transport_kind="ssh-host", initial=initial)
+    svc = TimeServices(agent=agent)
 
-        self.assertEqual(read_back, written)
-        return
+    written = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
+    svc.set_time(dt=written)
+    read_back = svc.get_time()
 
-    def test_redfish_round_trip(self) -> None:
-        initial = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-        agent = _FakeClockAgent(transport_kind="redfish", initial=initial)
-        svc = TimeServices(agent=agent)
+    testbase.assert_equal(read_back, written)
+    return
 
-        written = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
-        svc.set_time(dt=written)
-        read_back = svc.get_time()
+def test_redfish_round_trip() -> None:
+    initial = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    agent = _FakeClockAgent(transport_kind="redfish", initial=initial)
+    svc = TimeServices(agent=agent)
 
-        self.assertEqual(read_back, written)
-        return
+    written = datetime.datetime(2026, 4, 17, 12, 34, 56, tzinfo=datetime.timezone.utc)
+    svc.set_time(dt=written)
+    read_back = svc.get_time()
 
-    def test_hwclock_round_trip_with_nonutc_input(self) -> None:
-        initial = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
-        agent = _FakeClockAgent(transport_kind="ssh-host", initial=initial)
-        svc = TimeServices(agent=agent)
+    testbase.assert_equal(read_back, written)
+    return
 
-        offset_tz = datetime.timezone(datetime.timedelta(hours=-5))
-        written_local = datetime.datetime(2026, 4, 17, 7, 34, 56, tzinfo=offset_tz)
-        svc.set_time(dt=written_local)
-        read_back = svc.get_time()
+def test_hwclock_round_trip_with_nonutc_input() -> None:
+    initial = datetime.datetime(2026, 1, 1, 0, 0, 0, tzinfo=datetime.timezone.utc)
+    agent = _FakeClockAgent(transport_kind="ssh-host", initial=initial)
+    svc = TimeServices(agent=agent)
 
-        self.assertEqual(read_back, written_local.astimezone(datetime.timezone.utc))
-        return
+    offset_tz = datetime.timezone(datetime.timedelta(hours=-5))
+    written_local = datetime.datetime(2026, 4, 17, 7, 34, 56, tzinfo=offset_tz)
+    svc.set_time(dt=written_local)
+    read_back = svc.get_time()
+
+    testbase.assert_equal(read_back, written_local.astimezone(datetime.timezone.utc))
+    return
 
 
 # ---------------------------------------------------------------------------
 # Dispatch / transport-kind validation tests
 # ---------------------------------------------------------------------------
 
-class TransportKindValidationTests(unittest.TestCase):
-    """
-        Verify that :class:`TimeServices` raises
-        :class:`ConfigurationError` for unknown transport kinds.
-    """
+# ----------------------------------------------------------------------
+# TransportKindValidationTests
+# ----------------------------------------------------------------------
 
-    def test_unknown_transport_kind_raises_on_get(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="nonsense")
-        svc = TimeServices(agent=agent)
-        with self.assertRaises(ConfigurationError):
-            svc.get_time()
-        return
+"""
+    Verify that :class:`TimeServices` raises
+    :class:`ConfigurationError` for unknown transport kinds.
+"""
 
-    def test_unknown_transport_kind_raises_on_set(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="nonsense")
-        svc = TimeServices(agent=agent)
-        aware_dt = datetime.datetime(2026, 4, 17, 12, 0, 0, tzinfo=datetime.timezone.utc)
-        with self.assertRaises(ConfigurationError):
-            svc.set_time(dt=aware_dt)
-        return
+def test_unknown_transport_kind_raises_on_get() -> None:
+    agent = _FakeUefiAgent(transport_kind="nonsense")
+    svc = TimeServices(agent=agent)
+    with testbase.raises(ConfigurationError):
+        svc.get_time()
+    return
+
+def test_unknown_transport_kind_raises_on_set() -> None:
+    agent = _FakeUefiAgent(transport_kind="nonsense")
+    svc = TimeServices(agent=agent)
+    aware_dt = datetime.datetime(2026, 4, 17, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    with testbase.raises(ConfigurationError):
+        svc.set_time(dt=aware_dt)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Capability tests
 # ---------------------------------------------------------------------------
 
-class CapabilityTests(unittest.TestCase):
-    """
-        Verify :meth:`TimeServices.get_capabilities` across transports.
-    """
+# ----------------------------------------------------------------------
+# CapabilityTests
+# ----------------------------------------------------------------------
 
-    def test_serial_returns_default_capabilities(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="serial")
-        svc = TimeServices(agent=agent)
-        caps = svc.get_capabilities()
-        self.assertIsInstance(caps, UefiTimeCapabilities)
-        self.assertEqual(caps.resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
-        self.assertEqual(caps.accuracy_ppm, DEFAULT_RTC_ACCURACY_PPM)
-        return
+"""
+    Verify :meth:`TimeServices.get_capabilities` across transports.
+"""
 
-    def test_redfish_returns_default_capabilities(self) -> None:
-        agent = _FakeUefiAgent(transport_kind="redfish")
-        svc = TimeServices(agent=agent)
-        caps = svc.get_capabilities()
-        self.assertEqual(caps.resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
-        return
+def test_serial_returns_default_capabilities() -> None:
+    agent = _FakeUefiAgent(transport_kind="serial")
+    svc = TimeServices(agent=agent)
+    caps = svc.get_capabilities()
+    testbase.assert_true(isinstance(caps, UefiTimeCapabilities))
+    testbase.assert_equal(caps.resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
+    testbase.assert_equal(caps.accuracy_ppm, DEFAULT_RTC_ACCURACY_PPM)
+    return
 
-    def test_ssh_host_missing_adjtimex_returns_defaults(self) -> None:
-        responder = lambda command, aspects: (127, "", "command not found")
-        agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
-        svc = TimeServices(agent=agent)
-        caps = svc.get_capabilities()
-        self.assertEqual(caps.resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
-        self.assertEqual(caps.accuracy_ppm, DEFAULT_RTC_ACCURACY_PPM)
-        return
+def test_redfish_returns_default_capabilities() -> None:
+    agent = _FakeUefiAgent(transport_kind="redfish")
+    svc = TimeServices(agent=agent)
+    caps = svc.get_capabilities()
+    testbase.assert_equal(caps.resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
+    return
 
-
-if __name__ == "__main__":
-    unittest.main()
+def test_ssh_host_missing_adjtimex_returns_defaults() -> None:
+    responder = lambda command, aspects: (127, "", "command not found")
+    agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
+    svc = TimeServices(agent=agent)
+    caps = svc.get_capabilities()
+    testbase.assert_equal(caps.resolution_hz, DEFAULT_RTC_RESOLUTION_HZ)
+    testbase.assert_equal(caps.accuracy_ppm, DEFAULT_RTC_ACCURACY_PPM)
+    return

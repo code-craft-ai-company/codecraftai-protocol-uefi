@@ -14,7 +14,8 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+from ccai import testbase
+
 import uuid
 
 from typing import Iterator, Optional, Tuple
@@ -240,80 +241,91 @@ class _PartialSystemContext:
 # Tests
 # ---------------------------------------------------------------------------
 
-class IUefiTransportProtocolTestCase(unittest.TestCase):
-
-    def test_full_stub_is_instance(self) -> None:
-        stub = _FullTransport()
-        result = isinstance(stub, IUefiTransport)
-        self.assertTrue(result)
-        return
-
-    def test_partial_stub_is_not_instance(self) -> None:
-        stub = _PartialTransport()
-        result = isinstance(stub, IUefiTransport)
-        self.assertFalse(result)
-        return
+# ----------------------------------------------------------------------
+# IUefiTransportProtocolTestCase
+# ----------------------------------------------------------------------
 
 
-class IUefiShellRunnerProtocolTestCase(unittest.TestCase):
+def test_i_uefi_transport_protocol_full_stub_is_instance() -> None:
+    stub = _FullTransport()
+    result = isinstance(stub, IUefiTransport)
+    testbase.assert_true(result)
+    return
 
-    def test_full_stub_is_instance(self) -> None:
-        stub = _FullShellRunner()
-        result = isinstance(stub, IUefiShellRunner)
-        self.assertTrue(result)
-        return
-
-    def test_partial_stub_is_not_instance(self) -> None:
-        stub = _PartialShellRunner()
-        result = isinstance(stub, IUefiShellRunner)
-        self.assertFalse(result)
-        return
+def test_i_uefi_transport_protocol_partial_stub_is_not_instance() -> None:
+    stub = _PartialTransport()
+    result = isinstance(stub, IUefiTransport)
+    testbase.assert_false(result)
+    return
 
 
-class IUefiVariableProviderProtocolTestCase(unittest.TestCase):
-
-    def test_full_stub_is_instance(self) -> None:
-        stub = _FullVariableProvider()
-        result = isinstance(stub, IUefiVariableProvider)
-        self.assertTrue(result)
-        return
-
-    def test_partial_stub_is_not_instance(self) -> None:
-        stub = _PartialVariableProvider()
-        result = isinstance(stub, IUefiVariableProvider)
-        self.assertFalse(result)
-        return
+# ----------------------------------------------------------------------
+# IUefiShellRunnerProtocolTestCase
+# ----------------------------------------------------------------------
 
 
-class IUefiFileProviderProtocolTestCase(unittest.TestCase):
+def test_i_uefi_shell_runner_protocol_full_stub_is_instance() -> None:
+    stub = _FullShellRunner()
+    result = isinstance(stub, IUefiShellRunner)
+    testbase.assert_true(result)
+    return
 
-    def test_full_stub_is_instance(self) -> None:
-        stub = _FullFileProvider()
-        result = isinstance(stub, IUefiFileProvider)
-        self.assertTrue(result)
-        return
-
-    def test_partial_stub_is_not_instance(self) -> None:
-        stub = _PartialFileProvider()
-        result = isinstance(stub, IUefiFileProvider)
-        self.assertFalse(result)
-        return
+def test_i_uefi_shell_runner_protocol_partial_stub_is_not_instance() -> None:
+    stub = _PartialShellRunner()
+    result = isinstance(stub, IUefiShellRunner)
+    testbase.assert_false(result)
+    return
 
 
-class IUefiSystemContextProtocolTestCase(unittest.TestCase):
-
-    def test_full_stub_is_instance(self) -> None:
-        stub = _FullSystemContext()
-        result = isinstance(stub, IUefiSystemContext)
-        self.assertTrue(result)
-        return
-
-    def test_partial_stub_is_not_instance(self) -> None:
-        stub = _PartialSystemContext()
-        result = isinstance(stub, IUefiSystemContext)
-        self.assertFalse(result)
-        return
+# ----------------------------------------------------------------------
+# IUefiVariableProviderProtocolTestCase
+# ----------------------------------------------------------------------
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_i_uefi_variable_provider_protocol_full_stub_is_instance() -> None:
+    stub = _FullVariableProvider()
+    result = isinstance(stub, IUefiVariableProvider)
+    testbase.assert_true(result)
+    return
+
+def test_i_uefi_variable_provider_protocol_partial_stub_is_not_instance() -> None:
+    stub = _PartialVariableProvider()
+    result = isinstance(stub, IUefiVariableProvider)
+    testbase.assert_false(result)
+    return
+
+
+# ----------------------------------------------------------------------
+# IUefiFileProviderProtocolTestCase
+# ----------------------------------------------------------------------
+
+
+def test_i_uefi_file_provider_protocol_full_stub_is_instance() -> None:
+    stub = _FullFileProvider()
+    result = isinstance(stub, IUefiFileProvider)
+    testbase.assert_true(result)
+    return
+
+def test_i_uefi_file_provider_protocol_partial_stub_is_not_instance() -> None:
+    stub = _PartialFileProvider()
+    result = isinstance(stub, IUefiFileProvider)
+    testbase.assert_false(result)
+    return
+
+
+# ----------------------------------------------------------------------
+# IUefiSystemContextProtocolTestCase
+# ----------------------------------------------------------------------
+
+
+def test_i_uefi_system_context_protocol_full_stub_is_instance() -> None:
+    stub = _FullSystemContext()
+    result = isinstance(stub, IUefiSystemContext)
+    testbase.assert_true(result)
+    return
+
+def test_i_uefi_system_context_protocol_partial_stub_is_not_instance() -> None:
+    stub = _PartialSystemContext()
+    result = isinstance(stub, IUefiSystemContext)
+    testbase.assert_false(result)
+    return

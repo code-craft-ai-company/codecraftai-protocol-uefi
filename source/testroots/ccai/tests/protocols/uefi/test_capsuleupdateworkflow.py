@@ -24,7 +24,8 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+from ccai import testbase
+
 import uuid
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -396,259 +397,264 @@ def _build_workflow(agent: _StubAgent,
 # Happy path
 # ---------------------------------------------------------------------------
 
-class CapsuleUpdateWorkflowHappyPathTests(unittest.TestCase):
-    """
-        Verify the happy path through the full workflow sequence.
-    """
+# ----------------------------------------------------------------------
+# CapsuleUpdateWorkflowHappyPathTests
+# ----------------------------------------------------------------------
 
-    def test_full_workflow_reports_success(self) -> None:
-        capsule = _build_capsule()
-        before_table = _build_esrt_table(entries=(
-            _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=1),
-        ))
-        after_table = _build_esrt_table(entries=(
-            _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=2),
-        ))
-        report_entry = _build_report_entry(capsule_guid=SAMPLE_CAPSULE_GUID)
+"""
+    Verify the happy path through the full workflow sequence.
+"""
 
-        agent = _StubAgent(connectivity_return=True)
-        delivery = _StubCapsuleDelivery()
-        report = _StubCapsuleReport(records=(report_entry,))
-        tables = _StubSystemTables(tables=[before_table, after_table])
-        reboot = _StubRebootWorkflow()
+def test_full_workflow_reports_success() -> None:
+    capsule = _build_capsule()
+    before_table = _build_esrt_table(entries=(
+        _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=1),
+    ))
+    after_table = _build_esrt_table(entries=(
+        _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=2),
+    ))
+    report_entry = _build_report_entry(capsule_guid=SAMPLE_CAPSULE_GUID)
 
-        workflow = _build_workflow(
-            agent=agent, delivery=delivery, report=report,
-            tables=tables, reboot=reboot,
-        )
+    agent = _StubAgent(connectivity_return=True)
+    delivery = _StubCapsuleDelivery()
+    report = _StubCapsuleReport(records=(report_entry,))
+    tables = _StubSystemTables(tables=[before_table, after_table])
+    reboot = _StubRebootWorkflow()
 
-        result = workflow.run(capsule=capsule)
+    workflow = _build_workflow(
+        agent=agent, delivery=delivery, report=report,
+        tables=tables, reboot=reboot,
+    )
 
-        self.assertIsInstance(result, CapsuleUpdateReport)
-        self.assertTrue(result.success)
-        self.assertEqual(result.capsule_guid, SAMPLE_CAPSULE_GUID)
-        self.assertEqual(result.reported_status_guid, REPORT_STATUS_GUID)
-        self.assertEqual(len(result.input_sha256), 64)
-        self.assertEqual(result.esrt_before, before_table.entries)
-        self.assertEqual(result.esrt_after, after_table.entries)
-        self.assertIs(result.report_entry, report_entry)
+    result = workflow.run(capsule=capsule)
 
-        self.assertEqual(len(delivery.calls), 1)
-        self.assertEqual(reboot.calls, 1)
-        self.assertEqual(report.calls, 1)
-        self.assertEqual(tables.calls, 2)
-        self.assertEqual(agent.verify_calls, 1)
-        return
+    testbase.assert_true(isinstance(result, CapsuleUpdateReport))
+    testbase.assert_true(result.success)
+    testbase.assert_equal(result.capsule_guid, SAMPLE_CAPSULE_GUID)
+    testbase.assert_equal(result.reported_status_guid, REPORT_STATUS_GUID)
+    testbase.assert_equal(len(result.input_sha256), 64)
+    testbase.assert_equal(result.esrt_before, before_table.entries)
+    testbase.assert_equal(result.esrt_after, after_table.entries)
+    testbase.assert_true(result.report_entry is report_entry)
+
+    testbase.assert_equal(len(delivery.calls), 1)
+    testbase.assert_equal(reboot.calls, 1)
+    testbase.assert_equal(report.calls, 1)
+    testbase.assert_equal(tables.calls, 2)
+    testbase.assert_equal(agent.verify_calls, 1)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Preflight failures
 # ---------------------------------------------------------------------------
 
-class CapsuleUpdateWorkflowPreflightTests(unittest.TestCase):
-    """
-        Verify the ESRT / connectivity preflight gates.
-    """
+# ----------------------------------------------------------------------
+# CapsuleUpdateWorkflowPreflightTests
+# ----------------------------------------------------------------------
 
-    def test_empty_esrt_raises(self) -> None:
-        capsule = _build_capsule()
-        empty_table = _build_esrt_table(entries=())
+"""
+    Verify the ESRT / connectivity preflight gates.
+"""
 
-        agent = _StubAgent(connectivity_return=True)
-        delivery = _StubCapsuleDelivery()
-        report = _StubCapsuleReport()
-        tables = _StubSystemTables(tables=[empty_table])
-        reboot = _StubRebootWorkflow()
+def test_empty_esrt_raises() -> None:
+    capsule = _build_capsule()
+    empty_table = _build_esrt_table(entries=())
 
-        workflow = _build_workflow(
-            agent=agent, delivery=delivery, report=report,
-            tables=tables, reboot=reboot,
-        )
+    agent = _StubAgent(connectivity_return=True)
+    delivery = _StubCapsuleDelivery()
+    report = _StubCapsuleReport()
+    tables = _StubSystemTables(tables=[empty_table])
+    reboot = _StubRebootWorkflow()
 
-        with self.assertRaises(UefiCapsuleError) as context:
-            workflow.run(capsule=capsule)
+    workflow = _build_workflow(
+        agent=agent, delivery=delivery, report=report,
+        tables=tables, reboot=reboot,
+    )
 
-        message = str(context.exception)
-        self.assertIn("no ESRT on target", message)
-        self.assertEqual(len(delivery.calls), 0)
-        self.assertEqual(reboot.calls, 0)
-        return
+    with testbase.raises(UefiCapsuleError) as context:
+        workflow.run(capsule=capsule)
 
-    def test_esrt_read_raises_wraps_error(self) -> None:
-        capsule = _build_capsule()
+    message = str(context.exception)
+    testbase.assert_true("no ESRT on target" in message)
+    testbase.assert_equal(len(delivery.calls), 0)
+    testbase.assert_equal(reboot.calls, 0)
+    return
 
-        agent = _StubAgent(connectivity_return=True)
-        delivery = _StubCapsuleDelivery()
-        report = _StubCapsuleReport()
-        tables = _StubSystemTables(
-            tables=[None],
-            exceptions=[RuntimeError("esrt sysfs missing")],
-        )
-        reboot = _StubRebootWorkflow()
+def test_esrt_read_raises_wraps_error() -> None:
+    capsule = _build_capsule()
 
-        workflow = _build_workflow(
-            agent=agent, delivery=delivery, report=report,
-            tables=tables, reboot=reboot,
-        )
+    agent = _StubAgent(connectivity_return=True)
+    delivery = _StubCapsuleDelivery()
+    report = _StubCapsuleReport()
+    tables = _StubSystemTables(
+        tables=[None],
+        exceptions=[RuntimeError("esrt sysfs missing")],
+    )
+    reboot = _StubRebootWorkflow()
 
-        with self.assertRaises(UefiCapsuleError) as context:
-            workflow.run(capsule=capsule)
+    workflow = _build_workflow(
+        agent=agent, delivery=delivery, report=report,
+        tables=tables, reboot=reboot,
+    )
 
-        message = str(context.exception)
-        self.assertIn("no ESRT on target", message)
-        self.assertEqual(len(delivery.calls), 0)
-        return
+    with testbase.raises(UefiCapsuleError) as context:
+        workflow.run(capsule=capsule)
 
-    def test_guid_mismatch_raises(self) -> None:
-        capsule = _build_capsule(capsule_guid=SAMPLE_CAPSULE_GUID)
-        # ESRT only declares a different firmware class.
-        before_table = _build_esrt_table(entries=(
-            _build_esrt_entry(fw_class=OTHER_CAPSULE_GUID, fw_version=1),
-        ))
+    message = str(context.exception)
+    testbase.assert_true("no ESRT on target" in message)
+    testbase.assert_equal(len(delivery.calls), 0)
+    return
 
-        agent = _StubAgent(connectivity_return=True)
-        delivery = _StubCapsuleDelivery()
-        report = _StubCapsuleReport()
-        tables = _StubSystemTables(tables=[before_table])
-        reboot = _StubRebootWorkflow()
+def test_guid_mismatch_raises() -> None:
+    capsule = _build_capsule(capsule_guid=SAMPLE_CAPSULE_GUID)
+    # ESRT only declares a different firmware class.
+    before_table = _build_esrt_table(entries=(
+        _build_esrt_entry(fw_class=OTHER_CAPSULE_GUID, fw_version=1),
+    ))
 
-        workflow = _build_workflow(
-            agent=agent, delivery=delivery, report=report,
-            tables=tables, reboot=reboot,
-        )
+    agent = _StubAgent(connectivity_return=True)
+    delivery = _StubCapsuleDelivery()
+    report = _StubCapsuleReport()
+    tables = _StubSystemTables(tables=[before_table])
+    reboot = _StubRebootWorkflow()
 
-        with self.assertRaises(UefiCapsuleError) as context:
-            workflow.run(capsule=capsule)
+    workflow = _build_workflow(
+        agent=agent, delivery=delivery, report=report,
+        tables=tables, reboot=reboot,
+    )
 
-        message = str(context.exception)
-        self.assertIn("does not match any ESRT entry", message)
-        self.assertEqual(len(delivery.calls), 0)
-        self.assertEqual(reboot.calls, 0)
-        return
+    with testbase.raises(UefiCapsuleError) as context:
+        workflow.run(capsule=capsule)
 
-    def test_target_unreachable_raises(self) -> None:
-        capsule = _build_capsule()
-        before_table = _build_esrt_table(entries=(
-            _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=1),
-        ))
+    message = str(context.exception)
+    testbase.assert_true("does not match any ESRT entry" in message)
+    testbase.assert_equal(len(delivery.calls), 0)
+    testbase.assert_equal(reboot.calls, 0)
+    return
 
-        agent = _StubAgent(connectivity_return=False)
-        delivery = _StubCapsuleDelivery()
-        report = _StubCapsuleReport()
-        tables = _StubSystemTables(tables=[before_table])
-        reboot = _StubRebootWorkflow()
+def test_target_unreachable_raises() -> None:
+    capsule = _build_capsule()
+    before_table = _build_esrt_table(entries=(
+        _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=1),
+    ))
 
-        workflow = _build_workflow(
-            agent=agent, delivery=delivery, report=report,
-            tables=tables, reboot=reboot,
-        )
+    agent = _StubAgent(connectivity_return=False)
+    delivery = _StubCapsuleDelivery()
+    report = _StubCapsuleReport()
+    tables = _StubSystemTables(tables=[before_table])
+    reboot = _StubRebootWorkflow()
 
-        with self.assertRaises(UefiCapsuleError) as context:
-            workflow.run(capsule=capsule)
+    workflow = _build_workflow(
+        agent=agent, delivery=delivery, report=report,
+        tables=tables, reboot=reboot,
+    )
 
-        message = str(context.exception)
-        self.assertIn("not reachable", message)
-        self.assertEqual(len(delivery.calls), 0)
-        self.assertEqual(reboot.calls, 0)
-        return
+    with testbase.raises(UefiCapsuleError) as context:
+        workflow.run(capsule=capsule)
+
+    message = str(context.exception)
+    testbase.assert_true("not reachable" in message)
+    testbase.assert_equal(len(delivery.calls), 0)
+    testbase.assert_equal(reboot.calls, 0)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Post-reboot report fetch failure
 # ---------------------------------------------------------------------------
 
-class CapsuleUpdateWorkflowPostRebootTests(unittest.TestCase):
-    """
-        Verify the post-reboot stages of the workflow.
-    """
+# ----------------------------------------------------------------------
+# CapsuleUpdateWorkflowPostRebootTests
+# ----------------------------------------------------------------------
 
-    def test_missing_report_after_reboot_raises(self) -> None:
-        capsule = _build_capsule()
-        before_table = _build_esrt_table(entries=(
-            _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=1),
-        ))
-        # after_table will never be read because report lookup raises
-        # first; queue only the preflight table so the test asserts the
-        # correct call count.
+"""
+    Verify the post-reboot stages of the workflow.
+"""
 
-        agent = _StubAgent(connectivity_return=True)
-        delivery = _StubCapsuleDelivery()
-        # Report has no matching record.
-        report = _StubCapsuleReport(records=())
-        tables = _StubSystemTables(tables=[before_table])
-        reboot = _StubRebootWorkflow()
+def test_missing_report_after_reboot_raises() -> None:
+    capsule = _build_capsule()
+    before_table = _build_esrt_table(entries=(
+        _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=1),
+    ))
+    # after_table will never be read because report lookup raises
+    # first; queue only the preflight table so the test asserts the
+    # correct call count.
 
-        workflow = _build_workflow(
-            agent=agent, delivery=delivery, report=report,
-            tables=tables, reboot=reboot,
-        )
+    agent = _StubAgent(connectivity_return=True)
+    delivery = _StubCapsuleDelivery()
+    # Report has no matching record.
+    report = _StubCapsuleReport(records=())
+    tables = _StubSystemTables(tables=[before_table])
+    reboot = _StubRebootWorkflow()
 
-        with self.assertRaises(UefiCapsuleError) as context:
-            workflow.run(capsule=capsule)
+    workflow = _build_workflow(
+        agent=agent, delivery=delivery, report=report,
+        tables=tables, reboot=reboot,
+    )
 
-        message = str(context.exception)
-        self.assertIn("no capsule-report record matched", message)
-        self.assertEqual(len(delivery.calls), 1)
-        self.assertEqual(reboot.calls, 1)
-        self.assertEqual(report.calls, 1)
-        return
+    with testbase.raises(UefiCapsuleError) as context:
+        workflow.run(capsule=capsule)
 
-    def test_report_fetch_exception_wraps(self) -> None:
-        capsule = _build_capsule()
-        before_table = _build_esrt_table(entries=(
-            _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=1),
-        ))
+    message = str(context.exception)
+    testbase.assert_true("no capsule-report record matched" in message)
+    testbase.assert_equal(len(delivery.calls), 1)
+    testbase.assert_equal(reboot.calls, 1)
+    testbase.assert_equal(report.calls, 1)
+    return
 
-        agent = _StubAgent(connectivity_return=True)
-        delivery = _StubCapsuleDelivery()
-        report = _StubCapsuleReport(
-            exception_to_raise=RuntimeError("transport down"),
-        )
-        tables = _StubSystemTables(tables=[before_table])
-        reboot = _StubRebootWorkflow()
+def test_report_fetch_exception_wraps() -> None:
+    capsule = _build_capsule()
+    before_table = _build_esrt_table(entries=(
+        _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=1),
+    ))
 
-        workflow = _build_workflow(
-            agent=agent, delivery=delivery, report=report,
-            tables=tables, reboot=reboot,
-        )
+    agent = _StubAgent(connectivity_return=True)
+    delivery = _StubCapsuleDelivery()
+    report = _StubCapsuleReport(
+        exception_to_raise=RuntimeError("transport down"),
+    )
+    tables = _StubSystemTables(tables=[before_table])
+    reboot = _StubRebootWorkflow()
 
-        with self.assertRaises(UefiCapsuleError) as context:
-            workflow.run(capsule=capsule)
+    workflow = _build_workflow(
+        agent=agent, delivery=delivery, report=report,
+        tables=tables, reboot=reboot,
+    )
 
-        message = str(context.exception)
-        self.assertIn("list_reports failed after reboot", message)
-        return
+    with testbase.raises(UefiCapsuleError) as context:
+        workflow.run(capsule=capsule)
 
-    def test_version_not_advanced_yields_success_false(self) -> None:
-        capsule = _build_capsule()
-        before_table = _build_esrt_table(entries=(
-            _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=5),
-        ))
-        # fw_version did not advance.
-        after_table = _build_esrt_table(entries=(
-            _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=5),
-        ))
-        report_entry = _build_report_entry(capsule_guid=SAMPLE_CAPSULE_GUID)
+    message = str(context.exception)
+    testbase.assert_true("list_reports failed after reboot" in message)
+    return
 
-        agent = _StubAgent(connectivity_return=True)
-        delivery = _StubCapsuleDelivery()
-        report = _StubCapsuleReport(records=(report_entry,))
-        tables = _StubSystemTables(tables=[before_table, after_table])
-        reboot = _StubRebootWorkflow()
+def test_version_not_advanced_yields_success_false() -> None:
+    capsule = _build_capsule()
+    before_table = _build_esrt_table(entries=(
+        _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=5),
+    ))
+    # fw_version did not advance.
+    after_table = _build_esrt_table(entries=(
+        _build_esrt_entry(fw_class=SAMPLE_CAPSULE_GUID, fw_version=5),
+    ))
+    report_entry = _build_report_entry(capsule_guid=SAMPLE_CAPSULE_GUID)
 
-        workflow = _build_workflow(
-            agent=agent, delivery=delivery, report=report,
-            tables=tables, reboot=reboot,
-        )
+    agent = _StubAgent(connectivity_return=True)
+    delivery = _StubCapsuleDelivery()
+    report = _StubCapsuleReport(records=(report_entry,))
+    tables = _StubSystemTables(tables=[before_table, after_table])
+    reboot = _StubRebootWorkflow()
 
-        result = workflow.run(capsule=capsule)
+    workflow = _build_workflow(
+        agent=agent, delivery=delivery, report=report,
+        tables=tables, reboot=reboot,
+    )
 
-        self.assertFalse(result.success)
-        self.assertEqual(result.esrt_before, before_table.entries)
-        self.assertEqual(result.esrt_after, after_table.entries)
-        self.assertEqual(result.reported_status_guid, SAMPLE_CAPSULE_GUID)
-        return
+    result = workflow.run(capsule=capsule)
 
-
-if __name__ == "__main__":
-    unittest.main()
+    testbase.assert_false(result.success)
+    testbase.assert_equal(result.esrt_before, before_table.entries)
+    testbase.assert_equal(result.esrt_after, after_table.entries)
+    testbase.assert_equal(result.reported_status_guid, SAMPLE_CAPSULE_GUID)
+    return

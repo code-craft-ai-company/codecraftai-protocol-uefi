@@ -51,6 +51,7 @@ redfish = ["requests"]
 signing = ["cryptography"]
 
 [tool.poetry.group.dev.dependencies]
+codecraftai-testbase = { version = "<2.0.0", source = "codecraftai" }
 
 [tool.poetry.group.dbio.dependencies]
 

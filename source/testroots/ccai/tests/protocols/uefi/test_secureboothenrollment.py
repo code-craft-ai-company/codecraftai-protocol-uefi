@@ -22,8 +22,9 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from ccai import testbase
+
 import datetime
-import unittest
 import uuid
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -230,257 +231,271 @@ class _FakeSecureBootManager:
 # Must-connect invariant
 # ---------------------------------------------------------------------------
 
-class SecureBootEnrollmentMustConnectTests(unittest.TestCase):
-    """
-        Verify that ``aspects.must_connect is not True`` is a hard stop.
-    """
+# ----------------------------------------------------------------------
+# SecureBootEnrollmentMustConnectTests
+# ----------------------------------------------------------------------
 
-    def test_must_connect_false_raises(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=False)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+"""
+    Verify that ``aspects.must_connect is not True`` is a hard stop.
+"""
 
-        plan = _build_full_plan()
+def test_must_connect_false_raises() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=False)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        with self.assertRaises(UefiSecureBootError) as context:
-            workflow.enroll(plan=plan, ack={"operator": "op", "ticket": "T-1"})
+    plan = _build_full_plan()
 
-        message = str(context.exception)
-        self.assertIn("must_connect=True", message)
-        self.assertEqual(len(manager.write_calls), 0)
-        return
+    with testbase.raises(UefiSecureBootError) as context:
+        workflow.enroll(plan=plan, ack={"operator": "op", "ticket": "T-1"})
+
+    message = str(context.exception)
+    testbase.assert_true("must_connect=True" in message)
+    testbase.assert_equal(len(manager.write_calls), 0)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Dry-run mode
 # ---------------------------------------------------------------------------
 
-class SecureBootEnrollmentDryRunTests(unittest.TestCase):
-    """
-        Verify dry-run builds a plan and writes nothing.
-    """
+# ----------------------------------------------------------------------
+# SecureBootEnrollmentDryRunTests
+# ----------------------------------------------------------------------
 
-    def test_dry_run_reports_plan_without_writing(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+"""
+    Verify dry-run builds a plan and writes nothing.
+"""
 
-        plan = _build_full_plan()
+def test_dry_run_reports_plan_without_writing() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        result = workflow.enroll(plan=plan, dry_run=True, ack=None)
+    plan = _build_full_plan()
 
-        self.assertIsInstance(result, EnrollmentResult)
-        self.assertTrue(result.dry_run)
-        self.assertTrue(result.success)
-        self.assertEqual(result.enrolled, ("KEK", "db", "dbx", "PK"))
-        self.assertEqual(len(manager.write_calls), 0)
-        return
+    result = workflow.enroll(plan=plan, dry_run=True, ack=None)
 
-    def test_dry_run_skips_missing_databases(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+    testbase.assert_true(isinstance(result, EnrollmentResult))
+    testbase.assert_true(result.dry_run)
+    testbase.assert_true(result.success)
+    testbase.assert_equal(result.enrolled, ("KEK", "db", "dbx", "PK"))
+    testbase.assert_equal(len(manager.write_calls), 0)
+    return
 
-        plan = _build_plan(
-            kek=_build_sha256_database(payload_seed=7),
-            db=_build_sha256_database(payload_seed=8),
-        )
+def test_dry_run_skips_missing_databases() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        result = workflow.enroll(plan=plan, dry_run=True, ack=None)
+    plan = _build_plan(
+        kek=_build_sha256_database(payload_seed=7),
+        db=_build_sha256_database(payload_seed=8),
+    )
 
-        self.assertEqual(result.enrolled, ("KEK", "db"))
-        self.assertEqual(len(manager.write_calls), 0)
-        return
+    result = workflow.enroll(plan=plan, dry_run=True, ack=None)
+
+    testbase.assert_equal(result.enrolled, ("KEK", "db"))
+    testbase.assert_equal(len(manager.write_calls), 0)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Happy path
 # ---------------------------------------------------------------------------
 
-class SecureBootEnrollmentHappyPathTests(unittest.TestCase):
-    """
-        Verify enrollment order and content under the happy path.
-    """
+# ----------------------------------------------------------------------
+# SecureBootEnrollmentHappyPathTests
+# ----------------------------------------------------------------------
 
-    def test_full_enrollment_order_is_kek_db_dbx_pk(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+"""
+    Verify enrollment order and content under the happy path.
+"""
 
-        plan = _build_full_plan()
-        ack = {"operator": "myron", "ticket": "SB-42"}
+def test_full_enrollment_order_is_kek_db_dbx_pk() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        result = workflow.enroll(plan=plan, ack=ack)
+    plan = _build_full_plan()
+    ack = {"operator": "myron", "ticket": "SB-42"}
 
-        self.assertTrue(result.success)
-        self.assertFalse(result.dry_run)
-        self.assertEqual(result.enrolled, ("KEK", "db", "dbx", "PK"))
+    result = workflow.enroll(plan=plan, ack=ack)
 
-        observed_order = tuple(call["name"] for call in manager.write_calls)
-        self.assertEqual(observed_order, ("KEK", "db", "dbx", "PK"))
+    testbase.assert_true(result.success)
+    testbase.assert_false(result.dry_run)
+    testbase.assert_equal(result.enrolled, ("KEK", "db", "dbx", "PK"))
 
-        # Each write carried the caller's ack verbatim.
-        for call in manager.write_calls:
-            self.assertEqual(call["ack"], ack)
-            self.assertTrue(call["force"])
-        return
+    observed_order = tuple(call["name"] for call in manager.write_calls)
+    testbase.assert_equal(observed_order, ("KEK", "db", "dbx", "PK"))
 
-    def test_partial_plan_writes_only_configured_databases(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+    # Each write carried the caller's ack verbatim.
+    for call in manager.write_calls:
+        testbase.assert_equal(call["ack"], ack)
+        testbase.assert_true(call["force"])
+    return
 
-        plan = _build_plan(
-            kek=_build_sha256_database(payload_seed=2),
-            pk=_build_sha256_database(payload_seed=5),
-        )
-        ack = {"operator": "ops", "ticket": "JIRA-1"}
+def test_partial_plan_writes_only_configured_databases() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        result = workflow.enroll(plan=plan, ack=ack)
+    plan = _build_plan(
+        kek=_build_sha256_database(payload_seed=2),
+        pk=_build_sha256_database(payload_seed=5),
+    )
+    ack = {"operator": "ops", "ticket": "JIRA-1"}
 
-        self.assertEqual(result.enrolled, ("KEK", "PK"))
-        observed_order = tuple(call["name"] for call in manager.write_calls)
-        self.assertEqual(observed_order, ("KEK", "PK"))
-        return
+    result = workflow.enroll(plan=plan, ack=ack)
+
+    testbase.assert_equal(result.enrolled, ("KEK", "PK"))
+    observed_order = tuple(call["name"] for call in manager.write_calls)
+    testbase.assert_equal(observed_order, ("KEK", "PK"))
+    return
 
 
 # ---------------------------------------------------------------------------
 # Ack required
 # ---------------------------------------------------------------------------
 
-class SecureBootEnrollmentAckRequirementTests(unittest.TestCase):
-    """
-        Verify the ack is required for destructive writes.
-    """
+# ----------------------------------------------------------------------
+# SecureBootEnrollmentAckRequirementTests
+# ----------------------------------------------------------------------
 
-    def test_missing_ack_when_not_dry_run_raises(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+"""
+    Verify the ack is required for destructive writes.
+"""
 
-        plan = _build_full_plan()
+def test_missing_ack_when_not_dry_run_raises() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        with self.assertRaises(UefiSecureBootError) as context:
-            workflow.enroll(plan=plan, ack=None)
+    plan = _build_full_plan()
 
-        message = str(context.exception)
-        self.assertIn("ack", message)
-        self.assertEqual(len(manager.write_calls), 0)
-        return
+    with testbase.raises(UefiSecureBootError) as context:
+        workflow.enroll(plan=plan, ack=None)
 
-    def test_empty_ack_value_raises(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+    message = str(context.exception)
+    testbase.assert_true("ack" in message)
+    testbase.assert_equal(len(manager.write_calls), 0)
+    return
 
-        plan = _build_full_plan()
-        bad_ack = {"operator": "", "ticket": "T-1"}
+def test_empty_ack_value_raises() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        with self.assertRaises(UefiSecureBootError):
-            workflow.enroll(plan=plan, ack=bad_ack)
+    plan = _build_full_plan()
+    bad_ack = {"operator": "", "ticket": "T-1"}
 
-        self.assertEqual(len(manager.write_calls), 0)
-        return
+    with testbase.raises(UefiSecureBootError):
+        workflow.enroll(plan=plan, ack=bad_ack)
 
-    def test_already_user_mode_with_ack_proceeds(self) -> None:
-        # This test exercises the "force via ack" path — in the production
-        # manager, writes outside SetupMode require force=True plus a
-        # valid ack.  The workflow always passes force=True together with
-        # the caller's ack, so a User-Mode target is not a hard stop when
-        # the caller has supplied authorization.
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+    testbase.assert_equal(len(manager.write_calls), 0)
+    return
 
-        plan = _build_full_plan()
-        ack = {"operator": "myron", "ticket": "PROD-7"}
+def test_already_user_mode_with_ack_proceeds() -> None:
+    # This test exercises the "force via ack" path — in the production
+    # manager, writes outside SetupMode require force=True plus a
+    # valid ack.  The workflow always passes force=True together with
+    # the caller's ack, so a User-Mode target is not a hard stop when
+    # the caller has supplied authorization.
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        result = workflow.enroll(plan=plan, ack=ack)
+    plan = _build_full_plan()
+    ack = {"operator": "myron", "ticket": "PROD-7"}
 
-        self.assertTrue(result.success)
-        self.assertEqual(result.enrolled, ("KEK", "db", "dbx", "PK"))
-        for call in manager.write_calls:
-            self.assertTrue(call["force"])
-            self.assertEqual(call["ack"], ack)
-        return
+    result = workflow.enroll(plan=plan, ack=ack)
+
+    testbase.assert_true(result.success)
+    testbase.assert_equal(result.enrolled, ("KEK", "db", "dbx", "PK"))
+    for call in manager.write_calls:
+        testbase.assert_true(call["force"])
+        testbase.assert_equal(call["ack"], ack)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Plan-shape gates
 # ---------------------------------------------------------------------------
 
-class SecureBootEnrollmentPlanShapeTests(unittest.TestCase):
-    """
-        Verify the plan-shape gates.
-    """
+# ----------------------------------------------------------------------
+# SecureBootEnrollmentPlanShapeTests
+# ----------------------------------------------------------------------
 
-    def test_empty_plan_raises(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+"""
+    Verify the plan-shape gates.
+"""
 
-        plan = _build_plan()
-        ack = {"operator": "op", "ticket": "T-1"}
+def test_empty_plan_raises() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        with self.assertRaises(UefiSecureBootError) as context:
-            workflow.enroll(plan=plan, ack=ack)
+    plan = _build_plan()
+    ack = {"operator": "op", "ticket": "T-1"}
 
-        message = str(context.exception)
-        self.assertIn("no databases", message)
-        self.assertEqual(len(manager.write_calls), 0)
-        return
+    with testbase.raises(UefiSecureBootError) as context:
+        workflow.enroll(plan=plan, ack=ack)
+
+    message = str(context.exception)
+    testbase.assert_true("no databases" in message)
+    testbase.assert_equal(len(manager.write_calls), 0)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Verification after write
 # ---------------------------------------------------------------------------
 
-class SecureBootEnrollmentVerificationTests(unittest.TestCase):
-    """
-        Verify the post-write verification step catches a missing entry.
-    """
+# ----------------------------------------------------------------------
+# SecureBootEnrollmentVerificationTests
+# ----------------------------------------------------------------------
 
-    def test_missing_entry_after_write_raises(self) -> None:
-        manager = _FakeSecureBootManager()
-        aspects = _build_aspects(must_connect=True)
-        workflow = SecureBootEnrollment(
-            secure_boot_manager=manager, aspects=aspects,
-        )
+"""
+    Verify the post-write verification step catches a missing entry.
+"""
 
-        plan = _build_plan(kek=_build_sha256_database(payload_seed=11))
-        ack = {"operator": "op", "ticket": "T-1"}
+def test_missing_entry_after_write_raises() -> None:
+    manager = _FakeSecureBootManager()
+    aspects = _build_aspects(must_connect=True)
+    workflow = SecureBootEnrollment(
+        secure_boot_manager=manager, aspects=aspects,
+    )
 
-        # Inject a read override that returns an empty database for KEK
-        # so the verification step finds a missing entry.
-        manager.read_override["KEK"] = SignatureDatabase(lists=())
+    plan = _build_plan(kek=_build_sha256_database(payload_seed=11))
+    ack = {"operator": "op", "ticket": "T-1"}
 
-        with self.assertRaises(UefiSecureBootError) as context:
-            workflow.enroll(plan=plan, ack=ack)
+    # Inject a read override that returns an empty database for KEK
+    # so the verification step finds a missing entry.
+    manager.read_override["KEK"] = SignatureDatabase(lists=())
 
-        message = str(context.exception)
-        self.assertIn("missing entries", message)
-        # The write itself was attempted, even though verification failed.
-        self.assertEqual(len(manager.write_calls), 1)
-        return
+    with testbase.raises(UefiSecureBootError) as context:
+        workflow.enroll(plan=plan, ack=ack)
 
-
-if __name__ == "__main__":
-    unittest.main()
+    message = str(context.exception)
+    testbase.assert_true("missing entries" in message)
+    # The write itself was attempted, even though verification failed.
+    testbase.assert_equal(len(manager.write_calls), 1)
+    return

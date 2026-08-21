@@ -28,10 +28,11 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from ccai import testbase
+
 import base64
 import hashlib
 import struct
-import unittest
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -241,585 +242,605 @@ class _FakeUefiAgent:
 # Tests
 # ---------------------------------------------------------------------------
 
-class TcgSpecIdEventTests(unittest.TestCase):
-    """
-        Unit tests for the :class:`TcgSpecIdEvent` decoder.
-    """
+# ----------------------------------------------------------------------
+# TcgSpecIdEventTests
+# ----------------------------------------------------------------------
 
-    def test_signature_accept(self) -> None:
-        """
-            The canonical SHA-256 spec-ID payload decodes cleanly.
-        """
-        payload = _build_spec_id_event_payload(
-            algorithms=[(int(TpmAlgorithmId.SHA256), SHA256_SIZE)],
+"""
+    Unit tests for the :class:`TcgSpecIdEvent` decoder.
+"""
+
+def test_signature_accept() -> None:
+    """
+        The canonical SHA-256 spec-ID payload decodes cleanly.
+    """
+    payload = _build_spec_id_event_payload(
+        algorithms=[(int(TpmAlgorithmId.SHA256), SHA256_SIZE)],
+    )
+
+    spec = TcgSpecIdEvent.from_bytes(data=payload)
+
+    testbase.assert_equal(spec.platform_class, 0)
+    testbase.assert_equal(spec.spec_version_major, 2)
+    testbase.assert_equal(spec.num_algorithms, 1)
+    testbase.assert_equal(spec.algorithms, ((TpmAlgorithmId.SHA256, SHA256_SIZE),))
+    testbase.assert_equal(spec.vendor_info, b"")
+    return
+
+def test_signature_reject() -> None:
+    """
+        A tampered signature is rejected with a descriptive
+        :class:`UefiError`.
+    """
+    payload = _build_spec_id_event_payload(
+        algorithms=[(int(TpmAlgorithmId.SHA256), SHA256_SIZE)],
+    )
+    tampered = b"BadSig!!Event03\x00" + payload[16:]
+
+    with testbase.raises(UefiError) as caught:
+        TcgSpecIdEvent.from_bytes(data=tampered)
+
+    rendered = str(caught.exception)
+    testbase.assert_true("signature mismatch" in rendered)
+    return
+
+def test_digest_size_mismatch_rejected() -> None:
+    """
+        A declared digest size that disagrees with the algorithm
+        registry is rejected.
+    """
+    payload = _build_spec_id_event_payload(
+        algorithms=[(int(TpmAlgorithmId.SHA256), SHA256_SIZE + 1)],
+    )
+
+    with testbase.raises(UefiError) as caught:
+        TcgSpecIdEvent.from_bytes(data=payload)
+
+    rendered = str(caught.exception)
+    testbase.assert_true("digest size" in rendered)
+    return
+
+
+# ----------------------------------------------------------------------
+# EventLogFromBytesTests
+# ----------------------------------------------------------------------
+
+"""
+    Unit tests for :meth:`EventLog.from_bytes`.
+"""
+
+def test_parses_synthetic_log() -> None:
+    """
+        A synthetic 2-event log parses into a 1-item spec-ID header
+        + 2 ``TCG_PCR_EVENT2`` records.
+    """
+    log_bytes, digest_a, digest_b, pcr_a, pcr_b = _build_synthetic_log()
+
+    log = EventLog.from_bytes(data=log_bytes)
+
+    testbase.assert_equal(log.spec_id.num_algorithms, 1)
+    testbase.assert_equal(len(log.events), 2)
+
+    event_a = log.events[0]
+    testbase.assert_equal(event_a.pcr_index, pcr_a)
+    testbase.assert_equal(event_a.event_type, EventType.EV_S_CRTM_VERSION)
+    testbase.assert_equal(len(event_a.digests), 1)
+    testbase.assert_equal(event_a.digests[0].algorithm, TpmAlgorithmId.SHA256)
+    testbase.assert_equal(event_a.digests[0].value, digest_a)
+    testbase.assert_equal(event_a.event_data, b"A-data")
+
+    event_b = log.events[1]
+    testbase.assert_equal(event_b.pcr_index, pcr_b)
+    testbase.assert_equal(event_b.event_type, EventType.EV_EFI_VARIABLE_DRIVER_CONFIG)
+    testbase.assert_equal(event_b.digests[0].value, digest_b)
+    return
+
+def test_truncated_first_event_raises() -> None:
+    """
+        A log truncated inside the first-event header raises
+        :class:`UefiError`.
+    """
+    log_bytes, _, _, _, _ = _build_synthetic_log()
+    truncated = log_bytes[:20]
+
+    with testbase.raises(UefiError) as caught:
+        EventLog.from_bytes(data=truncated)
+
+    rendered = str(caught.exception)
+    testbase.assert_true("first-event header" in rendered)
+    return
+
+def test_truncated_pcr_event2_raises() -> None:
+    """
+        A log truncated inside a ``TCG_PCR_EVENT2`` record raises
+        :class:`UefiError` with the event index in ``details``.
+    """
+    log_bytes, _, _, _, _ = _build_synthetic_log()
+    truncated = log_bytes[:-4]  # shear off the last 4 bytes of event_b
+
+    with testbase.raises(UefiError):
+        EventLog.from_bytes(data=truncated)
+    return
+
+def test_non_bytes_input_raises() -> None:
+    """
+        Passing a non-bytes argument is rejected with a
+        :class:`UefiError`.
+    """
+    with testbase.raises(UefiError):
+        EventLog.from_bytes(data="not-bytes")  # type: ignore[arg-type]
+    return
+
+
+# ----------------------------------------------------------------------
+# EventsForPcrTests
+# ----------------------------------------------------------------------
+
+"""
+    Unit tests for :meth:`EventLog.events_for_pcr`.
+"""
+
+def test_filters_by_pcr_index() -> None:
+    """
+        ``events_for_pcr`` yields only the events whose ``pcr_index``
+        equals the supplied value and preserves log order.
+    """
+    log_bytes, _, _, pcr_a, pcr_b = _build_synthetic_log()
+    log = EventLog.from_bytes(data=log_bytes)
+
+    events_for_a = list(log.events_for_pcr(pcr_index=pcr_a))
+    events_for_b = list(log.events_for_pcr(pcr_index=pcr_b))
+    events_for_23 = list(log.events_for_pcr(pcr_index=23))
+
+    testbase.assert_equal(len(events_for_a), 1)
+    testbase.assert_equal(events_for_a[0].pcr_index, pcr_a)
+
+    testbase.assert_equal(len(events_for_b), 1)
+    testbase.assert_equal(events_for_b[0].pcr_index, pcr_b)
+
+    testbase.assert_equal(len(events_for_23), 0)
+    return
+
+def test_non_int_pcr_raises() -> None:
+    """
+        A non-int ``pcr_index`` is rejected.  Generator bodies raise
+        on first iteration, so we materialize the iterator.
+    """
+    log_bytes, _, _, _, _ = _build_synthetic_log()
+    log = EventLog.from_bytes(data=log_bytes)
+
+    with testbase.raises(UefiError):
+        list(log.events_for_pcr(pcr_index="zero"))  # type: ignore[arg-type]
+    return
+
+
+# ----------------------------------------------------------------------
+# ReconstructPcrsTests
+# ----------------------------------------------------------------------
+
+"""
+    Unit tests for :meth:`EventLog.reconstruct_pcrs`.
+"""
+
+def test_reconstructs_extend_chain() -> None:
+    """
+        Each PCR is reconstructed by extending a zero accumulator
+        through each event destined for that PCR, in order.
+    """
+    log_bytes, digest_a, digest_b, pcr_a, pcr_b = _build_synthetic_log()
+    log = EventLog.from_bytes(data=log_bytes)
+
+    reconstructed = log.reconstruct_pcrs(algorithm=TpmAlgorithmId.SHA256)
+
+    zero = b"\x00" * SHA256_SIZE
+    expected_a = _extend_sha256(current=zero, incoming=digest_a)
+    expected_b = _extend_sha256(current=zero, incoming=digest_b)
+
+    testbase.assert_equal(reconstructed[pcr_a], expected_a)
+    testbase.assert_equal(reconstructed[pcr_b], expected_b)
+    return
+
+def test_reconstructs_multiple_events_same_pcr() -> None:
+    """
+        Two events destined for the same PCR extend the same
+        accumulator in order.
+    """
+    digest_x = hashlib.sha256(b"x").digest()
+    digest_y = hashlib.sha256(b"y").digest()
+
+    spec_payload = _build_spec_id_event_payload(
+        algorithms=[(int(TpmAlgorithmId.SHA256), SHA256_SIZE)],
+    )
+    first_event = _build_first_event(spec_payload=spec_payload)
+    event_x = _build_pcr_event2(
+        pcr_index=7,
+        event_type=int(EventType.EV_SEPARATOR),
+        digests=[(int(TpmAlgorithmId.SHA256), digest_x)],
+        event_data=b"",
+    )
+    event_y = _build_pcr_event2(
+        pcr_index=7,
+        event_type=int(EventType.EV_SEPARATOR),
+        digests=[(int(TpmAlgorithmId.SHA256), digest_y)],
+        event_data=b"",
+    )
+    log_bytes = first_event + event_x + event_y
+
+    log = EventLog.from_bytes(data=log_bytes)
+    reconstructed = log.reconstruct_pcrs(algorithm=TpmAlgorithmId.SHA256)
+
+    zero = b"\x00" * SHA256_SIZE
+    after_x = _extend_sha256(current=zero, incoming=digest_x)
+    after_y = _extend_sha256(current=after_x, incoming=digest_y)
+
+    testbase.assert_equal(reconstructed[7], after_y)
+    return
+
+def test_algorithm_type_enforced() -> None:
+    """
+        Passing a non-:class:`TpmAlgorithmId` raises
+        :class:`UefiError`.
+    """
+    log_bytes, _, _, _, _ = _build_synthetic_log()
+    log = EventLog.from_bytes(data=log_bytes)
+
+    with testbase.raises(UefiError):
+        log.reconstruct_pcrs(algorithm="sha256")  # type: ignore[arg-type]
+    return
+
+
+# ----------------------------------------------------------------------
+# ValidateAgainstTests
+# ----------------------------------------------------------------------
+
+"""
+    Unit tests for :meth:`EventLog.validate_against`.
+"""
+
+def test_match_returns_none() -> None:
+    """
+        When observed PCRs match the reconstruction the method
+        returns without raising.
+    """
+    log_bytes, digest_a, digest_b, pcr_a, pcr_b = _build_synthetic_log()
+    log = EventLog.from_bytes(data=log_bytes)
+
+    zero = b"\x00" * SHA256_SIZE
+    observed: Dict[int, bytes] = {
+        pcr_a: _extend_sha256(current=zero, incoming=digest_a),
+        pcr_b: _extend_sha256(current=zero, incoming=digest_b),
+    }
+
+    # No assertion needed: the call must not raise.
+    log.validate_against(observed_pcrs=observed, algorithm=TpmAlgorithmId.SHA256)
+    return
+
+def test_mismatch_raises_with_details() -> None:
+    """
+        A single-PCR mismatch is reported with the diff populated in
+        ``UefiError.details``.
+    """
+    log_bytes, digest_a, digest_b, pcr_a, pcr_b = _build_synthetic_log()
+    log = EventLog.from_bytes(data=log_bytes)
+
+    zero = b"\x00" * SHA256_SIZE
+    expected_b = _extend_sha256(current=zero, incoming=digest_b)
+
+    tampered = b"\xff" * SHA256_SIZE
+    observed: Dict[int, bytes] = {
+        pcr_a: tampered,
+        pcr_b: expected_b,
+    }
+
+    with testbase.raises(UefiError) as caught:
+        log.validate_against(
+            observed_pcrs=observed,
+            algorithm=TpmAlgorithmId.SHA256,
         )
 
-        spec = TcgSpecIdEvent.from_bytes(data=payload)
+    uefi_error = caught.exception
+    testbase.assert_equal(len(uefi_error.details), 1)
+    detail_line = uefi_error.details[0]
+    testbase.assert_true("pcr={}".format(pcr_a) in detail_line)
+    testbase.assert_true("alg=SHA256" in detail_line)
+    testbase.assert_true(tampered.hex() in detail_line)
+    return
 
-        self.assertEqual(spec.platform_class, 0)
-        self.assertEqual(spec.spec_version_major, 2)
-        self.assertEqual(spec.num_algorithms, 1)
-        self.assertEqual(spec.algorithms, ((TpmAlgorithmId.SHA256, SHA256_SIZE),))
-        self.assertEqual(spec.vendor_info, b"")
-        return
+def test_missing_observation_reported() -> None:
+    """
+        A PCR touched by the log but absent from the observation set
+        is reported as ``missing_observation``.
+    """
+    log_bytes, digest_a, _, pcr_a, _ = _build_synthetic_log()
+    log = EventLog.from_bytes(data=log_bytes)
 
-    def test_signature_reject(self) -> None:
-        """
-            A tampered signature is rejected with a descriptive
-            :class:`UefiError`.
-        """
-        payload = _build_spec_id_event_payload(
-            algorithms=[(int(TpmAlgorithmId.SHA256), SHA256_SIZE)],
-        )
-        tampered = b"BadSig!!Event03\x00" + payload[16:]
+    zero = b"\x00" * SHA256_SIZE
+    only_a: Dict[int, bytes] = {
+        pcr_a: _extend_sha256(current=zero, incoming=digest_a),
+    }
 
-        with self.assertRaises(UefiError) as caught:
-            TcgSpecIdEvent.from_bytes(data=tampered)
-
-        rendered = str(caught.exception)
-        self.assertIn("signature mismatch", rendered)
-        return
-
-    def test_digest_size_mismatch_rejected(self) -> None:
-        """
-            A declared digest size that disagrees with the algorithm
-            registry is rejected.
-        """
-        payload = _build_spec_id_event_payload(
-            algorithms=[(int(TpmAlgorithmId.SHA256), SHA256_SIZE + 1)],
+    with testbase.raises(UefiError) as caught:
+        log.validate_against(
+            observed_pcrs=only_a,
+            algorithm=TpmAlgorithmId.SHA256,
         )
 
-        with self.assertRaises(UefiError) as caught:
-            TcgSpecIdEvent.from_bytes(data=payload)
-
-        rendered = str(caught.exception)
-        self.assertIn("digest size", rendered)
-        return
+    combined = "\n".join(caught.exception.details)
+    testbase.assert_true("missing_observation" in combined)
+    return
 
 
-class EventLogFromBytesTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# Tpm2PcrreadParserTests
+# ----------------------------------------------------------------------
+
+"""
+    Unit tests for :func:`_parse_tpm2_pcrread_stdout`.
+"""
+
+def test_v5_output_with_bank_header() -> None:
     """
-        Unit tests for :meth:`EventLog.from_bytes`.
+        Parse ``tpm2-tools`` v5 output (bank header + indented
+        ``index : 0xDEAD...`` lines).
     """
+    digest_0 = hashlib.sha256(b"pcr0").hexdigest()
+    digest_1 = hashlib.sha256(b"pcr1").hexdigest()
+    stdout = (
+        "sha256:\n"
+        "  0 : 0x{}\n"
+        "  1 : 0x{}\n".format(digest_0.upper(), digest_1.upper())
+    )
 
-    def test_parses_synthetic_log(self) -> None:
-        """
-            A synthetic 2-event log parses into a 1-item spec-ID header
-            + 2 ``TCG_PCR_EVENT2`` records.
-        """
-        log_bytes, digest_a, digest_b, pcr_a, pcr_b = _build_synthetic_log()
+    parsed = _parse_tpm2_pcrread_stdout(
+        stdout=stdout, algorithm=TpmAlgorithmId.SHA256,
+    )
 
-        log = EventLog.from_bytes(data=log_bytes)
+    testbase.assert_equal(parsed[0], bytes.fromhex(digest_0))
+    testbase.assert_equal(parsed[1], bytes.fromhex(digest_1))
+    return
 
-        self.assertEqual(log.spec_id.num_algorithms, 1)
-        self.assertEqual(len(log.events), 2)
-
-        event_a = log.events[0]
-        self.assertEqual(event_a.pcr_index, pcr_a)
-        self.assertEqual(event_a.event_type, EventType.EV_S_CRTM_VERSION)
-        self.assertEqual(len(event_a.digests), 1)
-        self.assertEqual(event_a.digests[0].algorithm, TpmAlgorithmId.SHA256)
-        self.assertEqual(event_a.digests[0].value, digest_a)
-        self.assertEqual(event_a.event_data, b"A-data")
-
-        event_b = log.events[1]
-        self.assertEqual(event_b.pcr_index, pcr_b)
-        self.assertEqual(event_b.event_type, EventType.EV_EFI_VARIABLE_DRIVER_CONFIG)
-        self.assertEqual(event_b.digests[0].value, digest_b)
-        return
-
-    def test_truncated_first_event_raises(self) -> None:
-        """
-            A log truncated inside the first-event header raises
-            :class:`UefiError`.
-        """
-        log_bytes, _, _, _, _ = _build_synthetic_log()
-        truncated = log_bytes[:20]
-
-        with self.assertRaises(UefiError) as caught:
-            EventLog.from_bytes(data=truncated)
-
-        rendered = str(caught.exception)
-        self.assertIn("first-event header", rendered)
-        return
-
-    def test_truncated_pcr_event2_raises(self) -> None:
-        """
-            A log truncated inside a ``TCG_PCR_EVENT2`` record raises
-            :class:`UefiError` with the event index in ``details``.
-        """
-        log_bytes, _, _, _, _ = _build_synthetic_log()
-        truncated = log_bytes[:-4]  # shear off the last 4 bytes of event_b
-
-        with self.assertRaises(UefiError):
-            EventLog.from_bytes(data=truncated)
-        return
-
-    def test_non_bytes_input_raises(self) -> None:
-        """
-            Passing a non-bytes argument is rejected with a
-            :class:`UefiError`.
-        """
-        with self.assertRaises(UefiError):
-            EventLog.from_bytes(data="not-bytes")  # type: ignore[arg-type]
-        return
-
-
-class EventsForPcrTests(unittest.TestCase):
+def test_v4_output_no_prefix() -> None:
     """
-        Unit tests for :meth:`EventLog.events_for_pcr`.
+        Parse ``tpm2-tools`` v4 output without the ``0x`` prefix.
     """
+    digest_0 = hashlib.sha256(b"x").hexdigest()
+    stdout = (
+        "sha256:\n"
+        "0: {}\n".format(digest_0)
+    )
 
-    def test_filters_by_pcr_index(self) -> None:
-        """
-            ``events_for_pcr`` yields only the events whose ``pcr_index``
-            equals the supplied value and preserves log order.
-        """
-        log_bytes, _, _, pcr_a, pcr_b = _build_synthetic_log()
-        log = EventLog.from_bytes(data=log_bytes)
+    parsed = _parse_tpm2_pcrread_stdout(
+        stdout=stdout, algorithm=TpmAlgorithmId.SHA256,
+    )
 
-        events_for_a = list(log.events_for_pcr(pcr_index=pcr_a))
-        events_for_b = list(log.events_for_pcr(pcr_index=pcr_b))
-        events_for_23 = list(log.events_for_pcr(pcr_index=23))
+    testbase.assert_equal(parsed[0], bytes.fromhex(digest_0))
+    return
 
-        self.assertEqual(len(events_for_a), 1)
-        self.assertEqual(events_for_a[0].pcr_index, pcr_a)
-
-        self.assertEqual(len(events_for_b), 1)
-        self.assertEqual(events_for_b[0].pcr_index, pcr_b)
-
-        self.assertEqual(len(events_for_23), 0)
-        return
-
-    def test_non_int_pcr_raises(self) -> None:
-        """
-            A non-int ``pcr_index`` is rejected.  Generator bodies raise
-            on first iteration, so we materialize the iterator.
-        """
-        log_bytes, _, _, _, _ = _build_synthetic_log()
-        log = EventLog.from_bytes(data=log_bytes)
-
-        with self.assertRaises(UefiError):
-            list(log.events_for_pcr(pcr_index="zero"))  # type: ignore[arg-type]
-        return
-
-
-class ReconstructPcrsTests(unittest.TestCase):
+def test_empty_output_raises() -> None:
     """
-        Unit tests for :meth:`EventLog.reconstruct_pcrs`.
+        Stdout that carries no PCR lines raises :class:`UefiError`.
     """
-
-    def test_reconstructs_extend_chain(self) -> None:
-        """
-            Each PCR is reconstructed by extending a zero accumulator
-            through each event destined for that PCR, in order.
-        """
-        log_bytes, digest_a, digest_b, pcr_a, pcr_b = _build_synthetic_log()
-        log = EventLog.from_bytes(data=log_bytes)
-
-        reconstructed = log.reconstruct_pcrs(algorithm=TpmAlgorithmId.SHA256)
-
-        zero = b"\x00" * SHA256_SIZE
-        expected_a = _extend_sha256(current=zero, incoming=digest_a)
-        expected_b = _extend_sha256(current=zero, incoming=digest_b)
-
-        self.assertEqual(reconstructed[pcr_a], expected_a)
-        self.assertEqual(reconstructed[pcr_b], expected_b)
-        return
-
-    def test_reconstructs_multiple_events_same_pcr(self) -> None:
-        """
-            Two events destined for the same PCR extend the same
-            accumulator in order.
-        """
-        digest_x = hashlib.sha256(b"x").digest()
-        digest_y = hashlib.sha256(b"y").digest()
-
-        spec_payload = _build_spec_id_event_payload(
-            algorithms=[(int(TpmAlgorithmId.SHA256), SHA256_SIZE)],
+    with testbase.raises(UefiError):
+        _parse_tpm2_pcrread_stdout(
+            stdout="no pcr lines here\n",
+            algorithm=TpmAlgorithmId.SHA256,
         )
-        first_event = _build_first_event(spec_payload=spec_payload)
-        event_x = _build_pcr_event2(
-            pcr_index=7,
-            event_type=int(EventType.EV_SEPARATOR),
-            digests=[(int(TpmAlgorithmId.SHA256), digest_x)],
-            event_data=b"",
-        )
-        event_y = _build_pcr_event2(
-            pcr_index=7,
-            event_type=int(EventType.EV_SEPARATOR),
-            digests=[(int(TpmAlgorithmId.SHA256), digest_y)],
-            event_data=b"",
-        )
-        log_bytes = first_event + event_x + event_y
-
-        log = EventLog.from_bytes(data=log_bytes)
-        reconstructed = log.reconstruct_pcrs(algorithm=TpmAlgorithmId.SHA256)
-
-        zero = b"\x00" * SHA256_SIZE
-        after_x = _extend_sha256(current=zero, incoming=digest_x)
-        after_y = _extend_sha256(current=after_x, incoming=digest_y)
-
-        self.assertEqual(reconstructed[7], after_y)
-        return
-
-    def test_algorithm_type_enforced(self) -> None:
-        """
-            Passing a non-:class:`TpmAlgorithmId` raises
-            :class:`UefiError`.
-        """
-        log_bytes, _, _, _, _ = _build_synthetic_log()
-        log = EventLog.from_bytes(data=log_bytes)
-
-        with self.assertRaises(UefiError):
-            log.reconstruct_pcrs(algorithm="sha256")  # type: ignore[arg-type]
-        return
+    return
 
 
-class ValidateAgainstTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# MeasuredBootFacadeTests
+# ----------------------------------------------------------------------
+
+"""
+    Unit tests for the :class:`MeasuredBoot` facade.
+"""
+
+def test_read_event_log_over_ssh_host() -> None:
     """
-        Unit tests for :meth:`EventLog.validate_against`.
+        On the ssh-host transport the facade issues a
+        ``cat ... | base64`` command and returns a decoded
+        :class:`EventLog`.
     """
+    log_bytes, _, _, _, _ = _build_synthetic_log()
+    encoded = base64.b64encode(log_bytes).decode("ascii")
 
-    def test_match_returns_none(self) -> None:
-        """
-            When observed PCRs match the reconstruction the method
-            returns without raising.
-        """
-        log_bytes, digest_a, digest_b, pcr_a, pcr_b = _build_synthetic_log()
-        log = EventLog.from_bytes(data=log_bytes)
+    def responder(command: str,
+                  aspects: Optional[UefiCmdAspects]) -> Tuple[int, str, str]:
+        rtnval: Tuple[int, str, str] = (0, encoded, "")
+        return rtnval
 
-        zero = b"\x00" * SHA256_SIZE
-        observed: Dict[int, bytes] = {
-            pcr_a: _extend_sha256(current=zero, incoming=digest_a),
-            pcr_b: _extend_sha256(current=zero, incoming=digest_b),
-        }
+    fake_agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
+    facade = MeasuredBoot(agent=fake_agent)
 
-        # No assertion needed: the call must not raise.
-        log.validate_against(observed_pcrs=observed, algorithm=TpmAlgorithmId.SHA256)
-        return
+    log = facade.read_event_log()
 
-    def test_mismatch_raises_with_details(self) -> None:
-        """
-            A single-PCR mismatch is reported with the diff populated in
-            ``UefiError.details``.
-        """
-        log_bytes, digest_a, digest_b, pcr_a, pcr_b = _build_synthetic_log()
-        log = EventLog.from_bytes(data=log_bytes)
+    testbase.assert_equal(len(log.events), 2)
+    testbase.assert_equal(len(fake_agent.calls), 1)
+    issued_command, _ = fake_agent.calls[0]
+    testbase.assert_true("binary_bios_measurements" in issued_command)
+    testbase.assert_true("base64" in issued_command)
+    return
 
-        zero = b"\x00" * SHA256_SIZE
-        expected_b = _extend_sha256(current=zero, incoming=digest_b)
-
-        tampered = b"\xff" * SHA256_SIZE
-        observed: Dict[int, bytes] = {
-            pcr_a: tampered,
-            pcr_b: expected_b,
-        }
-
-        with self.assertRaises(UefiError) as caught:
-            log.validate_against(
-                observed_pcrs=observed,
-                algorithm=TpmAlgorithmId.SHA256,
-            )
-
-        uefi_error = caught.exception
-        self.assertEqual(len(uefi_error.details), 1)
-        detail_line = uefi_error.details[0]
-        self.assertIn("pcr={}".format(pcr_a), detail_line)
-        self.assertIn("alg=SHA256", detail_line)
-        self.assertIn(tampered.hex(), detail_line)
-        return
-
-    def test_missing_observation_reported(self) -> None:
-        """
-            A PCR touched by the log but absent from the observation set
-            is reported as ``missing_observation``.
-        """
-        log_bytes, digest_a, _, pcr_a, _ = _build_synthetic_log()
-        log = EventLog.from_bytes(data=log_bytes)
-
-        zero = b"\x00" * SHA256_SIZE
-        only_a: Dict[int, bytes] = {
-            pcr_a: _extend_sha256(current=zero, incoming=digest_a),
-        }
-
-        with self.assertRaises(UefiError) as caught:
-            log.validate_against(
-                observed_pcrs=only_a,
-                algorithm=TpmAlgorithmId.SHA256,
-            )
-
-        combined = "\n".join(caught.exception.details)
-        self.assertIn("missing_observation", combined)
-        return
-
-
-class Tpm2PcrreadParserTests(unittest.TestCase):
+def test_read_event_log_serial_raises() -> None:
     """
-        Unit tests for :func:`_parse_tpm2_pcrread_stdout`.
+        Serial transport is not supported for event-log readout.
     """
+    fake_agent = _FakeUefiAgent(transport_kind="serial")
+    facade = MeasuredBoot(agent=fake_agent)
 
-    def test_v5_output_with_bank_header(self) -> None:
-        """
-            Parse ``tpm2-tools`` v5 output (bank header + indented
-            ``index : 0xDEAD...`` lines).
-        """
-        digest_0 = hashlib.sha256(b"pcr0").hexdigest()
-        digest_1 = hashlib.sha256(b"pcr1").hexdigest()
-        stdout = (
-            "sha256:\n"
-            "  0 : 0x{}\n"
-            "  1 : 0x{}\n".format(digest_0.upper(), digest_1.upper())
-        )
+    with testbase.raises(UefiError) as caught:
+        facade.read_event_log()
 
-        parsed = _parse_tpm2_pcrread_stdout(
-            stdout=stdout, algorithm=TpmAlgorithmId.SHA256,
-        )
+    testbase.assert_true("unsupported transport_kind" in str(caught.exception))
+    return
 
-        self.assertEqual(parsed[0], bytes.fromhex(digest_0))
-        self.assertEqual(parsed[1], bytes.fromhex(digest_1))
-        return
-
-    def test_v4_output_no_prefix(self) -> None:
-        """
-            Parse ``tpm2-tools`` v4 output without the ``0x`` prefix.
-        """
-        digest_0 = hashlib.sha256(b"x").hexdigest()
-        stdout = (
-            "sha256:\n"
-            "0: {}\n".format(digest_0)
-        )
-
-        parsed = _parse_tpm2_pcrread_stdout(
-            stdout=stdout, algorithm=TpmAlgorithmId.SHA256,
-        )
-
-        self.assertEqual(parsed[0], bytes.fromhex(digest_0))
-        return
-
-    def test_empty_output_raises(self) -> None:
-        """
-            Stdout that carries no PCR lines raises :class:`UefiError`.
-        """
-        with self.assertRaises(UefiError):
-            _parse_tpm2_pcrread_stdout(
-                stdout="no pcr lines here\n",
-                algorithm=TpmAlgorithmId.SHA256,
-            )
-        return
-
-
-class MeasuredBootFacadeTests(unittest.TestCase):
+def test_read_event_log_ipmi_sol_raises() -> None:
     """
-        Unit tests for the :class:`MeasuredBoot` facade.
+        IPMI-SOL transport is not supported for event-log readout.
     """
+    fake_agent = _FakeUefiAgent(transport_kind="ipmi-sol")
+    facade = MeasuredBoot(agent=fake_agent)
 
-    def test_read_event_log_over_ssh_host(self) -> None:
-        """
-            On the ssh-host transport the facade issues a
-            ``cat ... | base64`` command and returns a decoded
-            :class:`EventLog`.
-        """
-        log_bytes, _, _, _, _ = _build_synthetic_log()
-        encoded = base64.b64encode(log_bytes).decode("ascii")
+    with testbase.raises(UefiError):
+        facade.read_event_log()
+    return
 
-        def responder(command: str,
-                      aspects: Optional[UefiCmdAspects]) -> Tuple[int, str, str]:
-            rtnval: Tuple[int, str, str] = (0, encoded, "")
-            return rtnval
+def test_read_event_log_redfish_raises() -> None:
+    """
+        Redfish transport is not supported for event-log readout.
+    """
+    fake_agent = _FakeUefiAgent(transport_kind="redfish")
+    facade = MeasuredBoot(agent=fake_agent)
 
-        fake_agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
-        facade = MeasuredBoot(agent=fake_agent)
+    with testbase.raises(UefiError):
+        facade.read_event_log()
+    return
 
-        log = facade.read_event_log()
+def test_read_event_log_non_zero_status_raises_shell_error() -> None:
+    """
+        Non-zero exit status from the ``cat | base64`` shell-out is
+        converted to :class:`UefiShellError` with the raw capture
+        attached.
+    """
+    def responder(command: str,
+                  aspects: Optional[UefiCmdAspects]) -> Tuple[int, str, str]:
+        rtnval: Tuple[int, str, str] = (1, "", "cat: no such file")
+        return rtnval
 
-        self.assertEqual(len(log.events), 2)
-        self.assertEqual(len(fake_agent.calls), 1)
-        issued_command, _ = fake_agent.calls[0]
-        self.assertIn("binary_bios_measurements", issued_command)
-        self.assertIn("base64", issued_command)
-        return
+    fake_agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
+    facade = MeasuredBoot(agent=fake_agent)
 
-    def test_read_event_log_serial_raises(self) -> None:
-        """
-            Serial transport is not supported for event-log readout.
-        """
-        fake_agent = _FakeUefiAgent(transport_kind="serial")
-        facade = MeasuredBoot(agent=fake_agent)
+    with testbase.raises(UefiShellError) as caught:
+        facade.read_event_log()
 
-        with self.assertRaises(UefiError) as caught:
-            facade.read_event_log()
+    testbase.assert_equal(caught.exception.status, 1)
+    testbase.assert_equal(caught.exception.stderr, "cat: no such file")
+    return
 
-        self.assertIn("unsupported transport_kind", str(caught.exception))
-        return
+def test_read_pcrs_parses_stdout() -> None:
+    """
+        The ``read_pcrs`` facade issues ``tpm2_pcrread sha256`` and
+        returns the decoded PCR map.
+    """
+    digest_0 = hashlib.sha256(b"pcr0").hexdigest()
+    digest_1 = hashlib.sha256(b"pcr1").hexdigest()
+    fake_stdout = (
+        "sha256:\n"
+        "  0 : 0x{}\n"
+        "  1 : 0x{}\n".format(digest_0, digest_1)
+    )
 
-    def test_read_event_log_ipmi_sol_raises(self) -> None:
-        """
-            IPMI-SOL transport is not supported for event-log readout.
-        """
-        fake_agent = _FakeUefiAgent(transport_kind="ipmi-sol")
-        facade = MeasuredBoot(agent=fake_agent)
+    def responder(command: str,
+                  aspects: Optional[UefiCmdAspects]) -> Tuple[int, str, str]:
+        rtnval: Tuple[int, str, str] = (0, fake_stdout, "")
+        return rtnval
 
-        with self.assertRaises(UefiError):
-            facade.read_event_log()
-        return
+    fake_agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
+    facade = MeasuredBoot(agent=fake_agent)
 
-    def test_read_event_log_redfish_raises(self) -> None:
-        """
-            Redfish transport is not supported for event-log readout.
-        """
-        fake_agent = _FakeUefiAgent(transport_kind="redfish")
-        facade = MeasuredBoot(agent=fake_agent)
+    pcrs = facade.read_pcrs(algorithm=TpmAlgorithmId.SHA256)
 
-        with self.assertRaises(UefiError):
-            facade.read_event_log()
-        return
+    testbase.assert_equal(pcrs[0], bytes.fromhex(digest_0))
+    testbase.assert_equal(pcrs[1], bytes.fromhex(digest_1))
+    testbase.assert_equal(len(fake_agent.calls), 1)
+    issued_command, _ = fake_agent.calls[0]
+    testbase.assert_equal(issued_command, "tpm2_pcrread sha256")
+    return
 
-    def test_read_event_log_non_zero_status_raises_shell_error(self) -> None:
-        """
-            Non-zero exit status from the ``cat | base64`` shell-out is
-            converted to :class:`UefiShellError` with the raw capture
-            attached.
-        """
-        def responder(command: str,
-                      aspects: Optional[UefiCmdAspects]) -> Tuple[int, str, str]:
-            rtnval: Tuple[int, str, str] = (1, "", "cat: no such file")
-            return rtnval
+def test_read_pcrs_non_ssh_host_raises() -> None:
+    """
+        ``read_pcrs`` is refused on non-ssh-host transports.
+    """
+    fake_agent = _FakeUefiAgent(transport_kind="redfish")
+    facade = MeasuredBoot(agent=fake_agent)
 
-        fake_agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
-        facade = MeasuredBoot(agent=fake_agent)
+    with testbase.raises(UefiError):
+        facade.read_pcrs(algorithm=TpmAlgorithmId.SHA256)
+    return
 
-        with self.assertRaises(UefiShellError) as caught:
-            facade.read_event_log()
+def test_read_pcrs_non_zero_status_raises_shell_error() -> None:
+    """
+        Non-zero exit of ``tpm2_pcrread`` raises
+        :class:`UefiShellError`.
+    """
+    def responder(command: str,
+                  aspects: Optional[UefiCmdAspects]) -> Tuple[int, str, str]:
+        rtnval: Tuple[int, str, str] = (127, "", "command not found")
+        return rtnval
 
-        self.assertEqual(caught.exception.status, 1)
-        self.assertEqual(caught.exception.stderr, "cat: no such file")
-        return
+    fake_agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
+    facade = MeasuredBoot(agent=fake_agent)
 
-    def test_read_pcrs_parses_stdout(self) -> None:
-        """
-            The ``read_pcrs`` facade issues ``tpm2_pcrread sha256`` and
-            returns the decoded PCR map.
-        """
-        digest_0 = hashlib.sha256(b"pcr0").hexdigest()
-        digest_1 = hashlib.sha256(b"pcr1").hexdigest()
-        fake_stdout = (
-            "sha256:\n"
-            "  0 : 0x{}\n"
-            "  1 : 0x{}\n".format(digest_0, digest_1)
-        )
+    with testbase.raises(UefiShellError) as caught:
+        facade.read_pcrs(algorithm=TpmAlgorithmId.SHA256)
 
-        def responder(command: str,
-                      aspects: Optional[UefiCmdAspects]) -> Tuple[int, str, str]:
-            rtnval: Tuple[int, str, str] = (0, fake_stdout, "")
-            return rtnval
-
-        fake_agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
-        facade = MeasuredBoot(agent=fake_agent)
-
-        pcrs = facade.read_pcrs(algorithm=TpmAlgorithmId.SHA256)
-
-        self.assertEqual(pcrs[0], bytes.fromhex(digest_0))
-        self.assertEqual(pcrs[1], bytes.fromhex(digest_1))
-        self.assertEqual(len(fake_agent.calls), 1)
-        issued_command, _ = fake_agent.calls[0]
-        self.assertEqual(issued_command, "tpm2_pcrread sha256")
-        return
-
-    def test_read_pcrs_non_ssh_host_raises(self) -> None:
-        """
-            ``read_pcrs`` is refused on non-ssh-host transports.
-        """
-        fake_agent = _FakeUefiAgent(transport_kind="redfish")
-        facade = MeasuredBoot(agent=fake_agent)
-
-        with self.assertRaises(UefiError):
-            facade.read_pcrs(algorithm=TpmAlgorithmId.SHA256)
-        return
-
-    def test_read_pcrs_non_zero_status_raises_shell_error(self) -> None:
-        """
-            Non-zero exit of ``tpm2_pcrread`` raises
-            :class:`UefiShellError`.
-        """
-        def responder(command: str,
-                      aspects: Optional[UefiCmdAspects]) -> Tuple[int, str, str]:
-            rtnval: Tuple[int, str, str] = (127, "", "command not found")
-            return rtnval
-
-        fake_agent = _FakeUefiAgent(transport_kind="ssh-host", responder=responder)
-        facade = MeasuredBoot(agent=fake_agent)
-
-        with self.assertRaises(UefiShellError) as caught:
-            facade.read_pcrs(algorithm=TpmAlgorithmId.SHA256)
-
-        self.assertEqual(caught.exception.status, 127)
-        return
+    testbase.assert_equal(caught.exception.status, 127)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Algorithm-table sanity
 # ---------------------------------------------------------------------------
 
-class AlgorithmTableTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# AlgorithmTableTests
+# ----------------------------------------------------------------------
+
+"""
+    Sanity checks for :data:`ALG_DIGEST_SIZES` and
+    :data:`ALG_HASHLIB_NAMES`.
+"""
+
+def test_digest_size_map_covers_enum() -> None:
     """
-        Sanity checks for :data:`ALG_DIGEST_SIZES` and
-        :data:`ALG_HASHLIB_NAMES`.
+        Every :class:`TpmAlgorithmId` has a digest-size entry.
     """
+    for alg in TpmAlgorithmId:
+        testbase.assert_true(alg in ALG_DIGEST_SIZES)
+        testbase.assert_greater(ALG_DIGEST_SIZES[alg], 0)
+    return
 
-    def test_digest_size_map_covers_enum(self) -> None:
-        """
-            Every :class:`TpmAlgorithmId` has a digest-size entry.
-        """
-        for alg in TpmAlgorithmId:
-            self.assertIn(alg, ALG_DIGEST_SIZES)
-            self.assertGreater(ALG_DIGEST_SIZES[alg], 0)
-        return
+def test_hashlib_name_map_covers_enum() -> None:
+    """
+        Every :class:`TpmAlgorithmId` has a hashlib-name entry.
+    """
+    for alg in TpmAlgorithmId:
+        testbase.assert_true(alg in ALG_HASHLIB_NAMES)
+        testbase.assert_true(isinstance(ALG_HASHLIB_NAMES[alg], str))
+    return
 
-    def test_hashlib_name_map_covers_enum(self) -> None:
-        """
-            Every :class:`TpmAlgorithmId` has a hashlib-name entry.
-        """
-        for alg in TpmAlgorithmId:
-            self.assertIn(alg, ALG_HASHLIB_NAMES)
-            self.assertIsInstance(ALG_HASHLIB_NAMES[alg], str)
-        return
+def test_tpm_digest_record_stores_value() -> None:
+    """
+        The :class:`TpmDigest` frozen dataclass stores the raw value
+        verbatim.
+    """
+    digest_bytes = b"\x01" * SHA256_SIZE
+    record = TpmDigest(algorithm=TpmAlgorithmId.SHA256, value=digest_bytes)
 
-    def test_tpm_digest_record_stores_value(self) -> None:
-        """
-            The :class:`TpmDigest` frozen dataclass stores the raw value
-            verbatim.
-        """
-        digest_bytes = b"\x01" * SHA256_SIZE
-        record = TpmDigest(algorithm=TpmAlgorithmId.SHA256, value=digest_bytes)
+    testbase.assert_equal(record.algorithm, TpmAlgorithmId.SHA256)
+    testbase.assert_equal(record.value, digest_bytes)
+    return
 
-        self.assertEqual(record.algorithm, TpmAlgorithmId.SHA256)
-        self.assertEqual(record.value, digest_bytes)
-        return
+def test_pcr_event_digest_for_lookup() -> None:
+    """
+        :meth:`PcrEvent.digest_for` returns the matching digest or
+        :data:`None`.
+    """
+    sha256_value = b"\x02" * SHA256_SIZE
+    sha1_value = b"\x03" * 20
 
-    def test_pcr_event_digest_for_lookup(self) -> None:
-        """
-            :meth:`PcrEvent.digest_for` returns the matching digest or
-            :data:`None`.
-        """
-        sha256_value = b"\x02" * SHA256_SIZE
-        sha1_value = b"\x03" * 20
+    event = PcrEvent(
+        pcr_index=0,
+        event_type=EventType.EV_SEPARATOR,
+        digests=(
+            TpmDigest(algorithm=TpmAlgorithmId.SHA1, value=sha1_value),
+            TpmDigest(algorithm=TpmAlgorithmId.SHA256, value=sha256_value),
+        ),
+        event_data=b"",
+    )
 
-        event = PcrEvent(
-            pcr_index=0,
-            event_type=EventType.EV_SEPARATOR,
-            digests=(
-                TpmDigest(algorithm=TpmAlgorithmId.SHA1, value=sha1_value),
-                TpmDigest(algorithm=TpmAlgorithmId.SHA256, value=sha256_value),
-            ),
-            event_data=b"",
-        )
-
-        self.assertEqual(event.digest_for(algorithm=TpmAlgorithmId.SHA256), sha256_value)
-        self.assertEqual(event.digest_for(algorithm=TpmAlgorithmId.SHA1), sha1_value)
-        self.assertIsNone(event.digest_for(algorithm=TpmAlgorithmId.SHA512))
-        return
-
-
-if __name__ == "__main__":
-    unittest.main()
+    testbase.assert_equal(event.digest_for(algorithm=TpmAlgorithmId.SHA256), sha256_value)
+    testbase.assert_equal(event.digest_for(algorithm=TpmAlgorithmId.SHA1), sha1_value)
+    testbase.assert_true(event.digest_for(algorithm=TpmAlgorithmId.SHA512) is None)
+    return

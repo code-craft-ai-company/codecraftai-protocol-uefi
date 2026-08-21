@@ -23,7 +23,7 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+from ccai import testbase
 
 from typing import Any, Dict, List, Optional, Tuple
 from unittest.mock import patch
@@ -201,410 +201,427 @@ def _build_reset(agent: _FakeUefiAgent,
 # ---------------------------------------------------------------------------
 
 
-class TestResetKind(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestResetKind
+# ----------------------------------------------------------------------
+
+"""
+    Verify that :class:`ResetKind` exposes exactly the members required
+    by UEFI §8.5.1.
+"""
+
+def test_members() -> None:
     """
-        Verify that :class:`ResetKind` exposes exactly the members required
-        by UEFI §8.5.1.
+        Exactly four members with the expected ``value`` strings.
     """
+    expected = {"cold", "warm", "shutdown", "platform-specific"}
+    observed = {member.value for member in ResetKind}
+    testbase.assert_equal(observed, expected)
 
-    def test_members(self) -> None:
-        """
-            Exactly four members with the expected ``value`` strings.
-        """
-        expected = {"cold", "warm", "shutdown", "platform-specific"}
-        observed = {member.value for member in ResetKind}
-        self.assertEqual(observed, expected)
-
-        self.assertEqual(ResetKind.COLD.value, "cold")
-        self.assertEqual(ResetKind.WARM.value, "warm")
-        self.assertEqual(ResetKind.SHUTDOWN.value, "shutdown")
-        self.assertEqual(ResetKind.PLATFORM_SPECIFIC.value, "platform-specific")
-        return
+    testbase.assert_equal(ResetKind.COLD.value, "cold")
+    testbase.assert_equal(ResetKind.WARM.value, "warm")
+    testbase.assert_equal(ResetKind.SHUTDOWN.value, "shutdown")
+    testbase.assert_equal(ResetKind.PLATFORM_SPECIFIC.value, "platform-specific")
+    return
 
 
-class TestResetSerialDispatch(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestResetSerialDispatch
+# ----------------------------------------------------------------------
+
+"""
+    Verify command mapping for the Shell-based transports.
+"""
+
+def test_warm_reset_sends_reset_w() -> None:
     """
-        Verify command mapping for the Shell-based transports.
+        :class:`ResetKind.WARM` on serial issues ``reset -w``.
     """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
 
-    def test_warm_reset_sends_reset_w(self) -> None:
-        """
-            :class:`ResetKind.WARM` on serial issues ``reset -w``.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.WARM)
 
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.WARM)
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    testbase.assert_equal(agent.run_cmd_calls[0]["command"], "reset -w")
+    return
 
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        self.assertEqual(agent.run_cmd_calls[0]["command"], "reset -w")
-        return
-
-    def test_cold_reset_sends_reset_c(self) -> None:
-        """
-            :class:`ResetKind.COLD` on serial issues ``reset -c``.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
-
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.COLD)
-
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        self.assertEqual(agent.run_cmd_calls[0]["command"], "reset -c")
-        return
-
-    def test_shutdown_reset_sends_reset_s(self) -> None:
-        """
-            :class:`ResetKind.SHUTDOWN` on serial issues ``reset -s``.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
-
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.SHUTDOWN)
-
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        self.assertEqual(agent.run_cmd_calls[0]["command"], "reset -s")
-        return
-
-    def test_ipmi_sol_transport_uses_shell_dispatch(self) -> None:
-        """
-            The ``ipmi-sol`` transport kind follows the same Shell path.
-        """
-        agent = _FakeUefiAgent(transport_kind="ipmi-sol")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
-
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.WARM)
-
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        self.assertEqual(agent.run_cmd_calls[0]["command"], "reset -w")
-        return
-
-    def test_platform_specific_with_payload_appends_hex(self) -> None:
-        """
-            PLATFORM_SPECIFIC with a payload appends the hex encoding.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
-        payload = b"\x01\x02\xab"
-
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(
-                kind=ResetKind.PLATFORM_SPECIFIC,
-                platform_specific_data=payload,
-            )
-
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        self.assertEqual(agent.run_cmd_calls[0]["command"], "reset -s 0102ab")
-        return
-
-
-class TestResetSshHostDispatch(unittest.TestCase):
+def test_cold_reset_sends_reset_c() -> None:
     """
-        Verify command mapping for the ``ssh-host`` transport.
+        :class:`ResetKind.COLD` on serial issues ``reset -c``.
     """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
 
-    def test_warm_and_cold_reset_send_reboot(self) -> None:
-        """
-            WARM and COLD both issue ``sudo reboot`` on ssh-host.
-        """
-        for kind in (ResetKind.WARM, ResetKind.COLD):
-            agent = _FakeUefiAgent(transport_kind="ssh-host")
-            agent.verify_sequence = [True]
-            reset = _build_reset(agent=agent)
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.COLD)
 
-            with patch.object(uefireset.time, "sleep"):
-                reset.reset(kind=kind)
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    testbase.assert_equal(agent.run_cmd_calls[0]["command"], "reset -c")
+    return
 
-            self.assertEqual(len(agent.run_cmd_calls), 1)
-            self.assertEqual(agent.run_cmd_calls[0]["command"], "sudo reboot")
-        return
+def test_shutdown_reset_sends_reset_s() -> None:
+    """
+        :class:`ResetKind.SHUTDOWN` on serial issues ``reset -s``.
+    """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
 
-    def test_shutdown_sends_shutdown_command(self) -> None:
-        """
-            SHUTDOWN on ssh-host issues ``sudo shutdown -h now``.
-        """
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.SHUTDOWN)
+
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    testbase.assert_equal(agent.run_cmd_calls[0]["command"], "reset -s")
+    return
+
+def test_ipmi_sol_transport_uses_shell_dispatch() -> None:
+    """
+        The ``ipmi-sol`` transport kind follows the same Shell path.
+    """
+    agent = _FakeUefiAgent(transport_kind="ipmi-sol")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
+
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.WARM)
+
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    testbase.assert_equal(agent.run_cmd_calls[0]["command"], "reset -w")
+    return
+
+def test_platform_specific_with_payload_appends_hex() -> None:
+    """
+        PLATFORM_SPECIFIC with a payload appends the hex encoding.
+    """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
+    payload = b"\x01\x02\xab"
+
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(
+            kind=ResetKind.PLATFORM_SPECIFIC,
+            platform_specific_data=payload,
+        )
+
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    testbase.assert_equal(agent.run_cmd_calls[0]["command"], "reset -s 0102ab")
+    return
+
+
+# ----------------------------------------------------------------------
+# TestResetSshHostDispatch
+# ----------------------------------------------------------------------
+
+"""
+    Verify command mapping for the ``ssh-host`` transport.
+"""
+
+def test_warm_and_cold_reset_send_reboot() -> None:
+    """
+        WARM and COLD both issue ``sudo reboot`` on ssh-host.
+    """
+    for kind in (ResetKind.WARM, ResetKind.COLD):
         agent = _FakeUefiAgent(transport_kind="ssh-host")
         agent.verify_sequence = [True]
         reset = _build_reset(agent=agent)
 
         with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.SHUTDOWN)
+            reset.reset(kind=kind)
 
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        self.assertEqual(
-            agent.run_cmd_calls[0]["command"],
-            "sudo shutdown -h now",
-        )
-        return
+        testbase.assert_equal(len(agent.run_cmd_calls), 1)
+        testbase.assert_equal(agent.run_cmd_calls[0]["command"], "sudo reboot")
+    return
 
-
-class TestResetRedfishDispatch(unittest.TestCase):
+def test_shutdown_sends_shutdown_command() -> None:
     """
-        Verify Redfish ``ComputerSystem.Reset`` dispatch.
+        SHUTDOWN on ssh-host issues ``sudo shutdown -h now``.
     """
+    agent = _FakeUefiAgent(transport_kind="ssh-host")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
 
-    def test_cold_reset_posts_force_restart_via_run_cmd(self) -> None:
-        """
-            COLD on redfish maps to ``ResetType: ForceRestart`` via
-            ``run_cmd`` when the agent has no ``redfish_post`` method.
-        """
-        agent = _FakeUefiAgent(transport_kind="redfish")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.SHUTDOWN)
 
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.COLD)
-
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        command = agent.run_cmd_calls[0]["command"]
-        self.assertIn("POST", command)
-        self.assertIn("/redfish/v1/Systems/Self/Actions/ComputerSystem.Reset", command)
-        self.assertIn('"ResetType": "ForceRestart"', command)
-        return
-
-    def test_warm_reset_maps_to_graceful_restart(self) -> None:
-        """
-            WARM on redfish maps to ``ResetType: GracefulRestart``.
-        """
-        agent = _FakeUefiAgent(transport_kind="redfish")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
-
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.WARM)
-
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        command = agent.run_cmd_calls[0]["command"]
-        self.assertIn('"ResetType": "GracefulRestart"', command)
-        return
-
-    def test_shutdown_maps_to_graceful_shutdown(self) -> None:
-        """
-            SHUTDOWN on redfish maps to ``ResetType: GracefulShutdown``.
-        """
-        agent = _FakeUefiAgent(transport_kind="redfish")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
-
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.SHUTDOWN)
-
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        command = agent.run_cmd_calls[0]["command"]
-        self.assertIn('"ResetType": "GracefulShutdown"', command)
-        return
-
-    def test_redfish_post_method_preferred_when_available(self) -> None:
-        """
-            When the agent exposes ``redfish_post`` the facade uses it
-            instead of ``run_cmd``.
-        """
-        agent = _FakeUefiAgent(transport_kind="redfish")
-        agent.enable_redfish_post()
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
-
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.COLD)
-
-        self.assertEqual(len(agent.run_cmd_calls), 0)
-        self.assertEqual(len(agent.redfish_post_calls), 1)
-        observed = agent.redfish_post_calls[0]
-        self.assertEqual(
-            observed["path"],
-            "/redfish/v1/Systems/Self/Actions/ComputerSystem.Reset",
-        )
-        self.assertIn('"ResetType": "ForceRestart"', observed["body"])
-        return
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    testbase.assert_equal(
+        agent.run_cmd_calls[0]["command"],
+        "sudo shutdown -h now",
+    )
+    return
 
 
-class TestResetSwallowsConnectionError(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestResetRedfishDispatch
+# ----------------------------------------------------------------------
+
+"""
+    Verify Redfish ``ComputerSystem.Reset`` dispatch.
+"""
+
+def test_cold_reset_posts_force_restart_via_run_cmd() -> None:
     """
-        The reset command is expected to sever the transport; the
-        resulting :class:`ConnectionError` must not propagate.
+        COLD on redfish maps to ``ResetType: ForceRestart`` via
+        ``run_cmd`` when the agent has no ``redfish_post`` method.
     """
+    agent = _FakeUefiAgent(transport_kind="redfish")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
 
-    def test_connection_error_swallowed(self) -> None:
-        """
-            A :class:`ConnectionError` raised by ``run_cmd`` is caught
-            and does not abort the reconnect path.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.run_cmd_exception = ConnectionError("transport dropped")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.COLD)
 
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.WARM)
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    command = agent.run_cmd_calls[0]["command"]
+    testbase.assert_true("POST" in command)
+    testbase.assert_true("/redfish/v1/Systems/Self/Actions/ComputerSystem.Reset" in command)
+    testbase.assert_true('"ResetType": "ForceRestart"' in command)
+    return
 
-        # The reset command was attempted once; verify_connectivity ran
-        # after the grace sleep and reported success on the first attempt.
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        self.assertGreaterEqual(agent.verify_calls, 1)
-        return
-
-    def test_os_error_swallowed(self) -> None:
-        """
-            :class:`OSError` is also in the expected-exception allow list.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.run_cmd_exception = OSError("transport closed")
-        agent.verify_sequence = [True]
-        reset = _build_reset(agent=agent)
-
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.WARM)
-
-        self.assertEqual(len(agent.run_cmd_calls), 1)
-        return
-
-
-class TestResetWaitForReconnect(unittest.TestCase):
+def test_warm_reset_maps_to_graceful_restart() -> None:
     """
-        Exercise the :meth:`SystemReset.reset` ``wait_for_reconnect``
-        parameter and the reconnect-verify loop.
+        WARM on redfish maps to ``ResetType: GracefulRestart``.
     """
+    agent = _FakeUefiAgent(transport_kind="redfish")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
 
-    def test_wait_for_reconnect_false_returns_immediately(self) -> None:
-        """
-            With ``wait_for_reconnect=False`` the facade returns without
-            polling ``verify_connectivity``.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        reset = _build_reset(agent=agent)
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.WARM)
 
-        with patch.object(uefireset.time, "sleep") as sleep_mock:
-            reset.reset(kind=ResetKind.WARM, wait_for_reconnect=False)
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    command = agent.run_cmd_calls[0]["command"]
+    testbase.assert_true('"ResetType": "GracefulRestart"' in command)
+    return
 
-        self.assertEqual(agent.verify_calls, 0)
-        self.assertEqual(sleep_mock.call_count, 0)
-        return
+def test_shutdown_maps_to_graceful_shutdown() -> None:
+    """
+        SHUTDOWN on redfish maps to ``ResetType: GracefulShutdown``.
+    """
+    agent = _FakeUefiAgent(transport_kind="redfish")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
 
-    def test_reconnect_succeeds_on_third_attempt(self) -> None:
-        """
-            ``verify_connectivity`` returning True on the third call
-            yields a clean return from :meth:`reset`.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [False, False, True]
-        reset = _build_reset(agent=agent)
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.SHUTDOWN)
 
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.WARM)
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    command = agent.run_cmd_calls[0]["command"]
+    testbase.assert_true('"ResetType": "GracefulShutdown"' in command)
+    return
 
-        self.assertEqual(agent.verify_calls, 3)
-        return
+def test_redfish_post_method_preferred_when_available() -> None:
+    """
+        When the agent exposes ``redfish_post`` the facade uses it
+        instead of ``run_cmd``.
+    """
+    agent = _FakeUefiAgent(transport_kind="redfish")
+    agent.enable_redfish_post()
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
 
-    def test_reconnect_timeout_raises_reset_failed_error(self) -> None:
-        """
-            When ``verify_connectivity`` never returns True the loop
-            raises :class:`ResetFailedError` after the completion
-            timeout elapses.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = []  # always False
-        # Use aspects with a tiny completion_timeout so the reset loop
-        # exits quickly — the SystemReset computes the effective timeout
-        # as max(aspects.completion_timeout, DEFAULT_RESET_COMPLETION_TIMEOUT)
-        # and both must be small for the test to run fast.
-        fast_aspects = UefiCmdAspects(completion_timeout=1, completion_interval=1)
-        reset = _build_reset(agent=agent, aspects=fast_aspects)
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.COLD)
 
-        patches = [
-            patch.object(uefireset, "DEFAULT_RESET_COMPLETION_TIMEOUT", 1),
-            patch.object(uefireset, "DEFAULT_RESET_COMPLETION_INTERVAL", 1),
-            patch.object(uefireset, "DEFAULT_RESET_GRACE_PERIOD", 0),
-            patch.object(uefireset.time, "sleep"),
-        ]
-        for single_patch in patches:
-            single_patch.start()
+    testbase.assert_equal(len(agent.run_cmd_calls), 0)
+    testbase.assert_equal(len(agent.redfish_post_calls), 1)
+    observed = agent.redfish_post_calls[0]
+    testbase.assert_equal(
+        observed["path"],
+        "/redfish/v1/Systems/Self/Actions/ComputerSystem.Reset",
+    )
+    testbase.assert_true('"ResetType": "ForceRestart"' in observed["body"])
+    return
 
+
+# ----------------------------------------------------------------------
+# TestResetSwallowsConnectionError
+# ----------------------------------------------------------------------
+
+"""
+    The reset command is expected to sever the transport; the
+    resulting :class:`ConnectionError` must not propagate.
+"""
+
+def test_connection_error_swallowed() -> None:
+    """
+        A :class:`ConnectionError` raised by ``run_cmd`` is caught
+        and does not abort the reconnect path.
+    """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.run_cmd_exception = ConnectionError("transport dropped")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
+
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.WARM)
+
+    # The reset command was attempted once; verify_connectivity ran
+    # after the grace sleep and reported success on the first attempt.
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    testbase.assert_true(agent.verify_calls >= 1)
+    return
+
+def test_os_error_swallowed() -> None:
+    """
+        :class:`OSError` is also in the expected-exception allow list.
+    """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.run_cmd_exception = OSError("transport closed")
+    agent.verify_sequence = [True]
+    reset = _build_reset(agent=agent)
+
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.WARM)
+
+    testbase.assert_equal(len(agent.run_cmd_calls), 1)
+    return
+
+
+# ----------------------------------------------------------------------
+# TestResetWaitForReconnect
+# ----------------------------------------------------------------------
+
+"""
+    Exercise the :meth:`SystemReset.reset` ``wait_for_reconnect``
+    parameter and the reconnect-verify loop.
+"""
+
+def test_wait_for_reconnect_false_returns_immediately() -> None:
+    """
+        With ``wait_for_reconnect=False`` the facade returns without
+        polling ``verify_connectivity``.
+    """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    reset = _build_reset(agent=agent)
+
+    with patch.object(uefireset.time, "sleep") as sleep_mock:
+        reset.reset(kind=ResetKind.WARM, wait_for_reconnect=False)
+
+    testbase.assert_equal(agent.verify_calls, 0)
+    testbase.assert_equal(sleep_mock.call_count, 0)
+    return
+
+def test_reconnect_succeeds_on_third_attempt() -> None:
+    """
+        ``verify_connectivity`` returning True on the third call
+        yields a clean return from :meth:`reset`.
+    """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [False, False, True]
+    reset = _build_reset(agent=agent)
+
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.WARM)
+
+    testbase.assert_equal(agent.verify_calls, 3)
+    return
+
+def test_reconnect_timeout_raises_reset_failed_error() -> None:
+    """
+        When ``verify_connectivity`` never returns True the loop
+        raises :class:`ResetFailedError` after the completion
+        timeout elapses.
+    """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = []  # always False
+    # Use aspects with a tiny completion_timeout so the reset loop
+    # exits quickly — the SystemReset computes the effective timeout
+    # as max(aspects.completion_timeout, DEFAULT_RESET_COMPLETION_TIMEOUT)
+    # and both must be small for the test to run fast.
+    fast_aspects = UefiCmdAspects(completion_timeout=1, completion_interval=1)
+    reset = _build_reset(agent=agent, aspects=fast_aspects)
+
+    patches = [
+        patch.object(uefireset, "DEFAULT_RESET_COMPLETION_TIMEOUT", 1),
+        patch.object(uefireset, "DEFAULT_RESET_COMPLETION_INTERVAL", 1),
+        patch.object(uefireset, "DEFAULT_RESET_GRACE_PERIOD", 0),
+        patch.object(uefireset.time, "sleep"),
+    ]
+    for single_patch in patches:
+        single_patch.start()
+
+    try:
+        caught: Optional[BaseException] = None
         try:
-            caught: Optional[BaseException] = None
-            try:
-                reset.reset(kind=ResetKind.WARM, reason="test-path")
-            except ResetFailedError as rerr:
-                caught = rerr
+            reset.reset(kind=ResetKind.WARM, reason="test-path")
+        except ResetFailedError as rerr:
+            caught = rerr
 
-            self.assertIsInstance(caught, ResetFailedError)
-            message_text = str(caught)
-            self.assertIn("completion_timeout", message_text)
-            self.assertIn("warm", message_text)
-        finally:
-            for single_patch in patches:
-                single_patch.stop()
-        return
-
-    def test_reset_failed_error_details_populated(self) -> None:
-        """
-            :class:`ResetFailedError.details` contains the required
-            fields.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = []
-        fast_aspects = UefiCmdAspects(completion_timeout=1, completion_interval=1)
-        reset = _build_reset(agent=agent, aspects=fast_aspects)
-
-        patches = [
-            patch.object(uefireset, "DEFAULT_RESET_COMPLETION_TIMEOUT", 1),
-            patch.object(uefireset, "DEFAULT_RESET_COMPLETION_INTERVAL", 1),
-            patch.object(uefireset, "DEFAULT_RESET_GRACE_PERIOD", 0),
-            patch.object(uefireset.time, "sleep"),
-        ]
+        testbase.assert_true(isinstance(caught, ResetFailedError))
+        message_text = str(caught)
+        testbase.assert_true("completion_timeout" in message_text)
+        testbase.assert_true("warm" in message_text)
+    finally:
         for single_patch in patches:
-            single_patch.start()
+            single_patch.stop()
+    return
 
+def test_reset_failed_error_details_populated() -> None:
+    """
+        :class:`ResetFailedError.details` contains the required
+        fields.
+    """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = []
+    fast_aspects = UefiCmdAspects(completion_timeout=1, completion_interval=1)
+    reset = _build_reset(agent=agent, aspects=fast_aspects)
+
+    patches = [
+        patch.object(uefireset, "DEFAULT_RESET_COMPLETION_TIMEOUT", 1),
+        patch.object(uefireset, "DEFAULT_RESET_COMPLETION_INTERVAL", 1),
+        patch.object(uefireset, "DEFAULT_RESET_GRACE_PERIOD", 0),
+        patch.object(uefireset.time, "sleep"),
+    ]
+    for single_patch in patches:
+        single_patch.start()
+
+    try:
+        caught: Optional[ResetFailedError] = None
         try:
-            caught: Optional[ResetFailedError] = None
-            try:
-                reset.reset(kind=ResetKind.COLD, reason="diag")
-            except ResetFailedError as rerr:
-                caught = rerr
+            reset.reset(kind=ResetKind.COLD, reason="diag")
+        except ResetFailedError as rerr:
+            caught = rerr
 
-            self.assertIsNotNone(caught)
-            joined_details = "\n".join(caught.details)
-            self.assertIn("kind=cold", joined_details)
-            self.assertIn("reason=diag", joined_details)
-            self.assertIn("transport_kind=serial", joined_details)
-            self.assertIn("host=target.example", joined_details)
-        finally:
-            for single_patch in patches:
-                single_patch.stop()
-        return
+        testbase.assert_true(caught is not None)
+        joined_details = "\n".join(caught.details)
+        testbase.assert_true("kind=cold" in joined_details)
+        testbase.assert_true("reason=diag" in joined_details)
+        testbase.assert_true("transport_kind=serial" in joined_details)
+        testbase.assert_true("host=target.example" in joined_details)
+    finally:
+        for single_patch in patches:
+            single_patch.stop()
+    return
 
 
-class TestSystemResetWithCustomAspects(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestSystemResetWithCustomAspects
+# ----------------------------------------------------------------------
+
+"""
+    Exercise the aspects-resolution path.
+"""
+
+def test_custom_aspects_forwarded_to_run_cmd() -> None:
     """
-        Exercise the aspects-resolution path.
+        A per-call aspects override is passed through to
+        ``run_cmd``.
     """
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
 
-    def test_custom_aspects_forwarded_to_run_cmd(self) -> None:
-        """
-            A per-call aspects override is passed through to
-            ``run_cmd``.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
+    instance_aspects = UefiCmdAspects()
+    per_call_aspects = UefiCmdAspects()
+    reset = _build_reset(agent=agent, aspects=instance_aspects)
 
-        instance_aspects = UefiCmdAspects()
-        per_call_aspects = UefiCmdAspects()
-        reset = _build_reset(agent=agent, aspects=instance_aspects)
+    with patch.object(uefireset.time, "sleep"):
+        reset.reset(kind=ResetKind.WARM, aspects=per_call_aspects)
 
-        with patch.object(uefireset.time, "sleep"):
-            reset.reset(kind=ResetKind.WARM, aspects=per_call_aspects)
-
-        self.assertIs(agent.run_cmd_calls[0]["aspects"], per_call_aspects)
-        return
-
-
-if __name__ == "__main__":
-    unittest.main()
+    testbase.assert_true(agent.run_cmd_calls[0]["aspects"] is per_call_aspects)
+    return

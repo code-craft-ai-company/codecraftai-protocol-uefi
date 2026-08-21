@@ -17,8 +17,9 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from ccai import testbase
+
 import dataclasses
-import unittest
 import uuid
 
 from ccai.protocols.uefi.ueficonst import guid_to_bytes
@@ -260,295 +261,303 @@ def _build_synthetic_gpt_image(
 # Partition-type GUID registry
 # ---------------------------------------------------------------------------
 
-class PartitionTypeGuidTestCase(unittest.TestCase):
-    """
-        Verify every well-known partition-type GUID constant matches its
-        spec-defined canonical string value.
-    """
+# ----------------------------------------------------------------------
+# PartitionTypeGuidTestCase
+# ----------------------------------------------------------------------
 
-    def test_unused_partition(self) -> None:
-        expected = uuid.UUID("00000000-0000-0000-0000-000000000000")
-        self.assertEqual(UNUSED_PARTITION_GUID, expected)
-        return
+"""
+    Verify every well-known partition-type GUID constant matches its
+    spec-defined canonical string value.
+"""
 
-    def test_efi_system_partition(self) -> None:
-        expected = uuid.UUID("C12A7328-F81F-11D2-BA4B-00A0C93EC93B")
-        self.assertEqual(EFI_SYSTEM_PARTITION_GUID, expected)
-        return
+def test_unused_partition() -> None:
+    expected = uuid.UUID("00000000-0000-0000-0000-000000000000")
+    testbase.assert_equal(UNUSED_PARTITION_GUID, expected)
+    return
 
-    def test_microsoft_basic_data(self) -> None:
-        expected = uuid.UUID("EBD0A0A2-B9E5-4433-87C0-68B6B72699C7")
-        self.assertEqual(MICROSOFT_BASIC_DATA_PARTITION_GUID, expected)
-        return
+def test_efi_system_partition() -> None:
+    expected = uuid.UUID("C12A7328-F81F-11D2-BA4B-00A0C93EC93B")
+    testbase.assert_equal(EFI_SYSTEM_PARTITION_GUID, expected)
+    return
 
-    def test_microsoft_reserved(self) -> None:
-        expected = uuid.UUID("E3C9E316-0B5C-4DB8-817D-F92DF00215AE")
-        self.assertEqual(MICROSOFT_RESERVED_PARTITION_GUID, expected)
-        return
+def test_microsoft_basic_data() -> None:
+    expected = uuid.UUID("EBD0A0A2-B9E5-4433-87C0-68B6B72699C7")
+    testbase.assert_equal(MICROSOFT_BASIC_DATA_PARTITION_GUID, expected)
+    return
 
-    def test_linux_filesystem_data(self) -> None:
-        expected = uuid.UUID("0FC63DAF-8483-4772-8E79-3D69D8477DE4")
-        self.assertEqual(LINUX_FILESYSTEM_DATA_PARTITION_GUID, expected)
-        return
+def test_microsoft_reserved() -> None:
+    expected = uuid.UUID("E3C9E316-0B5C-4DB8-817D-F92DF00215AE")
+    testbase.assert_equal(MICROSOFT_RESERVED_PARTITION_GUID, expected)
+    return
 
-    def test_linux_swap(self) -> None:
-        expected = uuid.UUID("0657FD6D-A4AB-43C4-84E5-0933C84B4F4F")
-        self.assertEqual(LINUX_SWAP_PARTITION_GUID, expected)
-        return
+def test_linux_filesystem_data() -> None:
+    expected = uuid.UUID("0FC63DAF-8483-4772-8E79-3D69D8477DE4")
+    testbase.assert_equal(LINUX_FILESYSTEM_DATA_PARTITION_GUID, expected)
+    return
 
-    def test_linux_lvm(self) -> None:
-        expected = uuid.UUID("E6D6D379-F507-44C2-A23C-238F2A3DF928")
-        self.assertEqual(LINUX_LVM_PARTITION_GUID, expected)
-        return
+def test_linux_swap() -> None:
+    expected = uuid.UUID("0657FD6D-A4AB-43C4-84E5-0933C84B4F4F")
+    testbase.assert_equal(LINUX_SWAP_PARTITION_GUID, expected)
+    return
 
-    def test_apple_hfs(self) -> None:
-        expected = uuid.UUID("48465300-0000-11AA-AA11-00306543ECAC")
-        self.assertEqual(APPLE_HFS_PARTITION_GUID, expected)
-        return
+def test_linux_lvm() -> None:
+    expected = uuid.UUID("E6D6D379-F507-44C2-A23C-238F2A3DF928")
+    testbase.assert_equal(LINUX_LVM_PARTITION_GUID, expected)
+    return
 
-    def test_apple_apfs(self) -> None:
-        expected = uuid.UUID("7C3457EF-0000-11AA-AA11-00306543ECAC")
-        self.assertEqual(APPLE_APFS_PARTITION_GUID, expected)
-        return
+def test_apple_hfs() -> None:
+    expected = uuid.UUID("48465300-0000-11AA-AA11-00306543ECAC")
+    testbase.assert_equal(APPLE_HFS_PARTITION_GUID, expected)
+    return
 
-    def test_chromeos_kernel(self) -> None:
-        expected = uuid.UUID("FE3A2A5D-4F32-41A7-B725-ACCC3285A309")
-        self.assertEqual(CHROMEOS_KERNEL_PARTITION_GUID, expected)
-        return
+def test_apple_apfs() -> None:
+    expected = uuid.UUID("7C3457EF-0000-11AA-AA11-00306543ECAC")
+    testbase.assert_equal(APPLE_APFS_PARTITION_GUID, expected)
+    return
 
-    def test_chromeos_rootfs(self) -> None:
-        expected = uuid.UUID("3CB8E202-3B7E-47DD-8A3C-7FF2A13CFCEC")
-        self.assertEqual(CHROMEOS_ROOTFS_PARTITION_GUID, expected)
-        return
+def test_chromeos_kernel() -> None:
+    expected = uuid.UUID("FE3A2A5D-4F32-41A7-B725-ACCC3285A309")
+    testbase.assert_equal(CHROMEOS_KERNEL_PARTITION_GUID, expected)
+    return
+
+def test_chromeos_rootfs() -> None:
+    expected = uuid.UUID("3CB8E202-3B7E-47DD-8A3C-7FF2A13CFCEC")
+    testbase.assert_equal(CHROMEOS_ROOTFS_PARTITION_GUID, expected)
+    return
 
 
 # ---------------------------------------------------------------------------
 # GptPartitionEntry round-trip
 # ---------------------------------------------------------------------------
 
-class GptPartitionEntryRoundTripTestCase(unittest.TestCase):
-    """
-        Verify :class:`GptPartitionEntry` decodes and re-encodes losslessly.
-    """
+# ----------------------------------------------------------------------
+# GptPartitionEntryRoundTripTestCase
+# ----------------------------------------------------------------------
 
-    def test_round_trip_ascii_name(self) -> None:
-        original = GptPartitionEntry(
-            partition_type_guid=EFI_SYSTEM_PARTITION_GUID,
-            unique_partition_guid=uuid.UUID("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"),
-            starting_lba=34,
-            ending_lba=133,
-            attributes=0x0000000000000001,
-            partition_name="EFI System",
-        )
+"""
+    Verify :class:`GptPartitionEntry` decodes and re-encodes losslessly.
+"""
 
-        serialized = original.to_bytes()
-        self.assertEqual(len(serialized), GPT_PARTITION_ENTRY_SIZE)
+def test_round_trip_ascii_name() -> None:
+    original = GptPartitionEntry(
+        partition_type_guid=EFI_SYSTEM_PARTITION_GUID,
+        unique_partition_guid=uuid.UUID("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"),
+        starting_lba=34,
+        ending_lba=133,
+        attributes=0x0000000000000001,
+        partition_name="EFI System",
+    )
 
-        round_tripped = GptPartitionEntry.from_bytes(entry_bytes=serialized)
-        self.assertEqual(round_tripped, original)
-        return
+    serialized = original.to_bytes()
+    testbase.assert_equal(len(serialized), GPT_PARTITION_ENTRY_SIZE)
 
-    def test_round_trip_non_ascii_name(self) -> None:
-        original = GptPartitionEntry(
-            partition_type_guid=LINUX_FILESYSTEM_DATA_PARTITION_GUID,
-            unique_partition_guid=uuid.UUID("11112222-3333-4444-5555-666677778888"),
-            starting_lba=134,
-            ending_lba=1000,
-            attributes=0,
-            partition_name="Root \u00b5",
-        )
+    round_tripped = GptPartitionEntry.from_bytes(entry_bytes=serialized)
+    testbase.assert_equal(round_tripped, original)
+    return
 
-        serialized = original.to_bytes()
-        round_tripped = GptPartitionEntry.from_bytes(entry_bytes=serialized)
-        self.assertEqual(round_tripped, original)
-        return
+def test_round_trip_non_ascii_name() -> None:
+    original = GptPartitionEntry(
+        partition_type_guid=LINUX_FILESYSTEM_DATA_PARTITION_GUID,
+        unique_partition_guid=uuid.UUID("11112222-3333-4444-5555-666677778888"),
+        starting_lba=134,
+        ending_lba=1000,
+        attributes=0,
+        partition_name="Root \u00b5",
+    )
 
-    def test_unused_entry_round_trip(self) -> None:
-        unused = GptPartitionEntry(
-            partition_type_guid=UNUSED_PARTITION_GUID,
-            unique_partition_guid=UNUSED_PARTITION_GUID,
-            starting_lba=0,
-            ending_lba=0,
-            attributes=0,
-            partition_name="",
-        )
+    serialized = original.to_bytes()
+    round_tripped = GptPartitionEntry.from_bytes(entry_bytes=serialized)
+    testbase.assert_equal(round_tripped, original)
+    return
 
-        serialized = unused.to_bytes()
-        self.assertEqual(serialized, b"\x00" * GPT_PARTITION_ENTRY_SIZE)
+def test_unused_entry_round_trip() -> None:
+    unused = GptPartitionEntry(
+        partition_type_guid=UNUSED_PARTITION_GUID,
+        unique_partition_guid=UNUSED_PARTITION_GUID,
+        starting_lba=0,
+        ending_lba=0,
+        attributes=0,
+        partition_name="",
+    )
 
-        round_tripped = GptPartitionEntry.from_bytes(entry_bytes=serialized)
-        self.assertEqual(round_tripped, unused)
-        return
+    serialized = unused.to_bytes()
+    testbase.assert_equal(serialized, b"\x00" * GPT_PARTITION_ENTRY_SIZE)
+
+    round_tripped = GptPartitionEntry.from_bytes(entry_bytes=serialized)
+    testbase.assert_equal(round_tripped, unused)
+    return
 
 
 # ---------------------------------------------------------------------------
 # GptHeader decode / encode
 # ---------------------------------------------------------------------------
 
-class GptHeaderTestCase(unittest.TestCase):
-    """
-        Verify :class:`GptHeader.from_bytes` / :class:`GptHeader.to_bytes`.
-    """
+# ----------------------------------------------------------------------
+# GptHeaderTestCase
+# ----------------------------------------------------------------------
 
-    def test_header_round_trip(self) -> None:
-        image, disk_guid, _entries = _build_synthetic_gpt_image()
-        lba1 = image[DEFAULT_SECTOR_SIZE:2 * DEFAULT_SECTOR_SIZE]
+"""
+    Verify :class:`GptHeader.from_bytes` / :class:`GptHeader.to_bytes`.
+"""
 
-        header = GptHeader.from_bytes(lba1=lba1)
-        self.assertEqual(header.signature, GPT_HEADER_SIGNATURE)
-        self.assertEqual(header.revision, GPT_HEADER_REVISION)
-        self.assertEqual(header.header_size, GPT_HEADER_SIZE)
-        self.assertEqual(header.disk_guid, disk_guid)
-        self.assertEqual(header.my_lba, 1)
+def test_header_round_trip() -> None:
+    image, disk_guid, _entries = _build_synthetic_gpt_image()
+    lba1 = image[DEFAULT_SECTOR_SIZE:2 * DEFAULT_SECTOR_SIZE]
 
-        re_encoded = header.to_bytes()
-        self.assertEqual(len(re_encoded), GPT_HEADER_SIZE)
+    header = GptHeader.from_bytes(lba1=lba1)
+    testbase.assert_equal(header.signature, GPT_HEADER_SIGNATURE)
+    testbase.assert_equal(header.revision, GPT_HEADER_REVISION)
+    testbase.assert_equal(header.header_size, GPT_HEADER_SIZE)
+    testbase.assert_equal(header.disk_guid, disk_guid)
+    testbase.assert_equal(header.my_lba, 1)
 
-        re_parsed = GptHeader.from_bytes(lba1=re_encoded)
-        self.assertEqual(re_parsed, header)
-        return
+    re_encoded = header.to_bytes()
+    testbase.assert_equal(len(re_encoded), GPT_HEADER_SIZE)
 
-    def test_bad_signature_raises(self) -> None:
-        image, _disk_guid, _entries = _build_synthetic_gpt_image()
-        lba1 = bytearray(image[DEFAULT_SECTOR_SIZE:2 * DEFAULT_SECTOR_SIZE])
-        lba1[0:8] = b"BADSIG!!"
+    re_parsed = GptHeader.from_bytes(lba1=re_encoded)
+    testbase.assert_equal(re_parsed, header)
+    return
 
-        with self.assertRaises(UefiError) as caught:
-            GptHeader.from_bytes(lba1=bytes(lba1))
+def test_bad_signature_raises() -> None:
+    image, _disk_guid, _entries = _build_synthetic_gpt_image()
+    lba1 = bytearray(image[DEFAULT_SECTOR_SIZE:2 * DEFAULT_SECTOR_SIZE])
+    lba1[0:8] = b"BADSIG!!"
 
-        self.assertIn("signature", str(caught.exception).lower())
-        return
+    with testbase.raises(UefiError) as caught:
+        GptHeader.from_bytes(lba1=bytes(lba1))
 
-    def test_corrupted_header_crc_raises_with_details(self) -> None:
-        image, _disk_guid, _entries = _build_synthetic_gpt_image()
-        lba1 = bytearray(image[DEFAULT_SECTOR_SIZE:2 * DEFAULT_SECTOR_SIZE])
-        #  flip a byte inside the header that is NOT the CRC field (bytes 16..20).
-        #  my_lba starts at offset 24 - flip a single bit there.
-        lba1[24] = lba1[24] ^ 0x01
+    testbase.assert_true("signature" in str(caught.exception).lower())
+    return
 
-        with self.assertRaises(UefiError) as caught:
-            GptHeader.from_bytes(lba1=bytes(lba1))
+def test_corrupted_header_crc_raises_with_details() -> None:
+    image, _disk_guid, _entries = _build_synthetic_gpt_image()
+    lba1 = bytearray(image[DEFAULT_SECTOR_SIZE:2 * DEFAULT_SECTOR_SIZE])
+    #  flip a byte inside the header that is NOT the CRC field (bytes 16..20).
+    #  my_lba starts at offset 24 - flip a single bit there.
+    lba1[24] = lba1[24] ^ 0x01
 
-        details = caught.exception.details
-        self.assertGreater(len(details), 0)
+    with testbase.raises(UefiError) as caught:
+        GptHeader.from_bytes(lba1=bytes(lba1))
 
-        joined_details = "\n".join(details)
-        self.assertIn("COMPUTED:", joined_details)
-        self.assertIn("STORED:", joined_details)
-        return
+    details = caught.exception.details
+    testbase.assert_greater(len(details), 0)
 
-    def test_header_size_too_small_raises(self) -> None:
-        image, _disk_guid, _entries = _build_synthetic_gpt_image()
-        lba1 = bytearray(image[DEFAULT_SECTOR_SIZE:2 * DEFAULT_SECTOR_SIZE])
-        #  overwrite HeaderSize (offset 12) with a value smaller than 92
-        lba1[12:16] = (50).to_bytes(4, "little")
+    joined_details = "\n".join(details)
+    testbase.assert_true("COMPUTED:" in joined_details)
+    testbase.assert_true("STORED:" in joined_details)
+    return
 
-        with self.assertRaises(UefiError):
-            GptHeader.from_bytes(lba1=bytes(lba1))
-        return
+def test_header_size_too_small_raises() -> None:
+    image, _disk_guid, _entries = _build_synthetic_gpt_image()
+    lba1 = bytearray(image[DEFAULT_SECTOR_SIZE:2 * DEFAULT_SECTOR_SIZE])
+    #  overwrite HeaderSize (offset 12) with a value smaller than 92
+    lba1[12:16] = (50).to_bytes(4, "little")
+
+    with testbase.raises(UefiError):
+        GptHeader.from_bytes(lba1=bytes(lba1))
+    return
 
 
 # ---------------------------------------------------------------------------
 # GptDisk decode
 # ---------------------------------------------------------------------------
 
-class GptDiskTestCase(unittest.TestCase):
-    """
-        Verify :class:`GptDisk.from_bytes` and primary/backup validation.
-    """
+# ----------------------------------------------------------------------
+# GptDiskTestCase
+# ----------------------------------------------------------------------
 
-    def test_from_bytes_parses_synthetic_image(self) -> None:
-        image, disk_guid, entries = _build_synthetic_gpt_image()
+"""
+    Verify :class:`GptDisk.from_bytes` and primary/backup validation.
+"""
 
-        disk = GptDisk.from_bytes(image_bytes=image)
-        self.assertEqual(disk.header.disk_guid, disk_guid)
-        self.assertEqual(len(disk.entries), 128)
+def test_from_bytes_parses_synthetic_image() -> None:
+    image, disk_guid, entries = _build_synthetic_gpt_image()
 
-        self.assertEqual(disk.entries[0].partition_type_guid, EFI_SYSTEM_PARTITION_GUID)
-        self.assertEqual(disk.entries[0].partition_name, "EFI System")
-        self.assertEqual(disk.entries[1].partition_type_guid, LINUX_FILESYSTEM_DATA_PARTITION_GUID)
-        self.assertEqual(disk.entries[1].partition_name, "Root \u00b5")
+    disk = GptDisk.from_bytes(image_bytes=image)
+    testbase.assert_equal(disk.header.disk_guid, disk_guid)
+    testbase.assert_equal(len(disk.entries), 128)
 
-        for tail_index in range(2, 128):
-            self.assertEqual(disk.entries[tail_index].partition_type_guid, UNUSED_PARTITION_GUID)
-        return
+    testbase.assert_equal(disk.entries[0].partition_type_guid, EFI_SYSTEM_PARTITION_GUID)
+    testbase.assert_equal(disk.entries[0].partition_name, "EFI System")
+    testbase.assert_equal(disk.entries[1].partition_type_guid, LINUX_FILESYSTEM_DATA_PARTITION_GUID)
+    testbase.assert_equal(disk.entries[1].partition_name, "Root \u00b5")
 
-    def test_corrupted_array_crc_raises_with_details(self) -> None:
-        image, _disk_guid, _entries = _build_synthetic_gpt_image()
-        corrupted = bytearray(image)
-        #  flip a byte in the middle of the partition entry array (LBA 2..)
-        corrupted[2 * DEFAULT_SECTOR_SIZE] = corrupted[2 * DEFAULT_SECTOR_SIZE] ^ 0x01
+    for tail_index in range(2, 128):
+        testbase.assert_equal(disk.entries[tail_index].partition_type_guid, UNUSED_PARTITION_GUID)
+    return
 
-        with self.assertRaises(UefiError) as caught:
-            GptDisk.from_bytes(image_bytes=bytes(corrupted))
+def test_corrupted_array_crc_raises_with_details() -> None:
+    image, _disk_guid, _entries = _build_synthetic_gpt_image()
+    corrupted = bytearray(image)
+    #  flip a byte in the middle of the partition entry array (LBA 2..)
+    corrupted[2 * DEFAULT_SECTOR_SIZE] = corrupted[2 * DEFAULT_SECTOR_SIZE] ^ 0x01
 
-        details = caught.exception.details
-        self.assertGreater(len(details), 0)
+    with testbase.raises(UefiError) as caught:
+        GptDisk.from_bytes(image_bytes=bytes(corrupted))
 
-        joined_details = "\n".join(details)
-        self.assertIn("COMPUTED:", joined_details)
-        self.assertIn("STORED:", joined_details)
-        return
+    details = caught.exception.details
+    testbase.assert_greater(len(details), 0)
 
-    def test_validate_pair_happy_path(self) -> None:
-        image, _disk_guid, _entries = _build_synthetic_gpt_image()
-        disk_size_lba = len(image) // DEFAULT_SECTOR_SIZE
+    joined_details = "\n".join(details)
+    testbase.assert_true("COMPUTED:" in joined_details)
+    testbase.assert_true("STORED:" in joined_details)
+    return
 
-        primary_disk = GptDisk.from_bytes(image_bytes=image)
+def test_validate_pair_happy_path() -> None:
+    image, _disk_guid, _entries = _build_synthetic_gpt_image()
+    disk_size_lba = len(image) // DEFAULT_SECTOR_SIZE
 
-        backup_header_offset = (disk_size_lba - 1) * DEFAULT_SECTOR_SIZE
-        backup_lba1 = image[backup_header_offset:backup_header_offset + DEFAULT_SECTOR_SIZE]
+    primary_disk = GptDisk.from_bytes(image_bytes=image)
 
-        #  pad the backup lba1 buffer to a full sector for from_bytes consistency
-        if len(backup_lba1) < DEFAULT_SECTOR_SIZE:
-            backup_lba1 = backup_lba1 + b"\x00" * (DEFAULT_SECTOR_SIZE - len(backup_lba1))
+    backup_header_offset = (disk_size_lba - 1) * DEFAULT_SECTOR_SIZE
+    backup_lba1 = image[backup_header_offset:backup_header_offset + DEFAULT_SECTOR_SIZE]
 
-        backup_header = GptHeader.from_bytes(lba1=backup_lba1)
-        backup_disk = GptDisk(header=backup_header, entries=primary_disk.entries)
+    #  pad the backup lba1 buffer to a full sector for from_bytes consistency
+    if len(backup_lba1) < DEFAULT_SECTOR_SIZE:
+        backup_lba1 = backup_lba1 + b"\x00" * (DEFAULT_SECTOR_SIZE - len(backup_lba1))
 
-        # validate_pair returns None on success
-        result = GptDisk.validate_pair(primary=primary_disk, backup=backup_disk)
-        self.assertIsNone(result)
-        return
+    backup_header = GptHeader.from_bytes(lba1=backup_lba1)
+    backup_disk = GptDisk(header=backup_header, entries=primary_disk.entries)
 
-    def test_validate_pair_detects_guid_mismatch(self) -> None:
-        image, _disk_guid, _entries = _build_synthetic_gpt_image()
-        primary_disk = GptDisk.from_bytes(image_bytes=image)
+    # validate_pair returns None on success
+    result = GptDisk.validate_pair(primary=primary_disk, backup=backup_disk)
+    testbase.assert_true(result is None)
+    return
 
-        mutated_header = dataclasses.replace(
-            primary_disk.header,
-            my_lba=primary_disk.header.alternate_lba,
-            alternate_lba=primary_disk.header.my_lba,
-            disk_guid=uuid.UUID("99999999-9999-9999-9999-999999999999"),
-        )
-        backup_disk = GptDisk(header=mutated_header, entries=primary_disk.entries)
+def test_validate_pair_detects_guid_mismatch() -> None:
+    image, _disk_guid, _entries = _build_synthetic_gpt_image()
+    primary_disk = GptDisk.from_bytes(image_bytes=image)
 
-        with self.assertRaises(UefiError) as caught:
-            GptDisk.validate_pair(primary=primary_disk, backup=backup_disk)
+    mutated_header = dataclasses.replace(
+        primary_disk.header,
+        my_lba=primary_disk.header.alternate_lba,
+        alternate_lba=primary_disk.header.my_lba,
+        disk_guid=uuid.UUID("99999999-9999-9999-9999-999999999999"),
+    )
+    backup_disk = GptDisk(header=mutated_header, entries=primary_disk.entries)
 
-        joined_details = "\n".join(caught.exception.details)
-        self.assertIn("disk_guid", joined_details)
-        return
+    with testbase.raises(UefiError) as caught:
+        GptDisk.validate_pair(primary=primary_disk, backup=backup_disk)
 
-    def test_validate_pair_detects_lba_mismatch(self) -> None:
-        image, _disk_guid, _entries = _build_synthetic_gpt_image()
-        primary_disk = GptDisk.from_bytes(image_bytes=image)
+    joined_details = "\n".join(caught.exception.details)
+    testbase.assert_true("disk_guid" in joined_details)
+    return
 
-        #  backup that says my_lba=1 (contradicting primary.alternate_lba)
-        mutated_header = dataclasses.replace(
-            primary_disk.header,
-            my_lba=1,
-            alternate_lba=1,
-        )
-        backup_disk = GptDisk(header=mutated_header, entries=primary_disk.entries)
+def test_validate_pair_detects_lba_mismatch() -> None:
+    image, _disk_guid, _entries = _build_synthetic_gpt_image()
+    primary_disk = GptDisk.from_bytes(image_bytes=image)
 
-        with self.assertRaises(UefiError) as caught:
-            GptDisk.validate_pair(primary=primary_disk, backup=backup_disk)
+    #  backup that says my_lba=1 (contradicting primary.alternate_lba)
+    mutated_header = dataclasses.replace(
+        primary_disk.header,
+        my_lba=1,
+        alternate_lba=1,
+    )
+    backup_disk = GptDisk(header=mutated_header, entries=primary_disk.entries)
 
-        joined_details = "\n".join(caught.exception.details)
-        self.assertTrue("my_lba" in joined_details or "alternate_lba" in joined_details)
-        return
+    with testbase.raises(UefiError) as caught:
+        GptDisk.validate_pair(primary=primary_disk, backup=backup_disk)
 
-
-if __name__ == "__main__":
-    unittest.main()
+    joined_details = "\n".join(caught.exception.details)
+    testbase.assert_true("my_lba" in joined_details or "alternate_lba" in joined_details)
+    return

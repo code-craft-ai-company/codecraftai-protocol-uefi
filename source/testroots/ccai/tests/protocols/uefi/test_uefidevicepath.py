@@ -21,7 +21,8 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+from ccai import testbase
+
 import uuid
 
 from typing import List, Tuple
@@ -203,601 +204,628 @@ _PNP0A08 = 0x0A0841D0
 # Core container equality / iteration
 # ---------------------------------------------------------------------------
 
-class DevicePathValueObjectsTestCase(unittest.TestCase):
-    """
-        Validate equality and immutability semantics for
-        :class:`DevicePathNode` and :class:`DevicePath`.
-    """
+# ----------------------------------------------------------------------
+# DevicePathValueObjectsTestCase
+# ----------------------------------------------------------------------
 
-    def test_node_structural_equality(self) -> None:
-        left = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
-        right = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
-        self.assertEqual(left, right)
-        return
+"""
+    Validate equality and immutability semantics for
+    :class:`DevicePathNode` and :class:`DevicePath`.
+"""
 
-    def test_node_inequality(self) -> None:
-        left = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
-        right = DevicePathNode(type=1, subtype=1, data=b"\x02\x20")
-        self.assertNotEqual(left, right)
-        return
+def test_node_structural_equality() -> None:
+    left = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
+    right = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
+    testbase.assert_equal(left, right)
+    return
 
-    def test_path_structural_equality(self) -> None:
-        a = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
-        b = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
-        left = DevicePath(nodes=(a,))
-        right = DevicePath(nodes=(b,))
-        self.assertEqual(left, right)
-        return
+def test_node_inequality() -> None:
+    left = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
+    right = DevicePathNode(type=1, subtype=1, data=b"\x02\x20")
+    testbase.assert_not_equal(left, right)
+    return
 
-    def test_end_entire_sentinel_values(self) -> None:
-        self.assertEqual(END_ENTIRE_NODE.type, 0x7F)
-        self.assertEqual(END_ENTIRE_NODE.subtype, 0xFF)
-        self.assertEqual(END_OF_HARDWARE_NODE.type, 0x7F)
-        self.assertEqual(END_OF_HARDWARE_NODE.subtype, 0x01)
-        return
+def test_path_structural_equality() -> None:
+    a = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
+    b = DevicePathNode(type=1, subtype=1, data=b"\x02\x1f")
+    left = DevicePath(nodes=(a,))
+    right = DevicePath(nodes=(b,))
+    testbase.assert_equal(left, right)
+    return
+
+def test_end_entire_sentinel_values() -> None:
+    testbase.assert_equal(END_ENTIRE_NODE.type, 0x7F)
+    testbase.assert_equal(END_ENTIRE_NODE.subtype, 0xFF)
+    testbase.assert_equal(END_OF_HARDWARE_NODE.type, 0x7F)
+    testbase.assert_equal(END_OF_HARDWARE_NODE.subtype, 0x01)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Binary encoder terminator behavior
 # ---------------------------------------------------------------------------
 
-class EncoderTerminatorTestCase(unittest.TestCase):
-    """
-        Verify that the encoder always appends an End-Entire terminator
-        regardless of whether the caller included one in
-        :class:`DevicePath.nodes`.
-    """
+# ----------------------------------------------------------------------
+# EncoderTerminatorTestCase
+# ----------------------------------------------------------------------
 
-    def test_empty_path_emits_only_terminator(self) -> None:
-        path = DevicePath(nodes=())
-        encoded = encode_device_path(path)
-        self.assertEqual(encoded, _end_entire())
-        return
+"""
+    Verify that the encoder always appends an End-Entire terminator
+    regardless of whether the caller included one in
+    :class:`DevicePath.nodes`.
+"""
 
-    def test_terminator_appended_automatically(self) -> None:
-        pci = DevicePathNode(type=1, subtype=1, data=bytes([0x02, 0x1F]))
-        path = DevicePath(nodes=(pci,))
-        encoded = encode_device_path(path)
-        self.assertTrue(encoded.endswith(_end_entire()))
-        return
+def test_empty_path_emits_only_terminator() -> None:
+    path = DevicePath(nodes=())
+    encoded = encode_device_path(path)
+    testbase.assert_equal(encoded, _end_entire())
+    return
 
-    def test_caller_terminator_is_dropped_not_duplicated(self) -> None:
-        pci = DevicePathNode(type=1, subtype=1, data=bytes([0x02, 0x1F]))
-        path = DevicePath(nodes=(pci, END_ENTIRE_NODE))
-        encoded = encode_device_path(path)
-        # Should have one trailing end-entire, not two.
-        self.assertTrue(encoded.endswith(_end_entire()))
-        self.assertFalse(encoded.endswith(_end_entire() + _end_entire()))
-        return
+def test_terminator_appended_automatically() -> None:
+    pci = DevicePathNode(type=1, subtype=1, data=bytes([0x02, 0x1F]))
+    path = DevicePath(nodes=(pci,))
+    encoded = encode_device_path(path)
+    testbase.assert_true(encoded.endswith(_end_entire()))
+    return
+
+def test_caller_terminator_is_dropped_not_duplicated() -> None:
+    pci = DevicePathNode(type=1, subtype=1, data=bytes([0x02, 0x1F]))
+    path = DevicePath(nodes=(pci, END_ENTIRE_NODE))
+    encoded = encode_device_path(path)
+    # Should have one trailing end-entire, not two.
+    testbase.assert_true(encoded.endswith(_end_entire()))
+    testbase.assert_false(encoded.endswith(_end_entire() + _end_entire()))
+    return
 
 
 # ---------------------------------------------------------------------------
 # Per-node binary round-trips
 # ---------------------------------------------------------------------------
 
-class BinaryRoundTripTestCase(unittest.TestCase):
-    """
-        For each node type listed in the brief, encode a canonical
-        binary fixture, decode it, re-encode, and verify byte-identical
-        output.  Also verify the decoder strips the End-Entire
-        terminator from the returned :class:`DevicePath`.
-    """
+# ----------------------------------------------------------------------
+# BinaryRoundTripTestCase
+# ----------------------------------------------------------------------
 
-    def _assert_round_trip(self, fixture: bytes) -> DevicePath:
-        # fixture is expected to already include the End-Entire
-        # terminator; decode/encode should reproduce it verbatim.
-        decoded = decode_device_path(fixture)
-        re_encoded = encode_device_path(decoded)
-        self.assertEqual(re_encoded, fixture)
-        return decoded
+"""
+    For each node type listed in the brief, encode a canonical
+    binary fixture, decode it, re-encode, and verify byte-identical
+    output.  Also verify the decoder strips the End-Entire
+    terminator from the returned :class:`DevicePath`.
+"""
 
-    def test_pci(self) -> None:
-        fixture = _pci_node_bytes(device=0x1F, function=0x2) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def _assert_round_trip(fixture: bytes) -> DevicePath:
+    # fixture is expected to already include the End-Entire
+    # terminator; decode/encode should reproduce it verbatim.
+    decoded = decode_device_path(fixture)
+    re_encoded = encode_device_path(decoded)
+    testbase.assert_equal(re_encoded, fixture)
+    return decoded
 
-    def test_acpi_named_pciroot(self) -> None:
-        fixture = _acpi_node_bytes(hid=_PNP0A03, uid=0) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_pci() -> None:
+    fixture = _pci_node_bytes(device=0x1F, function=0x2) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_acpi_generic(self) -> None:
-        # PNP0501 == Serial.
-        fixture = _acpi_node_bytes(hid=0x050141D0, uid=1) + _end_entire()
-        decoded = self._assert_round_trip(fixture=fixture)
-        # Verify payload preserved exactly.
-        self.assertEqual(len(decoded.nodes), 1)
-        self.assertEqual(decoded.nodes[0].type, 0x02)
-        self.assertEqual(decoded.nodes[0].subtype, 0x01)
-        return
+def test_binary_round_trip_acpi_named_pciroot() -> None:
+    fixture = _acpi_node_bytes(hid=_PNP0A03, uid=0) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_usb(self) -> None:
-        fixture = _usb_node_bytes(port=1, interface=0) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_acpi_generic() -> None:
+    # PNP0501 == Serial.
+    fixture = _acpi_node_bytes(hid=0x050141D0, uid=1) + _end_entire()
+    decoded = _assert_round_trip(fixture=fixture)
+    # Verify payload preserved exactly.
+    testbase.assert_equal(len(decoded.nodes), 1)
+    testbase.assert_equal(decoded.nodes[0].type, 0x02)
+    testbase.assert_equal(decoded.nodes[0].subtype, 0x01)
+    return
 
-    def test_sata(self) -> None:
-        fixture = _sata_node_bytes(hba_port=0, pmpn=0xFFFF, lun=0) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_usb() -> None:
+    fixture = _usb_node_bytes(port=1, interface=0) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_nvme(self) -> None:
-        eui = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
-        fixture = _nvme_node_bytes(nsid=1, eui=eui) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_sata() -> None:
+    fixture = _sata_node_bytes(hba_port=0, pmpn=0xFFFF, lun=0) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_mac(self) -> None:
-        mac = bytes([0x00, 0x13, 0x20, 0xF5, 0xFA, 0x77])
-        fixture = _mac_node_bytes(mac6=mac, if_type=1) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_nvme() -> None:
+    eui = bytes([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
+    fixture = _nvme_node_bytes(nsid=1, eui=eui) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_ipv4(self) -> None:
-        local = bytes([192, 168, 0, 1])
-        remote = bytes([192, 168, 0, 100])
-        fixture = _ipv4_node_bytes(
-            local_ip=local, remote_ip=remote,
-            local_port=0, remote_port=0,
-            protocol=6, static_ip=1,
-        ) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_mac() -> None:
+    mac = bytes([0x00, 0x13, 0x20, 0xF5, 0xFA, 0x77])
+    fixture = _mac_node_bytes(mac6=mac, if_type=1) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_ipv6(self) -> None:
-        local = bytes(16)
-        remote = bytes(range(16))
-        fixture = _ipv6_node_bytes(
-            local_ip=local, remote_ip=remote,
-            local_port=0, remote_port=0,
-            protocol=6, origin=0,
-        ) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_ipv4() -> None:
+    local = bytes([192, 168, 0, 1])
+    remote = bytes([192, 168, 0, 100])
+    fixture = _ipv4_node_bytes(
+        local_ip=local, remote_ip=remote,
+        local_port=0, remote_port=0,
+        protocol=6, static_ip=1,
+    ) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_uri(self) -> None:
-        fixture = _uri_node_bytes(uri="https://example.com/boot.efi") + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_ipv6() -> None:
+    local = bytes(16)
+    remote = bytes(range(16))
+    fixture = _ipv6_node_bytes(
+        local_ip=local, remote_ip=remote,
+        local_port=0, remote_port=0,
+        protocol=6, origin=0,
+    ) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_hard_drive_gpt(self) -> None:
-        guid = uuid.UUID("15E39A00-1DD2-1000-8D7F-00A0C92408FC")
-        fixture = _hd_node_bytes(
-            partition_number=1,
-            partition_start=0x22,
-            partition_size=0x2710000,
-            signature_bytes=guid.bytes_le,
-            partition_format=0x02,
-            signature_type=0x02,
-        ) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_uri() -> None:
+    fixture = _uri_node_bytes(uri="https://example.com/boot.efi") + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_hard_drive_mbr(self) -> None:
-        signature = (0xA0021243).to_bytes(length=4, byteorder="little", signed=False) + (b"\x00" * 12)
-        fixture = _hd_node_bytes(
-            partition_number=1,
-            partition_start=0x800,
-            partition_size=0x2EE000,
-            signature_bytes=signature,
-            partition_format=0x01,
-            signature_type=0x01,
-        ) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_hard_drive_gpt() -> None:
+    guid = uuid.UUID("15E39A00-1DD2-1000-8D7F-00A0C92408FC")
+    fixture = _hd_node_bytes(
+        partition_number=1,
+        partition_start=0x22,
+        partition_size=0x2710000,
+        signature_bytes=guid.bytes_le,
+        partition_format=0x02,
+        signature_type=0x02,
+    ) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_cdrom(self) -> None:
-        fixture = _cdrom_node_bytes(boot_entry=0, partition_start=0x800, partition_size=0x1000) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_hard_drive_mbr() -> None:
+    signature = (0xA0021243).to_bytes(length=4, byteorder="little", signed=False) + (b"\x00" * 12)
+    fixture = _hd_node_bytes(
+        partition_number=1,
+        partition_start=0x800,
+        partition_size=0x2EE000,
+        signature_bytes=signature,
+        partition_format=0x01,
+        signature_type=0x01,
+    ) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_file_path(self) -> None:
-        fixture = _file_node_bytes(path="\\EFI\\BOOT\\BOOTX64.EFI") + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_cdrom() -> None:
+    fixture = _cdrom_node_bytes(boot_entry=0, partition_start=0x800, partition_size=0x1000) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_piwg_fv(self) -> None:
-        guid = uuid.UUID("a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5")
-        fixture = _fv_node_bytes(guid=guid) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_file_path() -> None:
+    fixture = _file_node_bytes(path="\\EFI\\BOOT\\BOOTX64.EFI") + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_piwg_ff(self) -> None:
-        guid = uuid.UUID("9e21fd93-9c72-4c15-8c4b-e77f1db2d792")
-        fixture = _fvfile_node_bytes(guid=guid) + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_piwg_fv() -> None:
+    guid = uuid.UUID("a1a1a1a1-b2b2-c3c3-d4d4-e5e5e5e5e5e5")
+    fixture = _fv_node_bytes(guid=guid) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_venhw(self) -> None:
-        guid = uuid.UUID("11111111-2222-3333-4444-555555555555")
-        fixture = _venhw_node_bytes(guid=guid, data=b"\xDE\xAD\xBE\xEF") + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_piwg_ff() -> None:
+    guid = uuid.UUID("9e21fd93-9c72-4c15-8c4b-e77f1db2d792")
+    fixture = _fvfile_node_bytes(guid=guid) + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_venmsg(self) -> None:
-        guid = uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
-        fixture = _venmsg_node_bytes(guid=guid, data=b"") + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_venhw() -> None:
+    guid = uuid.UUID("11111111-2222-3333-4444-555555555555")
+    fixture = _venhw_node_bytes(guid=guid, data=b"\xDE\xAD\xBE\xEF") + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_venmedia(self) -> None:
-        guid = uuid.UUID("12345678-1234-1234-1234-1234567890ab")
-        fixture = _venmedia_node_bytes(guid=guid, data=b"\x01\x02\x03") + _end_entire()
-        self._assert_round_trip(fixture=fixture)
-        return
+def test_binary_round_trip_venmsg() -> None:
+    guid = uuid.UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+    fixture = _venmsg_node_bytes(guid=guid, data=b"") + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
 
-    def test_multi_node_chain(self) -> None:
-        fixture = (
-            _acpi_node_bytes(hid=_PNP0A03, uid=0)
-            + _pci_node_bytes(device=0x1F, function=0x2)
-            + _sata_node_bytes(hba_port=0, pmpn=0, lun=0)
-            + _end_entire()
-        )
-        decoded = self._assert_round_trip(fixture=fixture)
-        self.assertEqual(len(decoded.nodes), 3)
-        return
+def test_binary_round_trip_venmedia() -> None:
+    guid = uuid.UUID("12345678-1234-1234-1234-1234567890ab")
+    fixture = _venmedia_node_bytes(guid=guid, data=b"\x01\x02\x03") + _end_entire()
+    _assert_round_trip(fixture=fixture)
+    return
+
+def test_binary_round_trip_multi_node_chain() -> None:
+    fixture = (
+        _acpi_node_bytes(hid=_PNP0A03, uid=0)
+        + _pci_node_bytes(device=0x1F, function=0x2)
+        + _sata_node_bytes(hba_port=0, pmpn=0, lun=0)
+        + _end_entire()
+    )
+    decoded = _assert_round_trip(fixture=fixture)
+    testbase.assert_equal(len(decoded.nodes), 3)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Per-node text round-trips
 # ---------------------------------------------------------------------------
 
-class TextRoundTripTestCase(unittest.TestCase):
-    """
-        For each node-family text form, verify
-        ``text -> parse -> format -> text`` produces stable output.
-    """
+# ----------------------------------------------------------------------
+# TextRoundTripTestCase
+# ----------------------------------------------------------------------
 
-    def _assert_stable(self, text: str) -> None:
-        parsed = device_path_from_text(text)
-        re_text = device_path_to_text(parsed)
-        self.assertEqual(re_text, text)
-        return
+"""
+    For each node-family text form, verify
+    ``text -> parse -> format -> text`` produces stable output.
+"""
 
-    def test_pci(self) -> None:
-        self._assert_stable(text="Pci(0x1F,0x2)")
-        return
+def _assert_stable(text: str) -> None:
+    parsed = device_path_from_text(text)
+    re_text = device_path_to_text(parsed)
+    testbase.assert_equal(re_text, text)
+    return
 
-    def test_pciroot(self) -> None:
-        self._assert_stable(text="PciRoot(0x0)")
-        return
+def test_text_round_trip_pci() -> None:
+    _assert_stable(text="Pci(0x1F,0x2)")
+    return
 
-    def test_acpi_generic(self) -> None:
-        self._assert_stable(text="Acpi(PNP0501,0x1)")
-        return
+def test_text_round_trip_pciroot() -> None:
+    _assert_stable(text="PciRoot(0x0)")
+    return
 
-    def test_usb(self) -> None:
-        self._assert_stable(text="USB(0x1,0x0)")
-        return
+def test_text_round_trip_acpi_generic() -> None:
+    _assert_stable(text="Acpi(PNP0501,0x1)")
+    return
 
-    def test_sata(self) -> None:
-        self._assert_stable(text="Sata(0x0,0xFFFF,0x0)")
-        return
+def test_text_round_trip_usb() -> None:
+    _assert_stable(text="USB(0x1,0x0)")
+    return
 
-    def test_nvme(self) -> None:
-        self._assert_stable(text="NVMe(0x1,FF-FF-FF-FF-FF-FF-FF-FF)")
-        return
+def test_text_round_trip_sata() -> None:
+    _assert_stable(text="Sata(0x0,0xFFFF,0x0)")
+    return
 
-    def test_mac(self) -> None:
-        self._assert_stable(text="MAC(001320F5FA77,0x1)")
-        return
+def test_text_round_trip_nvme() -> None:
+    _assert_stable(text="NVMe(0x1,FF-FF-FF-FF-FF-FF-FF-FF)")
+    return
 
-    def test_ipv4(self) -> None:
-        self._assert_stable(text="IPv4(192.168.0.100,0x6,Static,192.168.0.1)")
-        return
+def test_text_round_trip_mac() -> None:
+    _assert_stable(text="MAC(001320F5FA77,0x1)")
+    return
 
-    def test_uri(self) -> None:
-        self._assert_stable(text="Uri(https://example.com/boot.efi)")
-        return
+def test_text_round_trip_ipv4() -> None:
+    _assert_stable(text="IPv4(192.168.0.100,0x6,Static,192.168.0.1)")
+    return
 
-    def test_hd_gpt(self) -> None:
-        self._assert_stable(
-            text="HD(1,GPT,15E39A00-1DD2-1000-8D7F-00A0C92408FC,0x22,0x2710000)"
-        )
-        return
+def test_text_round_trip_uri() -> None:
+    _assert_stable(text="Uri(https://example.com/boot.efi)")
+    return
 
-    def test_cdrom(self) -> None:
-        self._assert_stable(text="CDROM(0x0,0x800,0x1000)")
-        return
+def test_text_round_trip_hd_gpt() -> None:
+    _assert_stable(
+        text="HD(1,GPT,15E39A00-1DD2-1000-8D7F-00A0C92408FC,0x22,0x2710000)"
+    )
+    return
 
-    def test_file(self) -> None:
-        self._assert_stable(text="File(\\EFI\\BOOT\\BOOTX64.EFI)")
-        return
+def test_text_round_trip_cdrom() -> None:
+    _assert_stable(text="CDROM(0x0,0x800,0x1000)")
+    return
 
-    def test_fv(self) -> None:
-        self._assert_stable(text="Fv(A1A1A1A1-B2B2-C3C3-D4D4-E5E5E5E5E5E5)")
-        return
+def test_text_round_trip_file() -> None:
+    _assert_stable(text="File(\\EFI\\BOOT\\BOOTX64.EFI)")
+    return
 
-    def test_fvfile(self) -> None:
-        self._assert_stable(text="FvFile(9E21FD93-9C72-4C15-8C4B-E77F1DB2D792)")
-        return
+def test_text_round_trip_fv() -> None:
+    _assert_stable(text="Fv(A1A1A1A1-B2B2-C3C3-D4D4-E5E5E5E5E5E5)")
+    return
 
-    def test_venhw(self) -> None:
-        self._assert_stable(
-            text="VenHw(11111111-2222-3333-4444-555555555555,DEADBEEF)"
-        )
-        return
+def test_text_round_trip_fvfile() -> None:
+    _assert_stable(text="FvFile(9E21FD93-9C72-4C15-8C4B-E77F1DB2D792)")
+    return
 
-    def test_venmsg_no_data(self) -> None:
-        self._assert_stable(
-            text="VenMsg(AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE)"
-        )
-        return
+def test_text_round_trip_venhw() -> None:
+    _assert_stable(
+        text="VenHw(11111111-2222-3333-4444-555555555555,DEADBEEF)"
+    )
+    return
 
-    def test_venmedia(self) -> None:
-        self._assert_stable(
-            text="VenMedia(12345678-1234-1234-1234-1234567890AB,010203)"
-        )
-        return
+def test_text_round_trip_venmsg_no_data() -> None:
+    _assert_stable(
+        text="VenMsg(AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE)"
+    )
+    return
 
-    def test_multi_node_text(self) -> None:
-        text = "PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0x0,0x0)"
-        self._assert_stable(text=text)
-        return
+def test_text_round_trip_venmedia() -> None:
+    _assert_stable(
+        text="VenMedia(12345678-1234-1234-1234-1234567890AB,010203)"
+    )
+    return
+
+def test_text_round_trip_multi_node_text() -> None:
+    text = "PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x0,0x0,0x0)"
+    _assert_stable(text=text)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Binary <-> text cross round-trip
 # ---------------------------------------------------------------------------
 
-class BinaryTextCrossTestCase(unittest.TestCase):
-    """
-        For each node family, feed ``text -> parse -> encode -> decode ->
-        format -> text`` and verify stability.  This is the stronger
-        invariant demanded by UEFI specification section 10.6.1.3.
-    """
+# ----------------------------------------------------------------------
+# BinaryTextCrossTestCase
+# ----------------------------------------------------------------------
 
-    def _cross(self, text: str) -> None:
-        parsed = device_path_from_text(text)
-        encoded = encode_device_path(parsed)
-        re_decoded = decode_device_path(encoded)
-        re_text = device_path_to_text(re_decoded)
-        self.assertEqual(re_text, text)
-        return
+"""
+    For each node family, feed ``text -> parse -> encode -> decode ->
+    format -> text`` and verify stability.  This is the stronger
+    invariant demanded by UEFI specification section 10.6.1.3.
+"""
 
-    def test_cross_pci(self) -> None:
-        self._cross(text="Pci(0x1F,0x2)")
-        return
+def _cross(text: str) -> None:
+    parsed = device_path_from_text(text)
+    encoded = encode_device_path(parsed)
+    re_decoded = decode_device_path(encoded)
+    re_text = device_path_to_text(re_decoded)
+    testbase.assert_equal(re_text, text)
+    return
 
-    def test_cross_pciroot(self) -> None:
-        self._cross(text="PciRoot(0x0)")
-        return
+def test_cross_pci() -> None:
+    _cross(text="Pci(0x1F,0x2)")
+    return
 
-    def test_cross_spec_example_mbr(self) -> None:
-        # UEFI spec section 10.6 canonical example (near line 21629 of
-        # the archived spec markdown):
-        #   PciRoot(0)/Pci(19|0)/Mac(001320F5FA77,0x01)/
-        #   IPv4(192.168.0.100,TCP,Static,192.168.0.1)/
-        #   HD(1,GPT,15E39A00-1DD2-1000-8D7F-00A0C92408FC,0x22,0x2710000)
-        text = (
-            "PciRoot(0x0)"
-            "/Pci(0x13,0x0)"
-            "/MAC(001320F5FA77,0x1)"
-            "/IPv4(192.168.0.100,0x6,Static,192.168.0.1)"
-            "/HD(1,GPT,15E39A00-1DD2-1000-8D7F-00A0C92408FC,0x22,0x2710000)"
-        )
-        self._cross(text=text)
-        return
+def test_cross_pciroot() -> None:
+    _cross(text="PciRoot(0x0)")
+    return
 
-    def test_cross_spec_example_simple_chain(self) -> None:
-        # UEFI spec section 10.6 canonical example (near line 20785):
-        #   PciRoot(0)/PCI(31,2)/USB(0,0)
-        text = "PciRoot(0x0)/Pci(0x1F,0x2)/USB(0x0,0x0)"
-        self._cross(text=text)
-        return
+def test_cross_spec_example_mbr() -> None:
+    # UEFI spec section 10.6 canonical example (near line 21629 of
+    # the archived spec markdown):
+    #   PciRoot(0)/Pci(19|0)/Mac(001320F5FA77,0x01)/
+    #   IPv4(192.168.0.100,TCP,Static,192.168.0.1)/
+    #   HD(1,GPT,15E39A00-1DD2-1000-8D7F-00A0C92408FC,0x22,0x2710000)
+    text = (
+        "PciRoot(0x0)"
+        "/Pci(0x13,0x0)"
+        "/MAC(001320F5FA77,0x1)"
+        "/IPv4(192.168.0.100,0x6,Static,192.168.0.1)"
+        "/HD(1,GPT,15E39A00-1DD2-1000-8D7F-00A0C92408FC,0x22,0x2710000)"
+    )
+    _cross(text=text)
+    return
 
-    def test_cross_cdrom(self) -> None:
-        self._cross(text="CDROM(0x0,0x800,0x1000)")
-        return
+def test_cross_spec_example_simple_chain() -> None:
+    # UEFI spec section 10.6 canonical example (near line 20785):
+    #   PciRoot(0)/PCI(31,2)/USB(0,0)
+    text = "PciRoot(0x0)/Pci(0x1F,0x2)/USB(0x0,0x0)"
+    _cross(text=text)
+    return
 
-    def test_cross_file(self) -> None:
-        self._cross(text="File(\\EFI\\BOOT\\BOOTX64.EFI)")
-        return
+def test_cross_cdrom() -> None:
+    _cross(text="CDROM(0x0,0x800,0x1000)")
+    return
 
-    def test_cross_fv(self) -> None:
-        self._cross(text="Fv(A1A1A1A1-B2B2-C3C3-D4D4-E5E5E5E5E5E5)")
-        return
+def test_cross_file() -> None:
+    _cross(text="File(\\EFI\\BOOT\\BOOTX64.EFI)")
+    return
 
-    def test_cross_uri(self) -> None:
-        self._cross(text="Uri(https://example.com/boot.efi)")
-        return
+def test_cross_fv() -> None:
+    _cross(text="Fv(A1A1A1A1-B2B2-C3C3-D4D4-E5E5E5E5E5E5)")
+    return
+
+def test_cross_uri() -> None:
+    _cross(text="Uri(https://example.com/boot.efi)")
+    return
 
 
 # ---------------------------------------------------------------------------
 # UEFI specification section 10.6 canonical examples
 # ---------------------------------------------------------------------------
 
-class SpecCanonicalExamplesTestCase(unittest.TestCase):
-    """
-        Verify that examples transcribed verbatim from UEFI specification
-        section 10.6 parse into structures whose binary encoding
-        round-trips back to the same text form.
+# ----------------------------------------------------------------------
+# SpecCanonicalExamplesTestCase
+# ----------------------------------------------------------------------
 
-        These examples cite the section rather than the exact quoted
-        bytes because the specification's text examples use style
-        variants (e.g. ``Pci(19|0)`` rather than the canonical
-        ``Pci(0x13,0x0)``) that the parser accommodates via alternate
-        forms listed in the node's text-form row.
-    """
+"""
+    Verify that examples transcribed verbatim from UEFI specification
+    section 10.6 parse into structures whose binary encoding
+    round-trips back to the same text form.
 
-    def test_pciroot_pci_sata_hd_example(self) -> None:
-        # UEFI spec section 10.6 example (simplified to the canonical
-        # display form).
-        text = (
-            "PciRoot(0x0)"
-            "/Pci(0x1F,0x2)"
-            "/Sata(0x0,0x0,0x0)"
-            "/HD(1,GPT,15E39A00-1DD2-1000-8D7F-00A0C92408FC,0x22,0x2710000)"
-        )
-        parsed = device_path_from_text(text)
-        encoded = encode_device_path(parsed)
-        decoded = decode_device_path(encoded)
-        self.assertEqual(device_path_to_text(decoded), text)
-        # And the canonical structure has exactly four nodes.
-        self.assertEqual(len(parsed.nodes), 4)
-        return
+    These examples cite the section rather than the exact quoted
+    bytes because the specification's text examples use style
+    variants (e.g. ``Pci(19|0)`` rather than the canonical
+    ``Pci(0x13,0x0)``) that the parser accommodates via alternate
+    forms listed in the node's text-form row.
+"""
 
-    def test_pciroot_pci_usb_example(self) -> None:
-        # UEFI spec section 10.6 nested USB example.
-        text = "PciRoot(0x0)/Pci(0x1F,0x2)/USB(0x1,0x0)/USB(0x3,0x0)"
-        parsed = device_path_from_text(text)
-        encoded = encode_device_path(parsed)
-        decoded = decode_device_path(encoded)
-        self.assertEqual(device_path_to_text(decoded), text)
-        self.assertEqual(len(parsed.nodes), 4)
-        return
+def test_pciroot_pci_sata_hd_example() -> None:
+    # UEFI spec section 10.6 example (simplified to the canonical
+    # display form).
+    text = (
+        "PciRoot(0x0)"
+        "/Pci(0x1F,0x2)"
+        "/Sata(0x0,0x0,0x0)"
+        "/HD(1,GPT,15E39A00-1DD2-1000-8D7F-00A0C92408FC,0x22,0x2710000)"
+    )
+    parsed = device_path_from_text(text)
+    encoded = encode_device_path(parsed)
+    decoded = decode_device_path(encoded)
+    testbase.assert_equal(device_path_to_text(decoded), text)
+    # And the canonical structure has exactly four nodes.
+    testbase.assert_equal(len(parsed.nodes), 4)
+    return
+
+def test_pciroot_pci_usb_example() -> None:
+    # UEFI spec section 10.6 nested USB example.
+    text = "PciRoot(0x0)/Pci(0x1F,0x2)/USB(0x1,0x0)/USB(0x3,0x0)"
+    parsed = device_path_from_text(text)
+    encoded = encode_device_path(parsed)
+    decoded = decode_device_path(encoded)
+    testbase.assert_equal(device_path_to_text(decoded), text)
+    testbase.assert_equal(len(parsed.nodes), 4)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Malformed binary inputs
 # ---------------------------------------------------------------------------
 
-class MalformedBinaryTestCase(unittest.TestCase):
-    """
-        Verify :func:`decode_device_path` rejects corrupt inputs with
-        :class:`UefiProtocolError` rather than returning partial data.
-    """
+# ----------------------------------------------------------------------
+# MalformedBinaryTestCase
+# ----------------------------------------------------------------------
 
-    def test_truncated_header_raises(self) -> None:
-        # Only three bytes: the 4-byte header cannot be read.
-        with self.assertRaises(UefiProtocolError):
-            decode_device_path(b"\x01\x01\x04")
-        return
+"""
+    Verify :func:`decode_device_path` rejects corrupt inputs with
+    :class:`UefiProtocolError` rather than returning partial data.
+"""
 
-    def test_empty_buffer_is_missing_terminator(self) -> None:
-        # No End-Entire -> malformed.
-        with self.assertRaises(UefiProtocolError):
-            decode_device_path(b"")
-        return
+def test_truncated_header_raises() -> None:
+    # Only three bytes: the 4-byte header cannot be read.
+    with testbase.raises(UefiProtocolError):
+        decode_device_path(b"\x01\x01\x04")
+    return
 
-    def test_length_less_than_four_raises(self) -> None:
-        # Node length field declares 0 which is below the minimum
-        # header length of 4.
-        fixture = bytes([0x01, 0x01]) + _pack_u16_le(0) + _end_entire()
-        with self.assertRaises(UefiProtocolError):
-            decode_device_path(fixture)
-        return
+def test_empty_buffer_is_missing_terminator() -> None:
+    # No End-Entire -> malformed.
+    with testbase.raises(UefiProtocolError):
+        decode_device_path(b"")
+    return
 
-    def test_length_exceeds_remaining_raises(self) -> None:
-        # Node declares 20 bytes but only 6 remain including header.
-        fixture = bytes([0x01, 0x01]) + _pack_u16_le(20) + b"\x00\x00"
-        with self.assertRaises(UefiProtocolError):
-            decode_device_path(fixture)
-        return
+def test_length_less_than_four_raises() -> None:
+    # Node length field declares 0 which is below the minimum
+    # header length of 4.
+    fixture = bytes([0x01, 0x01]) + _pack_u16_le(0) + _end_entire()
+    with testbase.raises(UefiProtocolError):
+        decode_device_path(fixture)
+    return
 
-    def test_missing_end_entire_raises(self) -> None:
-        # Valid PCI node but no terminator -> should raise.
-        fixture = _pci_node_bytes(device=0x1F, function=0x2)
-        with self.assertRaises(UefiProtocolError):
-            decode_device_path(fixture)
-        return
+def test_length_exceeds_remaining_raises() -> None:
+    # Node declares 20 bytes but only 6 remain including header.
+    fixture = bytes([0x01, 0x01]) + _pack_u16_le(20) + b"\x00\x00"
+    with testbase.raises(UefiProtocolError):
+        decode_device_path(fixture)
+    return
 
-    def test_non_bytes_input_raises(self) -> None:
-        with self.assertRaises(UefiProtocolError):
-            decode_device_path("not-bytes")   # type: ignore[arg-type]
-        return
+def test_missing_end_entire_raises() -> None:
+    # Valid PCI node but no terminator -> should raise.
+    fixture = _pci_node_bytes(device=0x1F, function=0x2)
+    with testbase.raises(UefiProtocolError):
+        decode_device_path(fixture)
+    return
+
+def test_non_bytes_input_raises() -> None:
+    with testbase.raises(UefiProtocolError):
+        decode_device_path("not-bytes")   # type: ignore[arg-type]
+    return
 
 
 # ---------------------------------------------------------------------------
 # Unknown node type fallthrough
 # ---------------------------------------------------------------------------
 
-class UnknownNodeTestCase(unittest.TestCase):
-    """
-        Per UEFI section 10.6.1.6, unknown ``(type, subtype)`` pairs must
-        serialize to the generic ``Path(type,subtype,hex)`` form and
-        parse back round-trip clean.
-    """
+# ----------------------------------------------------------------------
+# UnknownNodeTestCase
+# ----------------------------------------------------------------------
 
-    def test_unknown_binary_round_trip(self) -> None:
-        # Synthesize an unassigned (type=0x06, subtype=0x12) node.
-        unknown_payload = b"\xAB\xCD"
-        fixture = (
-            bytes([0x06, 0x12]) + _pack_u16_le(4 + len(unknown_payload)) + unknown_payload
-            + _end_entire()
-        )
-        decoded = decode_device_path(fixture)
-        self.assertEqual(len(decoded.nodes), 1)
-        self.assertEqual(decoded.nodes[0].type, 0x06)
-        self.assertEqual(decoded.nodes[0].subtype, 0x12)
-        self.assertEqual(decoded.nodes[0].data, unknown_payload)
+"""
+    Per UEFI section 10.6.1.6, unknown ``(type, subtype)`` pairs must
+    serialize to the generic ``Path(type,subtype,hex)`` form and
+    parse back round-trip clean.
+"""
 
-        re_encoded = encode_device_path(decoded)
-        self.assertEqual(re_encoded, fixture)
-        return
+def test_unknown_binary_round_trip() -> None:
+    # Synthesize an unassigned (type=0x06, subtype=0x12) node.
+    unknown_payload = b"\xAB\xCD"
+    fixture = (
+        bytes([0x06, 0x12]) + _pack_u16_le(4 + len(unknown_payload)) + unknown_payload
+        + _end_entire()
+    )
+    decoded = decode_device_path(fixture)
+    testbase.assert_equal(len(decoded.nodes), 1)
+    testbase.assert_equal(decoded.nodes[0].type, 0x06)
+    testbase.assert_equal(decoded.nodes[0].subtype, 0x12)
+    testbase.assert_equal(decoded.nodes[0].data, unknown_payload)
 
-    def test_unknown_text_form(self) -> None:
-        unknown = DevicePathNode(type=0x06, subtype=0x12, data=b"\xAB\xCD")
-        path = DevicePath(nodes=(unknown,))
-        text = device_path_to_text(path)
-        self.assertEqual(text, "Path(6,18,ABCD)")
-        return
+    re_encoded = encode_device_path(decoded)
+    testbase.assert_equal(re_encoded, fixture)
+    return
 
-    def test_unknown_text_parse_round_trip(self) -> None:
-        text = "Path(6,18,ABCD)"
-        parsed = device_path_from_text(text)
-        re_text = device_path_to_text(parsed)
-        self.assertEqual(re_text, text)
-        # Verify it also round-trips through binary.
-        encoded = encode_device_path(parsed)
-        re_decoded = decode_device_path(encoded)
-        self.assertEqual(device_path_to_text(re_decoded), text)
-        return
+def test_unknown_text_form() -> None:
+    unknown = DevicePathNode(type=0x06, subtype=0x12, data=b"\xAB\xCD")
+    path = DevicePath(nodes=(unknown,))
+    text = device_path_to_text(path)
+    testbase.assert_equal(text, "Path(6,18,ABCD)")
+    return
 
-    def test_unknown_empty_payload(self) -> None:
-        # Node with unknown (type,subtype) and zero-length payload.
-        fixture = bytes([0x06, 0x12]) + _pack_u16_le(4) + _end_entire()
-        decoded = decode_device_path(fixture)
-        self.assertEqual(len(decoded.nodes), 1)
-        self.assertEqual(decoded.nodes[0].data, b"")
-        text = device_path_to_text(decoded)
-        self.assertEqual(text, "Path(6,18,)")
-        # And the parser accepts the generic form with an empty hex run.
-        re_parsed = device_path_from_text(text)
-        self.assertEqual(re_parsed.nodes[0], decoded.nodes[0])
-        return
+def test_unknown_text_parse_round_trip() -> None:
+    text = "Path(6,18,ABCD)"
+    parsed = device_path_from_text(text)
+    re_text = device_path_to_text(parsed)
+    testbase.assert_equal(re_text, text)
+    # Verify it also round-trips through binary.
+    encoded = encode_device_path(parsed)
+    re_decoded = decode_device_path(encoded)
+    testbase.assert_equal(device_path_to_text(re_decoded), text)
+    return
+
+def test_unknown_empty_payload() -> None:
+    # Node with unknown (type,subtype) and zero-length payload.
+    fixture = bytes([0x06, 0x12]) + _pack_u16_le(4) + _end_entire()
+    decoded = decode_device_path(fixture)
+    testbase.assert_equal(len(decoded.nodes), 1)
+    testbase.assert_equal(decoded.nodes[0].data, b"")
+    text = device_path_to_text(decoded)
+    testbase.assert_equal(text, "Path(6,18,)")
+    # And the parser accepts the generic form with an empty hex run.
+    re_parsed = device_path_from_text(text)
+    testbase.assert_equal(re_parsed.nodes[0], decoded.nodes[0])
+    return
 
 
 # ---------------------------------------------------------------------------
 # Malformed text inputs
 # ---------------------------------------------------------------------------
 
-class MalformedTextTestCase(unittest.TestCase):
-    """
-        Verify :func:`device_path_from_text` rejects malformed text with
-        :class:`UefiProtocolError` and includes sufficient diagnostic
-        context.
-    """
+# ----------------------------------------------------------------------
+# MalformedTextTestCase
+# ----------------------------------------------------------------------
 
-    def test_missing_paren_raises(self) -> None:
-        with self.assertRaises(UefiProtocolError):
-            device_path_from_text("Pci 0x1F,0x2)")
-        return
+"""
+    Verify :func:`device_path_from_text` rejects malformed text with
+    :class:`UefiProtocolError` and includes sufficient diagnostic
+    context.
+"""
 
-    def test_unterminated_paren_raises(self) -> None:
-        with self.assertRaises(UefiProtocolError):
-            device_path_from_text("Pci(0x1F,0x2")
-        return
+def test_missing_paren_raises() -> None:
+    with testbase.raises(UefiProtocolError):
+        device_path_from_text("Pci 0x1F,0x2)")
+    return
 
-    def test_unknown_option_raises(self) -> None:
-        with self.assertRaises(UefiProtocolError):
-            device_path_from_text("MadeUpNode(0x1)")
-        return
+def test_unterminated_paren_raises() -> None:
+    with testbase.raises(UefiProtocolError):
+        device_path_from_text("Pci(0x1F,0x2")
+    return
 
-    def test_wrong_argument_count_raises(self) -> None:
-        with self.assertRaises(UefiProtocolError):
-            device_path_from_text("Pci(0x1)")
-        return
+def test_unknown_option_raises() -> None:
+    with testbase.raises(UefiProtocolError):
+        device_path_from_text("MadeUpNode(0x1)")
+    return
 
-    def test_non_string_input_raises(self) -> None:
-        with self.assertRaises(UefiProtocolError):
-            device_path_from_text(b"Pci(0x1,0x2)")   # type: ignore[arg-type]
-        return
+def test_wrong_argument_count_raises() -> None:
+    with testbase.raises(UefiProtocolError):
+        device_path_from_text("Pci(0x1)")
+    return
 
-    def test_ipv4_bad_octet_raises(self) -> None:
-        with self.assertRaises(UefiProtocolError):
-            device_path_from_text("IPv4(256.0.0.1,0x6,Static,192.168.0.1)")
-        return
+def test_non_string_input_raises() -> None:
+    with testbase.raises(UefiProtocolError):
+        device_path_from_text(b"Pci(0x1,0x2)")   # type: ignore[arg-type]
+    return
+
+def test_ipv4_bad_octet_raises() -> None:
+    with testbase.raises(UefiProtocolError):
+        device_path_from_text("IPv4(256.0.0.1,0x6,Static,192.168.0.1)")
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -875,39 +903,39 @@ _CORPUS: Tuple[Tuple[str, bytes, str], ...] = (
 )
 
 
-class CorpusParametrizedTestCase(unittest.TestCase):
-    """
-        Loop over :data:`_CORPUS` and run a single parametrized round-
-        trip check.  Breaking out of a ``for`` loop inside a test method
-        would make failures less granular, so each iteration uses
-        :meth:`subTest` so a failing entry is still uniquely identified
-        in the ``unittest`` report.
-    """
+# ----------------------------------------------------------------------
+# CorpusParametrizedTestCase
+# ----------------------------------------------------------------------
 
-    def test_binary_to_text(self) -> None:
-        for name, fixture, expected_text in _CORPUS:
-            with self.subTest(name=name):
-                decoded = decode_device_path(fixture)
-                self.assertEqual(device_path_to_text(decoded), expected_text)
-        return
+"""
+    Loop over :data:`_CORPUS` and run a single parametrized round-
+    trip check.  Breaking out of a ``for`` loop inside a test method
+    would make failures less granular, so each iteration uses
+    :meth:`subTest` so a failing entry is still uniquely identified
+    in the ``unittest`` report.
+"""
 
-    def test_text_to_binary(self) -> None:
-        for name, fixture, text in _CORPUS:
-            with self.subTest(name=name):
-                parsed = device_path_from_text(text)
-                encoded = encode_device_path(parsed)
-                self.assertEqual(encoded, fixture)
-        return
+def test_binary_to_text() -> None:
+    for name, fixture, expected_text in _CORPUS:
+        decoded = decode_device_path(fixture)
+        testbase.assert_equal(device_path_to_text(decoded), expected_text)
+    return
 
-    def test_cross_round_trip(self) -> None:
-        for name, fixture, text in _CORPUS:
-            with self.subTest(name=name):
-                parsed = device_path_from_text(text)
-                encoded = encode_device_path(parsed)
-                self.assertEqual(encoded, fixture)
-                decoded = decode_device_path(encoded)
-                self.assertEqual(device_path_to_text(decoded), text)
-        return
+def test_text_to_binary() -> None:
+    for name, fixture, text in _CORPUS:
+        parsed = device_path_from_text(text)
+        encoded = encode_device_path(parsed)
+        testbase.assert_equal(encoded, fixture)
+    return
+
+def test_cross_round_trip() -> None:
+    for name, fixture, text in _CORPUS:
+        parsed = device_path_from_text(text)
+        encoded = encode_device_path(parsed)
+        testbase.assert_equal(encoded, fixture)
+        decoded = decode_device_path(encoded)
+        testbase.assert_equal(device_path_to_text(decoded), text)
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -957,7 +985,7 @@ if _HYPOTHESIS_AVAILABLE:
             encoded = encode_device_path(path)
             decoded = decode_device_path(encoded)
             re_encoded = encode_device_path(decoded)
-            self.assertEqual(re_encoded, encoded)
+            testbase.assert_equal(re_encoded, encoded)
             return
 
         @settings(max_examples=50, deadline=None)
@@ -967,9 +995,5 @@ if _HYPOTHESIS_AVAILABLE:
             text = device_path_to_text(path)
             re_parsed = device_path_from_text(text)
             re_text = device_path_to_text(re_parsed)
-            self.assertEqual(re_text, text)
+            testbase.assert_equal(re_text, text)
             return
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -28,7 +28,7 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+from ccai import testbase
 
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
@@ -286,306 +286,302 @@ def _build_workflow() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-class TestBootOnceResult(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestBootOnceResult
+# ----------------------------------------------------------------------
+
+"""
+    Verify the :class:`BootOnceResult` dataclass shape.
+"""
+
+def test_fields_populated() -> None:
     """
-        Verify the :class:`BootOnceResult` dataclass shape.
+        All fields can be populated explicitly and are readable.
     """
+    result = BootOnceResult(
+        success=True,
+        observed_boot_current=0x0001,
+        requested_index=0x0001,
+    )
+    testbase.assert_true(result.success is True)
+    testbase.assert_equal(result.observed_boot_current, 0x0001)
+    testbase.assert_equal(result.requested_index, 0x0001)
+    return
 
-    def test_fields_populated(self) -> None:
-        """
-            All fields can be populated explicitly and are readable.
-        """
-        result = BootOnceResult(
-            success=True,
-            observed_boot_current=0x0001,
-            requested_index=0x0001,
-        )
-        self.assertIs(result.success, True)
-        self.assertEqual(result.observed_boot_current, 0x0001)
-        self.assertEqual(result.requested_index, 0x0001)
-        return
-
-    def test_observed_boot_current_may_be_none(self) -> None:
-        """
-            ``observed_boot_current`` may be ``None`` when the
-            variable was absent post-reboot.
-        """
-        result = BootOnceResult(
-            success=False,
-            observed_boot_current=None,
-            requested_index=0x0001,
-        )
-        self.assertIsNone(result.observed_boot_current)
-        return
-
-
-class TestBootToOptionOnceHappyPath(unittest.TestCase):
+def test_observed_boot_current_may_be_none() -> None:
     """
-        Verify the happy-path orchestration.
+        ``observed_boot_current`` may be ``None`` when the
+        variable was absent post-reboot.
     """
-
-    def test_boot_once_success(self) -> None:
-        """
-            Happy path: option exists, ``BootNext`` written, reboot
-            invoked, ``BootCurrent`` matches, ``BootNext`` cleared.
-            Result reports ``success=True``.
-        """
-        parts = _build_workflow()
-        agent = parts["agent"]
-        boot_manager: _FakeBootManager = parts["boot_manager"]
-        reboot_workflow: _FakeRebootWorkflow = parts["reboot_workflow"]
-        workflow: BootToOptionOnceWorkflow = parts["workflow"]
-
-        boot_manager.get_boot_current_return = 0x0000
-        boot_manager.get_boot_next_return = None  # firmware cleared it
-
-        result = workflow.boot_once(index=0x0000)
-
-        self.assertIsInstance(result, BootOnceResult)
-        self.assertIs(result.success, True)
-        self.assertEqual(result.observed_boot_current, 0x0000)
-        self.assertEqual(result.requested_index, 0x0000)
-
-        # Existence check issued with the requested index.
-        self.assertEqual(len(boot_manager.get_boot_option_calls), 1)
-        self.assertEqual(
-            boot_manager.get_boot_option_calls[0]["index"],
-            0x0000,
-        )
-        # BootNext write issued with the requested index.
-        self.assertEqual(len(boot_manager.set_boot_next_calls), 1)
-        self.assertEqual(
-            boot_manager.set_boot_next_calls[0]["index"],
-            0x0000,
-        )
-        # Reboot invoked exactly once with WARM kind and wait_for_shell.
-        self.assertEqual(len(reboot_workflow.reboot_calls), 1)
-        self.assertEqual(
-            reboot_workflow.reboot_calls[0]["kind"],
-            ResetKind.WARM,
-        )
-        self.assertIs(
-            reboot_workflow.reboot_calls[0]["wait_for_shell"],
-            True,
-        )
-        # BootCurrent / BootNext each read exactly once post-reboot.
-        self.assertEqual(len(boot_manager.get_boot_current_calls), 1)
-        self.assertEqual(len(boot_manager.get_boot_next_calls), 1)
-        return
-
-    def test_boot_once_with_nonzero_index(self) -> None:
-        """
-            A non-zero option index is forwarded unchanged to every
-            collaborator.
-        """
-        parts = _build_workflow()
-        boot_manager: _FakeBootManager = parts["boot_manager"]
-        workflow: BootToOptionOnceWorkflow = parts["workflow"]
-
-        boot_manager.get_boot_current_return = 0x0005
-        boot_manager.get_boot_next_return = None
-
-        result = workflow.boot_once(index=0x0005)
-
-        self.assertIs(result.success, True)
-        self.assertEqual(result.requested_index, 0x0005)
-        self.assertEqual(result.observed_boot_current, 0x0005)
-        self.assertEqual(
-            boot_manager.set_boot_next_calls[0]["index"],
-            0x0005,
-        )
-        return
+    result = BootOnceResult(
+        success=False,
+        observed_boot_current=None,
+        requested_index=0x0001,
+    )
+    testbase.assert_true(result.observed_boot_current is None)
+    return
 
 
-class TestBootToOptionOnceMissingOption(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestBootToOptionOnceHappyPath
+# ----------------------------------------------------------------------
+
+"""
+    Verify the happy-path orchestration.
+"""
+
+def test_boot_once_success() -> None:
     """
-        Verify the existence-check failure path.
+        Happy path: option exists, ``BootNext`` written, reboot
+        invoked, ``BootCurrent`` matches, ``BootNext`` cleared.
+        Result reports ``success=True``.
     """
+    parts = _build_workflow()
+    agent = parts["agent"]
+    boot_manager: _FakeBootManager = parts["boot_manager"]
+    reboot_workflow: _FakeRebootWorkflow = parts["reboot_workflow"]
+    workflow: BootToOptionOnceWorkflow = parts["workflow"]
 
-    def test_missing_boot_option_raises_uefi_variable_error(self) -> None:
-        """
-            When :meth:`BootManager.get_boot_option` raises
-            :class:`UefiVariableError` the workflow re-raises with
-            an explanatory message naming the missing variable and
-            does NOT write ``BootNext`` or invoke the reboot.
-        """
-        parts = _build_workflow()
-        boot_manager: _FakeBootManager = parts["boot_manager"]
-        reboot_workflow: _FakeRebootWorkflow = parts["reboot_workflow"]
-        workflow: BootToOptionOnceWorkflow = parts["workflow"]
+    boot_manager.get_boot_current_return = 0x0000
+    boot_manager.get_boot_next_return = None  # firmware cleared it
 
-        boot_manager.get_boot_option_exception = UefiVariableError(
-            "variable not found",
-            name="Boot0007",
-        )
+    result = workflow.boot_once(index=0x0000)
 
-        caught: Optional[BaseException] = None
-        try:
-            workflow.boot_once(index=0x0007)
-        except UefiVariableError as verr:
-            caught = verr
+    testbase.assert_true(isinstance(result, BootOnceResult))
+    testbase.assert_true(result.success is True)
+    testbase.assert_equal(result.observed_boot_current, 0x0000)
+    testbase.assert_equal(result.requested_index, 0x0000)
 
-        self.assertIsInstance(caught, UefiVariableError)
-        message_text = str(caught)
-        self.assertIn("Boot0007", message_text)
-        self.assertIn("not present", message_text)
+    # Existence check issued with the requested index.
+    testbase.assert_equal(len(boot_manager.get_boot_option_calls), 1)
+    testbase.assert_equal(
+        boot_manager.get_boot_option_calls[0]["index"],
+        0x0000,
+    )
+    # BootNext write issued with the requested index.
+    testbase.assert_equal(len(boot_manager.set_boot_next_calls), 1)
+    testbase.assert_equal(
+        boot_manager.set_boot_next_calls[0]["index"],
+        0x0000,
+    )
+    # Reboot invoked exactly once with WARM kind and wait_for_shell.
+    testbase.assert_equal(len(reboot_workflow.reboot_calls), 1)
+    testbase.assert_equal(
+        reboot_workflow.reboot_calls[0]["kind"],
+        ResetKind.WARM,
+    )
+    testbase.assert_true(reboot_workflow.reboot_calls[0]["wait_for_shell"] is True)
+    # BootCurrent / BootNext each read exactly once post-reboot.
+    testbase.assert_equal(len(boot_manager.get_boot_current_calls), 1)
+    testbase.assert_equal(len(boot_manager.get_boot_next_calls), 1)
+    return
 
-        self.assertEqual(len(boot_manager.set_boot_next_calls), 0)
-        self.assertEqual(len(reboot_workflow.reboot_calls), 0)
-        return
-
-
-class TestBootToOptionOnceBootNextNotCleared(unittest.TestCase):
+def test_boot_once_with_nonzero_index() -> None:
     """
-        Verify the UEFI §3.1.3 / §3.1.5 auto-clear enforcement.
+        A non-zero option index is forwarded unchanged to every
+        collaborator.
     """
+    parts = _build_workflow()
+    boot_manager: _FakeBootManager = parts["boot_manager"]
+    workflow: BootToOptionOnceWorkflow = parts["workflow"]
 
-    def test_boot_next_still_set_to_same_value_raises(self) -> None:
-        """
-            When ``BootNext`` is still set to the originally-written
-            value post-reboot the workflow raises
-            :class:`UefiVariableError` citing UEFI §3.1.3 / §3.1.5.
-        """
-        parts = _build_workflow()
-        boot_manager: _FakeBootManager = parts["boot_manager"]
-        workflow: BootToOptionOnceWorkflow = parts["workflow"]
+    boot_manager.get_boot_current_return = 0x0005
+    boot_manager.get_boot_next_return = None
 
-        boot_manager.get_boot_current_return = 0x0002
-        boot_manager.get_boot_next_return = 0x0002  # firmware did not clear
+    result = workflow.boot_once(index=0x0005)
 
-        caught: Optional[BaseException] = None
-        try:
-            workflow.boot_once(index=0x0002)
-        except UefiVariableError as verr:
-            caught = verr
-
-        self.assertIsInstance(caught, UefiVariableError)
-        message_text = str(caught)
-        self.assertIn("firmware did not clear BootNext", message_text)
-        return
-
-    def test_boot_next_persists_with_different_value_also_raises(self) -> None:
-        """
-            When ``BootNext`` persists but points at a different
-            option the workflow still raises — the UEFI §3.1.3 /
-            §3.1.5 invariant is that ``BootNext`` SHALL be cleared
-            after the next boot, period.
-        """
-        parts = _build_workflow()
-        boot_manager: _FakeBootManager = parts["boot_manager"]
-        workflow: BootToOptionOnceWorkflow = parts["workflow"]
-
-        boot_manager.get_boot_current_return = 0x0001
-        boot_manager.get_boot_next_return = 0x0003  # unexpected residual
-
-        caught: Optional[BaseException] = None
-        try:
-            workflow.boot_once(index=0x0001)
-        except UefiVariableError as verr:
-            caught = verr
-
-        self.assertIsInstance(caught, UefiVariableError)
-        message_text = str(caught)
-        self.assertIn("BootNext", message_text)
-        self.assertIn("0x0003", message_text)
-        return
+    testbase.assert_true(result.success is True)
+    testbase.assert_equal(result.requested_index, 0x0005)
+    testbase.assert_equal(result.observed_boot_current, 0x0005)
+    testbase.assert_equal(
+        boot_manager.set_boot_next_calls[0]["index"],
+        0x0005,
+    )
+    return
 
 
-class TestBootToOptionOnceBootCurrentMismatch(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestBootToOptionOnceMissingOption
+# ----------------------------------------------------------------------
+
+"""
+    Verify the existence-check failure path.
+"""
+
+def test_missing_boot_option_raises_uefi_variable_error() -> None:
     """
-        Verify the BootCurrent-mismatch result path.  Per the design
-        the workflow does not raise on a BootCurrent mismatch; it
-        returns ``success=False`` with the observed value so the
-        caller can triage.
+        When :meth:`BootManager.get_boot_option` raises
+        :class:`UefiVariableError` the workflow re-raises with
+        an explanatory message naming the missing variable and
+        does NOT write ``BootNext`` or invoke the reboot.
     """
+    parts = _build_workflow()
+    boot_manager: _FakeBootManager = parts["boot_manager"]
+    reboot_workflow: _FakeRebootWorkflow = parts["reboot_workflow"]
+    workflow: BootToOptionOnceWorkflow = parts["workflow"]
 
-    def test_boot_current_differs_yields_success_false(self) -> None:
-        """
-            Firmware booted a different option: ``BootCurrent !=
-            requested``.  The workflow returns
-            ``BootOnceResult(success=False)`` with the observed value
-            on the result.
-        """
-        parts = _build_workflow()
-        boot_manager: _FakeBootManager = parts["boot_manager"]
-        workflow: BootToOptionOnceWorkflow = parts["workflow"]
+    boot_manager.get_boot_option_exception = UefiVariableError(
+        "variable not found",
+        name="Boot0007",
+    )
 
-        boot_manager.get_boot_current_return = 0x0004
-        boot_manager.get_boot_next_return = None  # firmware cleared
+    caught: Optional[BaseException] = None
+    try:
+        workflow.boot_once(index=0x0007)
+    except UefiVariableError as verr:
+        caught = verr
 
-        result = workflow.boot_once(index=0x0001)
+    testbase.assert_true(isinstance(caught, UefiVariableError))
+    message_text = str(caught)
+    testbase.assert_true("Boot0007" in message_text)
+    testbase.assert_true("not present" in message_text)
 
-        self.assertIs(result.success, False)
-        self.assertEqual(result.observed_boot_current, 0x0004)
-        self.assertEqual(result.requested_index, 0x0001)
-        return
-
-    def test_boot_current_absent_yields_success_false(self) -> None:
-        """
-            Firmware did not expose ``BootCurrent``; the workflow
-            returns ``success=False`` with ``observed_boot_current=None``.
-        """
-        parts = _build_workflow()
-        boot_manager: _FakeBootManager = parts["boot_manager"]
-        workflow: BootToOptionOnceWorkflow = parts["workflow"]
-
-        boot_manager.get_boot_current_return = None
-        boot_manager.get_boot_next_return = None
-
-        result = workflow.boot_once(index=0x0001)
-
-        self.assertIs(result.success, False)
-        self.assertIsNone(result.observed_boot_current)
-        return
+    testbase.assert_equal(len(boot_manager.set_boot_next_calls), 0)
+    testbase.assert_equal(len(reboot_workflow.reboot_calls), 0)
+    return
 
 
-class TestBootToOptionOnceAspectsForwarding(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestBootToOptionOnceBootNextNotCleared
+# ----------------------------------------------------------------------
+
+"""
+    Verify the UEFI §3.1.3 / §3.1.5 auto-clear enforcement.
+"""
+
+def test_boot_next_still_set_to_same_value_raises() -> None:
     """
-        Verify that a per-call ``aspects`` override is resolved once
-        and forwarded to every collaborator.
+        When ``BootNext`` is still set to the originally-written
+        value post-reboot the workflow raises
+        :class:`UefiVariableError` citing UEFI §3.1.3 / §3.1.5.
     """
+    parts = _build_workflow()
+    boot_manager: _FakeBootManager = parts["boot_manager"]
+    workflow: BootToOptionOnceWorkflow = parts["workflow"]
 
-    def test_per_call_aspects_forwarded(self) -> None:
-        """
-            A per-call aspects override is forwarded verbatim to
-            ``BootManager.get_boot_option``, ``BootManager.set_boot_next``,
-            ``RebootWorkflow.reboot_and_verify``, and the two
-            post-reboot reads.
-        """
-        parts = _build_workflow()
-        boot_manager: _FakeBootManager = parts["boot_manager"]
-        reboot_workflow: _FakeRebootWorkflow = parts["reboot_workflow"]
-        workflow: BootToOptionOnceWorkflow = parts["workflow"]
+    boot_manager.get_boot_current_return = 0x0002
+    boot_manager.get_boot_next_return = 0x0002  # firmware did not clear
 
-        boot_manager.get_boot_current_return = 0x0000
-        boot_manager.get_boot_next_return = None
+    caught: Optional[BaseException] = None
+    try:
+        workflow.boot_once(index=0x0002)
+    except UefiVariableError as verr:
+        caught = verr
 
-        per_call_aspects = UefiCmdAspects()
+    testbase.assert_true(isinstance(caught, UefiVariableError))
+    message_text = str(caught)
+    testbase.assert_true("firmware did not clear BootNext" in message_text)
+    return
 
-        workflow.boot_once(index=0x0000, aspects=per_call_aspects)
+def test_boot_next_persists_with_different_value_also_raises() -> None:
+    """
+        When ``BootNext`` persists but points at a different
+        option the workflow still raises — the UEFI §3.1.3 /
+        §3.1.5 invariant is that ``BootNext`` SHALL be cleared
+        after the next boot, period.
+    """
+    parts = _build_workflow()
+    boot_manager: _FakeBootManager = parts["boot_manager"]
+    workflow: BootToOptionOnceWorkflow = parts["workflow"]
 
-        self.assertIs(
-            boot_manager.get_boot_option_calls[0]["aspects"],
-            per_call_aspects,
-        )
-        self.assertIs(
-            boot_manager.set_boot_next_calls[0]["aspects"],
-            per_call_aspects,
-        )
-        self.assertIs(
-            reboot_workflow.reboot_calls[0]["aspects"],
-            per_call_aspects,
-        )
-        self.assertIs(
-            boot_manager.get_boot_current_calls[0]["aspects"],
-            per_call_aspects,
-        )
-        self.assertIs(
-            boot_manager.get_boot_next_calls[0]["aspects"],
-            per_call_aspects,
-        )
-        return
+    boot_manager.get_boot_current_return = 0x0001
+    boot_manager.get_boot_next_return = 0x0003  # unexpected residual
+
+    caught: Optional[BaseException] = None
+    try:
+        workflow.boot_once(index=0x0001)
+    except UefiVariableError as verr:
+        caught = verr
+
+    testbase.assert_true(isinstance(caught, UefiVariableError))
+    message_text = str(caught)
+    testbase.assert_true("BootNext" in message_text)
+    testbase.assert_true("0x0003" in message_text)
+    return
 
 
-if __name__ == "__main__":
-    unittest.main()
+# ----------------------------------------------------------------------
+# TestBootToOptionOnceBootCurrentMismatch
+# ----------------------------------------------------------------------
+
+"""
+    Verify the BootCurrent-mismatch result path.  Per the design
+    the workflow does not raise on a BootCurrent mismatch; it
+    returns ``success=False`` with the observed value so the
+    caller can triage.
+"""
+
+def test_boot_current_differs_yields_success_false() -> None:
+    """
+        Firmware booted a different option: ``BootCurrent !=
+        requested``.  The workflow returns
+        ``BootOnceResult(success=False)`` with the observed value
+        on the result.
+    """
+    parts = _build_workflow()
+    boot_manager: _FakeBootManager = parts["boot_manager"]
+    workflow: BootToOptionOnceWorkflow = parts["workflow"]
+
+    boot_manager.get_boot_current_return = 0x0004
+    boot_manager.get_boot_next_return = None  # firmware cleared
+
+    result = workflow.boot_once(index=0x0001)
+
+    testbase.assert_true(result.success is False)
+    testbase.assert_equal(result.observed_boot_current, 0x0004)
+    testbase.assert_equal(result.requested_index, 0x0001)
+    return
+
+def test_boot_current_absent_yields_success_false() -> None:
+    """
+        Firmware did not expose ``BootCurrent``; the workflow
+        returns ``success=False`` with ``observed_boot_current=None``.
+    """
+    parts = _build_workflow()
+    boot_manager: _FakeBootManager = parts["boot_manager"]
+    workflow: BootToOptionOnceWorkflow = parts["workflow"]
+
+    boot_manager.get_boot_current_return = None
+    boot_manager.get_boot_next_return = None
+
+    result = workflow.boot_once(index=0x0001)
+
+    testbase.assert_true(result.success is False)
+    testbase.assert_true(result.observed_boot_current is None)
+    return
+
+
+# ----------------------------------------------------------------------
+# TestBootToOptionOnceAspectsForwarding
+# ----------------------------------------------------------------------
+
+"""
+    Verify that a per-call ``aspects`` override is resolved once
+    and forwarded to every collaborator.
+"""
+
+def test_per_call_aspects_forwarded() -> None:
+    """
+        A per-call aspects override is forwarded verbatim to
+        ``BootManager.get_boot_option``, ``BootManager.set_boot_next``,
+        ``RebootWorkflow.reboot_and_verify``, and the two
+        post-reboot reads.
+    """
+    parts = _build_workflow()
+    boot_manager: _FakeBootManager = parts["boot_manager"]
+    reboot_workflow: _FakeRebootWorkflow = parts["reboot_workflow"]
+    workflow: BootToOptionOnceWorkflow = parts["workflow"]
+
+    boot_manager.get_boot_current_return = 0x0000
+    boot_manager.get_boot_next_return = None
+
+    per_call_aspects = UefiCmdAspects()
+
+    workflow.boot_once(index=0x0000, aspects=per_call_aspects)
+
+    testbase.assert_true(boot_manager.get_boot_option_calls[0]["aspects"] is per_call_aspects)
+    testbase.assert_true(boot_manager.set_boot_next_calls[0]["aspects"] is per_call_aspects)
+    testbase.assert_true(reboot_workflow.reboot_calls[0]["aspects"] is per_call_aspects)
+    testbase.assert_true(boot_manager.get_boot_current_calls[0]["aspects"] is per_call_aspects)
+    testbase.assert_true(boot_manager.get_boot_next_calls[0]["aspects"] is per_call_aspects)
+    return

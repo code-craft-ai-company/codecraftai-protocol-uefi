@@ -22,8 +22,9 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from ccai import testbase
+
 import struct
-import unittest
 
 from ccai.protocols.uefi.uefiexceptions import UefiProtocolError
 from ccai.protocols.uefi.uefiloadedimage import (
@@ -300,293 +301,304 @@ def _build_minimal_pe_image(
 # ---------------------------------------------------------------------------
 
 
-class TestUefiImageParseValidPe32Plus(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestUefiImageParseValidPe32Plus
+# ----------------------------------------------------------------------
+
+"""
+    Validate every decoded field when :meth:`UefiImage.from_bytes` is
+    invoked on a minimal well-formed PE32+ image.
+"""
+
+def test_parse_minimal_pe32_plus_image() -> None:
     """
-        Validate every decoded field when :meth:`UefiImage.from_bytes` is
-        invoked on a minimal well-formed PE32+ image.
+        Every decoded field matches the synthetic layout constants.
     """
+    image_bytes = _build_minimal_pe_image()
+    image = UefiImage.from_bytes(data=image_bytes)
 
-    def test_parse_minimal_pe32_plus_image(self) -> None:
-        """
-            Every decoded field matches the synthetic layout constants.
-        """
-        image_bytes = _build_minimal_pe_image()
-        image = UefiImage.from_bytes(data=image_bytes)
+    testbase.assert_true(isinstance(image, UefiImage))
+    testbase.assert_equal(image.dos_stub_e_lfanew, E_LFANEW)
+    testbase.assert_true(image.is_pe32_plus)
 
-        self.assertIsInstance(image, UefiImage)
-        self.assertEqual(image.dos_stub_e_lfanew, E_LFANEW)
-        self.assertTrue(image.is_pe32_plus)
+    coff_header = image.coff_header
+    testbase.assert_true(isinstance(coff_header, CoffHeader))
+    testbase.assert_equal(coff_header.machine, PeMachine.X64)
+    testbase.assert_equal(coff_header.number_of_sections, 1)
+    testbase.assert_equal(coff_header.time_date_stamp, DEFAULT_TIME_DATE_STAMP)
+    testbase.assert_equal(coff_header.pointer_to_symbol_table, 0)
+    testbase.assert_equal(coff_header.number_of_symbols, 0)
+    testbase.assert_equal(coff_header.size_of_optional_header, OPTIONAL_HEADER_SIZE)
+    testbase.assert_equal(coff_header.characteristics, DEFAULT_COFF_CHARACTERISTICS)
 
-        coff_header = image.coff_header
-        self.assertIsInstance(coff_header, CoffHeader)
-        self.assertEqual(coff_header.machine, PeMachine.X64)
-        self.assertEqual(coff_header.number_of_sections, 1)
-        self.assertEqual(coff_header.time_date_stamp, DEFAULT_TIME_DATE_STAMP)
-        self.assertEqual(coff_header.pointer_to_symbol_table, 0)
-        self.assertEqual(coff_header.number_of_symbols, 0)
-        self.assertEqual(coff_header.size_of_optional_header, OPTIONAL_HEADER_SIZE)
-        self.assertEqual(coff_header.characteristics, DEFAULT_COFF_CHARACTERISTICS)
+    optional_header = image.optional_header
+    testbase.assert_true(isinstance(optional_header, OptionalHeaderPe32Plus))
+    testbase.assert_equal(optional_header.magic, OPTIONAL_HEADER_MAGIC_PE32_PLUS)
+    testbase.assert_equal(optional_header.address_of_entry_point, DEFAULT_ENTRY_POINT)
+    testbase.assert_equal(optional_header.image_base, DEFAULT_IMAGE_BASE)
+    testbase.assert_equal(optional_header.section_alignment, DEFAULT_SECTION_ALIGNMENT)
+    testbase.assert_equal(optional_header.file_alignment, DEFAULT_FILE_ALIGNMENT)
+    testbase.assert_equal(optional_header.size_of_image, DEFAULT_SIZE_OF_IMAGE)
+    testbase.assert_equal(optional_header.size_of_headers, DEFAULT_SIZE_OF_HEADERS)
+    testbase.assert_equal(optional_header.checksum, DEFAULT_CHECKSUM)
+    testbase.assert_equal(optional_header.subsystem, PeSubsystem.EFI_APPLICATION)
+    testbase.assert_equal(optional_header.dll_characteristics, DEFAULT_DLL_CHARACTERISTICS)
+    testbase.assert_equal(optional_header.size_of_stack_reserve, DEFAULT_STACK_RESERVE)
+    testbase.assert_equal(optional_header.size_of_stack_commit, DEFAULT_STACK_COMMIT)
+    testbase.assert_equal(optional_header.size_of_heap_reserve, DEFAULT_HEAP_RESERVE)
+    testbase.assert_equal(optional_header.size_of_heap_commit, DEFAULT_HEAP_COMMIT)
+    testbase.assert_equal(optional_header.number_of_rva_and_sizes, DEFAULT_NUMBER_OF_RVA_AND_SIZES)
+    testbase.assert_equal(len(optional_header.data_directories), DEFAULT_NUMBER_OF_RVA_AND_SIZES)
+    for rva, size in optional_header.data_directories:
+        testbase.assert_equal(rva, 0)
+        testbase.assert_equal(size, 0)
 
-        optional_header = image.optional_header
-        self.assertIsInstance(optional_header, OptionalHeaderPe32Plus)
-        self.assertEqual(optional_header.magic, OPTIONAL_HEADER_MAGIC_PE32_PLUS)
-        self.assertEqual(optional_header.address_of_entry_point, DEFAULT_ENTRY_POINT)
-        self.assertEqual(optional_header.image_base, DEFAULT_IMAGE_BASE)
-        self.assertEqual(optional_header.section_alignment, DEFAULT_SECTION_ALIGNMENT)
-        self.assertEqual(optional_header.file_alignment, DEFAULT_FILE_ALIGNMENT)
-        self.assertEqual(optional_header.size_of_image, DEFAULT_SIZE_OF_IMAGE)
-        self.assertEqual(optional_header.size_of_headers, DEFAULT_SIZE_OF_HEADERS)
-        self.assertEqual(optional_header.checksum, DEFAULT_CHECKSUM)
-        self.assertEqual(optional_header.subsystem, PeSubsystem.EFI_APPLICATION)
-        self.assertEqual(optional_header.dll_characteristics, DEFAULT_DLL_CHARACTERISTICS)
-        self.assertEqual(optional_header.size_of_stack_reserve, DEFAULT_STACK_RESERVE)
-        self.assertEqual(optional_header.size_of_stack_commit, DEFAULT_STACK_COMMIT)
-        self.assertEqual(optional_header.size_of_heap_reserve, DEFAULT_HEAP_RESERVE)
-        self.assertEqual(optional_header.size_of_heap_commit, DEFAULT_HEAP_COMMIT)
-        self.assertEqual(optional_header.number_of_rva_and_sizes, DEFAULT_NUMBER_OF_RVA_AND_SIZES)
-        self.assertEqual(len(optional_header.data_directories), DEFAULT_NUMBER_OF_RVA_AND_SIZES)
-        for rva, size in optional_header.data_directories:
-            self.assertEqual(rva, 0)
-            self.assertEqual(size, 0)
+    sections = image.sections
+    testbase.assert_equal(len(sections), 1)
+    section = sections[0]
+    testbase.assert_true(isinstance(section, SectionHeader))
+    testbase.assert_equal(section.name, DEFAULT_SECTION_NAME)
+    testbase.assert_equal(section.virtual_size, DEFAULT_SECTION_VIRTUAL_SIZE)
+    testbase.assert_equal(section.virtual_address, DEFAULT_SECTION_VIRTUAL_ADDRESS)
+    testbase.assert_equal(section.size_of_raw_data, DEFAULT_SECTION_SIZE_OF_RAW_DATA)
+    testbase.assert_equal(section.pointer_to_raw_data, DEFAULT_SECTION_POINTER_TO_RAW_DATA)
+    testbase.assert_equal(section.characteristics, DEFAULT_SECTION_CHARACTERISTICS)
 
-        sections = image.sections
-        self.assertEqual(len(sections), 1)
-        section = sections[0]
-        self.assertIsInstance(section, SectionHeader)
-        self.assertEqual(section.name, DEFAULT_SECTION_NAME)
-        self.assertEqual(section.virtual_size, DEFAULT_SECTION_VIRTUAL_SIZE)
-        self.assertEqual(section.virtual_address, DEFAULT_SECTION_VIRTUAL_ADDRESS)
-        self.assertEqual(section.size_of_raw_data, DEFAULT_SECTION_SIZE_OF_RAW_DATA)
-        self.assertEqual(section.pointer_to_raw_data, DEFAULT_SECTION_POINTER_TO_RAW_DATA)
-        self.assertEqual(section.characteristics, DEFAULT_SECTION_CHARACTERISTICS)
-
-        self.assertEqual(image.certificates, ())
-        return
+    testbase.assert_equal(image.certificates, ())
+    return
 
 
-class TestUefiImageSubsystemVariants(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestUefiImageSubsystemVariants
+# ----------------------------------------------------------------------
+
+"""
+    Validate that varying the optional-header ``Subsystem`` value
+    surfaces the correct :class:`PeSubsystem` enum member.
+"""
+
+def test_parse_efi_runtime_driver_subsystem() -> None:
     """
-        Validate that varying the optional-header ``Subsystem`` value
-        surfaces the correct :class:`PeSubsystem` enum member.
+        ``Subsystem == 12`` decodes to ``PeSubsystem.EFI_RUNTIME_DRIVER``.
     """
+    image_bytes = _build_minimal_pe_image(subsystem=int(PeSubsystem.EFI_RUNTIME_DRIVER))
+    image = UefiImage.from_bytes(data=image_bytes)
 
-    def test_parse_efi_runtime_driver_subsystem(self) -> None:
-        """
-            ``Subsystem == 12`` decodes to ``PeSubsystem.EFI_RUNTIME_DRIVER``.
-        """
-        image_bytes = _build_minimal_pe_image(subsystem=int(PeSubsystem.EFI_RUNTIME_DRIVER))
-        image = UefiImage.from_bytes(data=image_bytes)
+    testbase.assert_equal(image.subsystem, PeSubsystem.EFI_RUNTIME_DRIVER)
+    testbase.assert_equal(image.optional_header.subsystem, PeSubsystem.EFI_RUNTIME_DRIVER)
+    return
 
-        self.assertEqual(image.subsystem, PeSubsystem.EFI_RUNTIME_DRIVER)
-        self.assertEqual(image.optional_header.subsystem, PeSubsystem.EFI_RUNTIME_DRIVER)
-        return
-
-    def test_parse_efi_boot_service_driver_subsystem(self) -> None:
-        """
-            ``Subsystem == 11`` decodes to
-            ``PeSubsystem.EFI_BOOT_SERVICE_DRIVER``.
-        """
-        image_bytes = _build_minimal_pe_image(subsystem=int(PeSubsystem.EFI_BOOT_SERVICE_DRIVER))
-        image = UefiImage.from_bytes(data=image_bytes)
-
-        self.assertEqual(image.subsystem, PeSubsystem.EFI_BOOT_SERVICE_DRIVER)
-        return
-
-    def test_parse_efi_rom_subsystem(self) -> None:
-        """
-            ``Subsystem == 13`` decodes to ``PeSubsystem.EFI_ROM``.
-        """
-        image_bytes = _build_minimal_pe_image(subsystem=int(PeSubsystem.EFI_ROM))
-        image = UefiImage.from_bytes(data=image_bytes)
-
-        self.assertEqual(image.subsystem, PeSubsystem.EFI_ROM)
-        return
-
-
-class TestUefiImageProperties(unittest.TestCase):
+def test_parse_efi_boot_service_driver_subsystem() -> None:
     """
-        Validate the convenience accessors on :class:`UefiImage`.
+        ``Subsystem == 11`` decodes to
+        ``PeSubsystem.EFI_BOOT_SERVICE_DRIVER``.
     """
+    image_bytes = _build_minimal_pe_image(subsystem=int(PeSubsystem.EFI_BOOT_SERVICE_DRIVER))
+    image = UefiImage.from_bytes(data=image_bytes)
 
-    def test_machine_property_matches_coff_header(self) -> None:
-        """
-            ``image.machine`` equals the COFF header's ``machine`` value.
-        """
-        image_bytes = _build_minimal_pe_image(machine=int(PeMachine.AARCH64))
-        image = UefiImage.from_bytes(data=image_bytes)
+    testbase.assert_equal(image.subsystem, PeSubsystem.EFI_BOOT_SERVICE_DRIVER)
+    return
 
-        self.assertEqual(image.machine, PeMachine.AARCH64)
-        self.assertEqual(image.machine, image.coff_header.machine)
-        return
-
-    def test_subsystem_property_matches_optional_header(self) -> None:
-        """
-            ``image.subsystem`` equals the optional header's ``subsystem``
-            value.
-        """
-        image_bytes = _build_minimal_pe_image(subsystem=int(PeSubsystem.EFI_RUNTIME_DRIVER))
-        image = UefiImage.from_bytes(data=image_bytes)
-
-        self.assertEqual(image.subsystem, PeSubsystem.EFI_RUNTIME_DRIVER)
-        self.assertEqual(image.subsystem, image.optional_header.subsystem)
-        return
-
-    def test_get_directory_returns_tuple(self) -> None:
-        """
-            ``get_directory`` returns the requested data-directory pair.
-        """
-        directories = [(0, 0)] * DEFAULT_NUMBER_OF_RVA_AND_SIZES
-        directories[2] = (0x2000, 0x0400)
-        image_bytes = _build_minimal_pe_image(extra_directories=directories)
-        image = UefiImage.from_bytes(data=image_bytes)
-
-        rtnval = image.get_directory(index=2)
-        self.assertEqual(rtnval, (0x2000, 0x0400))
-        return
-
-    def test_get_directory_raises_on_out_of_range(self) -> None:
-        """
-            ``get_directory`` raises ``IndexError`` when the requested
-            index lies outside the decoded directory table.
-        """
-        image_bytes = _build_minimal_pe_image()
-        image = UefiImage.from_bytes(data=image_bytes)
-
-        with self.assertRaises(IndexError):
-            image.get_directory(index=99)
-        return
-
-
-class TestUefiImageAttributeCertificates(unittest.TestCase):
+def test_parse_efi_rom_subsystem() -> None:
     """
-        Validate that the security data directory is walked and the
-        embedded ``WIN_CERTIFICATE`` payload is surfaced.
+        ``Subsystem == 13`` decodes to ``PeSubsystem.EFI_ROM``.
     """
+    image_bytes = _build_minimal_pe_image(subsystem=int(PeSubsystem.EFI_ROM))
+    image = UefiImage.from_bytes(data=image_bytes)
 
-    def test_parse_image_with_attribute_certificate(self) -> None:
-        """
-            An image whose security directory points at one PKCS#7
-            certificate surfaces it on ``image.certificates`` with the
-            expected DER payload.
-        """
-        expected_payload = b"\x30\x82\x01\x02" + b"DERDATA0123456789" + b"\xAB" * 16
-        image_bytes = _build_minimal_pe_image(certificate_payload=expected_payload)
-        image = UefiImage.from_bytes(data=image_bytes)
-
-        self.assertEqual(len(image.certificates), 1)
-        certificate = image.certificates[0]
-        self.assertIsInstance(certificate, AttributeCertificate)
-        self.assertEqual(certificate.revision, WIN_CERT_REVISION_2_0)
-        self.assertEqual(certificate.cert_type, WIN_CERT_TYPE_PKCS_SIGNED_DATA)
-        self.assertEqual(certificate.length, 8 + len(expected_payload))
-        self.assertEqual(certificate.raw_signature[:len(expected_payload)], expected_payload)
-        return
-
-    def test_get_directory_returns_security_entry(self) -> None:
-        """
-            ``get_directory(4)`` returns the security directory pair that
-            was patched into the optional header.
-        """
-        expected_payload = b"\x30\x82\x00\x10" + b"payload!"
-        image_bytes = _build_minimal_pe_image(certificate_payload=expected_payload)
-        image = UefiImage.from_bytes(data=image_bytes)
-
-        security_rva, security_size = image.get_directory(index=4)
-        self.assertGreater(security_rva, 0)
-        self.assertGreater(security_size, 0)
-        return
+    testbase.assert_equal(image.subsystem, PeSubsystem.EFI_ROM)
+    return
 
 
-class TestUefiImageMalformedInput(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestUefiImageProperties
+# ----------------------------------------------------------------------
+
+"""
+    Validate the convenience accessors on :class:`UefiImage`.
+"""
+
+def test_machine_property_matches_coff_header() -> None:
     """
-        Validate that malformed input is rejected with
-        :class:`UefiProtocolError` rather than with a raw ``struct.error``
-        or ``IndexError``.
+        ``image.machine`` equals the COFF header's ``machine`` value.
     """
+    image_bytes = _build_minimal_pe_image(machine=int(PeMachine.AARCH64))
+    image = UefiImage.from_bytes(data=image_bytes)
 
-    def test_missing_mz_signature_raises(self) -> None:
-        """
-            A buffer whose first two bytes are not ``b"MZ"`` raises
-            :class:`UefiProtocolError`.
-        """
-        image_bytes = _build_minimal_pe_image()
-        tampered = bytearray(image_bytes)
-        tampered[0] = 0x00
-        tampered[1] = 0x00
+    testbase.assert_equal(image.machine, PeMachine.AARCH64)
+    testbase.assert_equal(image.machine, image.coff_header.machine)
+    return
 
-        with self.assertRaises(UefiProtocolError):
-            UefiImage.from_bytes(data=bytes(tampered))
-        return
+def test_subsystem_property_matches_optional_header() -> None:
+    """
+        ``image.subsystem`` equals the optional header's ``subsystem``
+        value.
+    """
+    image_bytes = _build_minimal_pe_image(subsystem=int(PeSubsystem.EFI_RUNTIME_DRIVER))
+    image = UefiImage.from_bytes(data=image_bytes)
 
-    def test_bad_pe_signature_raises(self) -> None:
-        """
-            A buffer whose bytes at ``e_lfanew`` are not ``b"PE\\0\\0"``
-            raises :class:`UefiProtocolError`.
-        """
-        image_bytes = _build_minimal_pe_image()
-        tampered = bytearray(image_bytes)
-        tampered[E_LFANEW:E_LFANEW + 4] = b"XYZ!"
+    testbase.assert_equal(image.subsystem, PeSubsystem.EFI_RUNTIME_DRIVER)
+    testbase.assert_equal(image.subsystem, image.optional_header.subsystem)
+    return
 
-        with self.assertRaises(UefiProtocolError):
-            UefiImage.from_bytes(data=bytes(tampered))
-        return
+def test_get_directory_returns_tuple() -> None:
+    """
+        ``get_directory`` returns the requested data-directory pair.
+    """
+    directories = [(0, 0)] * DEFAULT_NUMBER_OF_RVA_AND_SIZES
+    directories[2] = (0x2000, 0x0400)
+    image_bytes = _build_minimal_pe_image(extra_directories=directories)
+    image = UefiImage.from_bytes(data=image_bytes)
 
-    def test_truncated_buffer_raises(self) -> None:
-        """
-            Truncating the image to less than the optional-header window
-            raises :class:`UefiProtocolError`.
-        """
-        image_bytes = _build_minimal_pe_image()
-        truncated = image_bytes[:OPTIONAL_HEADER_OFFSET + 10]
+    rtnval = image.get_directory(index=2)
+    testbase.assert_equal(rtnval, (0x2000, 0x0400))
+    return
 
-        with self.assertRaises(UefiProtocolError):
-            UefiImage.from_bytes(data=truncated)
-        return
+def test_get_directory_raises_on_out_of_range() -> None:
+    """
+        ``get_directory`` raises ``IndexError`` when the requested
+        index lies outside the decoded directory table.
+    """
+    image_bytes = _build_minimal_pe_image()
+    image = UefiImage.from_bytes(data=image_bytes)
 
-    def test_tiny_buffer_raises(self) -> None:
-        """
-            A buffer too small even to contain the DOS signature raises
-            :class:`UefiProtocolError`.
-        """
-        with self.assertRaises(UefiProtocolError):
-            UefiImage.from_bytes(data=b"\x00")
-        return
-
-    def test_invalid_optional_header_magic_raises(self) -> None:
-        """
-            An optional-header magic that is neither PE32 nor PE32+
-            raises :class:`UefiProtocolError`.
-        """
-        image_bytes = _build_minimal_pe_image()
-        tampered = bytearray(image_bytes)
-        struct.pack_into("<H", tampered, OPTIONAL_HEADER_OFFSET, 0xDEAD)
-
-        with self.assertRaises(UefiProtocolError):
-            UefiImage.from_bytes(data=bytes(tampered))
-        return
-
-    def test_unknown_machine_value_raises(self) -> None:
-        """
-            An unrecognized COFF ``Machine`` value raises
-            :class:`UefiProtocolError`.
-        """
-        image_bytes = _build_minimal_pe_image()
-        tampered = bytearray(image_bytes)
-        struct.pack_into("<H", tampered, COFF_HEADER_OFFSET, 0xDEAD)
-
-        with self.assertRaises(UefiProtocolError):
-            UefiImage.from_bytes(data=bytes(tampered))
-        return
-
-    def test_non_bytes_input_raises_type_error(self) -> None:
-        """
-            Passing something that is not a bytes-like object raises
-            :class:`TypeError`.
-        """
-        with self.assertRaises(TypeError):
-            UefiImage.from_bytes(data=12345)
-        return
+    with testbase.raises(IndexError):
+        image.get_directory(index=99)
+    return
 
 
-if __name__ == "__main__":
-    unittest.main()
+# ----------------------------------------------------------------------
+# TestUefiImageAttributeCertificates
+# ----------------------------------------------------------------------
+
+"""
+    Validate that the security data directory is walked and the
+    embedded ``WIN_CERTIFICATE`` payload is surfaced.
+"""
+
+def test_parse_image_with_attribute_certificate() -> None:
+    """
+        An image whose security directory points at one PKCS#7
+        certificate surfaces it on ``image.certificates`` with the
+        expected DER payload.
+    """
+    expected_payload = b"\x30\x82\x01\x02" + b"DERDATA0123456789" + b"\xAB" * 16
+    image_bytes = _build_minimal_pe_image(certificate_payload=expected_payload)
+    image = UefiImage.from_bytes(data=image_bytes)
+
+    testbase.assert_equal(len(image.certificates), 1)
+    certificate = image.certificates[0]
+    testbase.assert_true(isinstance(certificate, AttributeCertificate))
+    testbase.assert_equal(certificate.revision, WIN_CERT_REVISION_2_0)
+    testbase.assert_equal(certificate.cert_type, WIN_CERT_TYPE_PKCS_SIGNED_DATA)
+    testbase.assert_equal(certificate.length, 8 + len(expected_payload))
+    testbase.assert_equal(certificate.raw_signature[:len(expected_payload)], expected_payload)
+    return
+
+def test_get_directory_returns_security_entry() -> None:
+    """
+        ``get_directory(4)`` returns the security directory pair that
+        was patched into the optional header.
+    """
+    expected_payload = b"\x30\x82\x00\x10" + b"payload!"
+    image_bytes = _build_minimal_pe_image(certificate_payload=expected_payload)
+    image = UefiImage.from_bytes(data=image_bytes)
+
+    security_rva, security_size = image.get_directory(index=4)
+    testbase.assert_greater(security_rva, 0)
+    testbase.assert_greater(security_size, 0)
+    return
+
+
+# ----------------------------------------------------------------------
+# TestUefiImageMalformedInput
+# ----------------------------------------------------------------------
+
+"""
+    Validate that malformed input is rejected with
+    :class:`UefiProtocolError` rather than with a raw ``struct.error``
+    or ``IndexError``.
+"""
+
+def test_missing_mz_signature_raises() -> None:
+    """
+        A buffer whose first two bytes are not ``b"MZ"`` raises
+        :class:`UefiProtocolError`.
+    """
+    image_bytes = _build_minimal_pe_image()
+    tampered = bytearray(image_bytes)
+    tampered[0] = 0x00
+    tampered[1] = 0x00
+
+    with testbase.raises(UefiProtocolError):
+        UefiImage.from_bytes(data=bytes(tampered))
+    return
+
+def test_bad_pe_signature_raises() -> None:
+    """
+        A buffer whose bytes at ``e_lfanew`` are not ``b"PE\\0\\0"``
+        raises :class:`UefiProtocolError`.
+    """
+    image_bytes = _build_minimal_pe_image()
+    tampered = bytearray(image_bytes)
+    tampered[E_LFANEW:E_LFANEW + 4] = b"XYZ!"
+
+    with testbase.raises(UefiProtocolError):
+        UefiImage.from_bytes(data=bytes(tampered))
+    return
+
+def test_truncated_buffer_raises() -> None:
+    """
+        Truncating the image to less than the optional-header window
+        raises :class:`UefiProtocolError`.
+    """
+    image_bytes = _build_minimal_pe_image()
+    truncated = image_bytes[:OPTIONAL_HEADER_OFFSET + 10]
+
+    with testbase.raises(UefiProtocolError):
+        UefiImage.from_bytes(data=truncated)
+    return
+
+def test_tiny_buffer_raises() -> None:
+    """
+        A buffer too small even to contain the DOS signature raises
+        :class:`UefiProtocolError`.
+    """
+    with testbase.raises(UefiProtocolError):
+        UefiImage.from_bytes(data=b"\x00")
+    return
+
+def test_invalid_optional_header_magic_raises() -> None:
+    """
+        An optional-header magic that is neither PE32 nor PE32+
+        raises :class:`UefiProtocolError`.
+    """
+    image_bytes = _build_minimal_pe_image()
+    tampered = bytearray(image_bytes)
+    struct.pack_into("<H", tampered, OPTIONAL_HEADER_OFFSET, 0xDEAD)
+
+    with testbase.raises(UefiProtocolError):
+        UefiImage.from_bytes(data=bytes(tampered))
+    return
+
+def test_unknown_machine_value_raises() -> None:
+    """
+        An unrecognized COFF ``Machine`` value raises
+        :class:`UefiProtocolError`.
+    """
+    image_bytes = _build_minimal_pe_image()
+    tampered = bytearray(image_bytes)
+    struct.pack_into("<H", tampered, COFF_HEADER_OFFSET, 0xDEAD)
+
+    with testbase.raises(UefiProtocolError):
+        UefiImage.from_bytes(data=bytes(tampered))
+    return
+
+def test_non_bytes_input_raises_type_error() -> None:
+    """
+        Passing something that is not a bytes-like object raises
+        :class:`TypeError`.
+    """
+    with testbase.raises(TypeError):
+        UefiImage.from_bytes(data=12345)
+    return
