@@ -39,9 +39,12 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from types import SimpleNamespace
+
+from ccai import testbase
+
 import sys
 import types
-import unittest
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from unittest.mock import patch
@@ -438,88 +441,99 @@ def _make_session(basis_session: Optional[UefiSession] = None,
 # ---------------------------------------------------------------------------
 
 
-class TestUefiSessionEnterExit(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestUefiSessionEnterExit
+# ----------------------------------------------------------------------
+
+"""
+    Verify that ``__enter__`` opens exactly one client and channel,
+    that ``__exit__`` closes them, and that an in-block exception
+    propagates unchanged.
+"""
+
+def _setup_uefi_session_enter_exit(ctx) -> None:
     """
-        Verify that ``__enter__`` opens exactly one client and channel,
-        that ``__exit__`` closes them, and that an in-block exception
-        propagates unchanged.
+        Reset the module-level factory bookkeeping between tests.
     """
+    _factory_clients.clear()
+    return
 
-    def setUp(self) -> None:
-        """
-            Reset the module-level factory bookkeeping between tests.
-        """
-        _factory_clients.clear()
-        return
+def test_enter_opens_single_client_and_channel() -> None:
+    """
+        ``with UefiSession(...) as s:`` must produce exactly one
+        client and one channel.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_enter_exit(ctx)
+    session = _make_session()
 
-    def test_enter_opens_single_client_and_channel(self) -> None:
-        """
-            ``with UefiSession(...) as s:`` must produce exactly one
-            client and one channel.
-        """
-        session = _make_session()
+    with session as s:
+        testbase.assert_true(s is session)
+        testbase.assert_true(session._client is not None)
+        testbase.assert_true(session._channel is not None)
+        testbase.assert_equal(len(_factory_clients), 1)
+        testbase.assert_equal(len(_factory_clients[0].channels), 1)
 
-        with session as s:
-            self.assertIs(s, session)
-            self.assertIsNotNone(session._client)
-            self.assertIsNotNone(session._channel)
-            self.assertEqual(len(_factory_clients), 1)
-            self.assertEqual(len(_factory_clients[0].channels), 1)
+    return
 
-        return
+def test_exit_closes_channel_and_client() -> None:
+    """
+        Leaving the ``with`` block closes both the channel and the
+        owned client.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_enter_exit(ctx)
+    session = _make_session()
+    with session:
+        created_client = _factory_clients[0]
+        created_channel = created_client.channels[0]
 
-    def test_exit_closes_channel_and_client(self) -> None:
-        """
-            Leaving the ``with`` block closes both the channel and the
-            owned client.
-        """
-        session = _make_session()
+    testbase.assert_equal(created_channel.closed_count, 1)
+    testbase.assert_equal(created_client.closed_count, 1)
+    testbase.assert_true(session._client is None)
+    testbase.assert_true(session._channel is None)
+    return
+
+def test_exit_propagates_inner_exception() -> None:
+    """
+        An exception raised inside the ``with`` block is NOT
+        suppressed by ``__exit__``.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_enter_exit(ctx)
+    session = _make_session()
+
+    class _InBlockError(RuntimeError):
+        pass
+
+    raised = False
+    try:
         with session:
-            created_client = _factory_clients[0]
-            created_channel = created_client.channels[0]
+            raise _InBlockError("boom")
+    except _InBlockError:
+        raised = True
 
-        self.assertEqual(created_channel.closed_count, 1)
-        self.assertEqual(created_client.closed_count, 1)
-        self.assertIsNone(session._client)
-        self.assertIsNone(session._channel)
-        return
+    testbase.assert_true(raised)
+    # Teardown must still have happened.
+    testbase.assert_true(session._client is None)
+    testbase.assert_true(session._channel is None)
+    return
 
-    def test_exit_propagates_inner_exception(self) -> None:
-        """
-            An exception raised inside the ``with`` block is NOT
-            suppressed by ``__exit__``.
-        """
-        session = _make_session()
-
-        class _InBlockError(RuntimeError):
-            pass
-
-        raised = False
-        try:
-            with session:
-                raise _InBlockError("boom")
-        except _InBlockError:
-            raised = True
-
-        self.assertTrue(raised)
-        # Teardown must still have happened.
-        self.assertIsNone(session._client)
-        self.assertIsNone(session._channel)
-        return
-
-    def test_close_is_idempotent(self) -> None:
-        """
-            Second and subsequent :meth:`close` calls are no-ops.
-        """
-        session = _make_session()
-        with session:
-            pass
-        session.close()
-        session.close()
-        # No exception; still clean.
-        self.assertIsNone(session._client)
-        self.assertIsNone(session._channel)
-        return
+def test_close_is_idempotent() -> None:
+    """
+        Second and subsequent :meth:`close` calls are no-ops.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_enter_exit(ctx)
+    session = _make_session()
+    with session:
+        pass
+    session.close()
+    session.close()
+    # No exception; still clean.
+    testbase.assert_true(session._client is None)
+    testbase.assert_true(session._channel is None)
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -527,60 +541,67 @@ class TestUefiSessionEnterExit(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestUefiSessionPersistentClient(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestUefiSessionPersistentClient
+# ----------------------------------------------------------------------
+
+"""
+    Verify that :meth:`run_cmd` reuses the client built at
+    :meth:`__enter__` rather than constructing a new one on every
+    call.
+"""
+
+def _setup_uefi_session_persistent_client(ctx) -> None:
+    _factory_clients.clear()
+    return
+
+def test_run_cmd_reuses_single_client() -> None:
     """
-        Verify that :meth:`run_cmd` reuses the client built at
-        :meth:`__enter__` rather than constructing a new one on every
-        call.
+        Multiple :meth:`run_cmd` invocations on one open session
+        must keep the same :class:`_StubClient` reference.
     """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_persistent_client(ctx)
+    aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
+    session = _make_session(aspects=aspects)
 
-    def setUp(self) -> None:
-        _factory_clients.clear()
-        return
+    with session:
+        client_before = session._client
 
-    def test_run_cmd_reuses_single_client(self) -> None:
-        """
-            Multiple :meth:`run_cmd` invocations on one open session
-            must keep the same :class:`_StubClient` reference.
-        """
-        aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
-        session = _make_session(aspects=aspects)
+        status1, stdout1, _ = session.run_cmd(command="ver")
+        status2, stdout2, _ = session.run_cmd(command="map -r")
+        status3, stdout3, _ = session.run_cmd(command="cd FS0:")
 
-        with session:
-            client_before = session._client
+        testbase.assert_true(session._client is client_before)
+        # Exactly one call to the factory — no additional clients.
+        testbase.assert_equal(len(_factory_clients), 1)
 
-            status1, stdout1, _ = session.run_cmd(command="ver")
-            status2, stdout2, _ = session.run_cmd(command="map -r")
-            status3, stdout3, _ = session.run_cmd(command="cd FS0:")
+    testbase.assert_equal(status1, 0)
+    testbase.assert_equal(status2, 0)
+    testbase.assert_equal(status3, 0)
+    return
 
-            self.assertIs(session._client, client_before)
-            # Exactly one call to the factory — no additional clients.
-            self.assertEqual(len(_factory_clients), 1)
+def test_run_cmd_forwards_to_base_run_cmd() -> None:
+    """
+        The session must dispatch through ``_run_cmd`` with the
+        persistent channel as the runner.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_persistent_client(ctx)
+    aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
+    session = _make_session(aspects=aspects)
 
-        self.assertEqual(status1, 0)
-        self.assertEqual(status2, 0)
-        self.assertEqual(status3, 0)
-        return
+    with session:
+        session._run_cmd_response = (0, "hello", "")
+        status, stdout, _ = session.run_cmd(command="echo Hello")
 
-    def test_run_cmd_forwards_to_base_run_cmd(self) -> None:
-        """
-            The session must dispatch through ``_run_cmd`` with the
-            persistent channel as the runner.
-        """
-        aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
-        session = _make_session(aspects=aspects)
-
-        with session:
-            session._run_cmd_response = (0, "hello", "")
-            status, stdout, _ = session.run_cmd(command="echo Hello")
-
-        self.assertEqual(status, 0)
-        self.assertEqual(stdout, "hello")
-        self.assertEqual(len(session._run_cmd_calls), 1)
-        recorded = session._run_cmd_calls[0]
-        self.assertIs(recorded["runner"], session._channel or _factory_clients[0].channels[0])
-        self.assertEqual(recorded["command"], "echo Hello")
-        return
+    testbase.assert_equal(status, 0)
+    testbase.assert_equal(stdout, "hello")
+    testbase.assert_equal(len(session._run_cmd_calls), 1)
+    recorded = session._run_cmd_calls[0]
+    testbase.assert_true(recorded["runner"] is session._channel or _factory_clients[0].channels[0])
+    testbase.assert_equal(recorded["command"], "echo Hello")
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -588,107 +609,116 @@ class TestUefiSessionPersistentClient(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestUefiSessionReplay(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestUefiSessionReplay
+# ----------------------------------------------------------------------
+
+"""
+    Verify :meth:`record_action` + :meth:`reboot` replay semantics.
+"""
+
+def _setup_uefi_session_replay(ctx) -> None:
+    _factory_clients.clear()
+    return
+
+def test_record_action_appends() -> None:
     """
-        Verify :meth:`record_action` + :meth:`reboot` replay semantics.
+        :meth:`record_action` must append the callable to the
+        replay list.
     """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_replay(ctx)
+    session = _make_session()
 
-    def setUp(self) -> None:
-        _factory_clients.clear()
+    calls: List[str] = []
+
+    def action_one() -> None:
+        calls.append("one")
         return
 
-    def test_record_action_appends(self) -> None:
-        """
-            :meth:`record_action` must append the callable to the
-            replay list.
-        """
-        session = _make_session()
-
-        calls: List[str] = []
-
-        def action_one() -> None:
-            calls.append("one")
-            return
-
-        def action_two() -> None:
-            calls.append("two")
-            return
-
-        session.record_action(action=action_one)
-        session.record_action(action=action_two)
-
-        self.assertEqual(len(session._replay_actions), 2)
+    def action_two() -> None:
+        calls.append("two")
         return
 
-    def test_reboot_replays_actions_in_order(self) -> None:
-        """
-            After :meth:`reboot` completes, every registered action is
-            invoked in insertion order.
-        """
-        aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
-        session = _make_session(aspects=aspects)
+    session.record_action(action=action_one)
+    session.record_action(action=action_two)
 
-        invocations: List[str] = []
+    testbase.assert_equal(len(session._replay_actions), 2)
+    return
 
-        def action_one() -> None:
-            invocations.append("cd FS0:")
-            return
+def test_reboot_replays_actions_in_order() -> None:
+    """
+        After :meth:`reboot` completes, every registered action is
+        invoked in insertion order.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_replay(ctx)
+    aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
+    session = _make_session(aspects=aspects)
 
-        def action_two() -> None:
-            invocations.append("map -r")
-            return
+    invocations: List[str] = []
 
-        # Skip the grace-period and polling waits so the test runs
-        # without sleeping.
-        with patch.object(uefisession.time, "sleep", lambda _s: None):
-            with session:
-                session.record_action(action=action_one)
-                session.record_action(action=action_two)
-
-                # Prime the reset dispatch to drop — this is the
-                # expected shape.
-                session._run_cmd_exception_sequence = [ConnectionError("dropped")]
-
-                # Before-reboot reconnect count is zero.
-                self.assertEqual(session.reconnect_count, 0)
-
-                session.reboot()
-
-                self.assertEqual(invocations, ["cd FS0:", "map -r"])
-                self.assertEqual(session.reconnect_count, 1)
-                # Reconnect produced a second client.
-                self.assertGreaterEqual(len(_factory_clients), 2)
-
+    def action_one() -> None:
+        invocations.append("cd FS0:")
         return
 
-    def test_replay_action_failure_raises_uefi_error(self) -> None:
-        """
-            A replay action that raises must surface as
-            :class:`UefiError` with the ``action_index`` in details and
-            the original exception chained via ``__cause__``.
-        """
-        session = _make_session()
-
-        class _ReplayBoom(RuntimeError):
-            pass
-
-        def action_bad() -> None:
-            raise _ReplayBoom("replay failed")
-
-        session.record_action(action=action_bad)
-
-        raised: Optional[BaseException] = None
-        try:
-            session._replay_recorded_actions()
-        except UefiError as uerr:
-            raised = uerr
-
-        self.assertIsNotNone(raised)
-        self.assertIsInstance(raised, UefiError)
-        self.assertIsInstance(raised.__cause__, _ReplayBoom)
-        detail_text = "\n".join(raised.details)
-        self.assertIn("ACTION_INDEX: 0", detail_text)
+    def action_two() -> None:
+        invocations.append("map -r")
         return
+
+    # Skip the grace-period and polling waits so the test runs
+    # without sleeping.
+    with patch.object(uefisession.time, "sleep", lambda _s: None):
+        with session:
+            session.record_action(action=action_one)
+            session.record_action(action=action_two)
+
+            # Prime the reset dispatch to drop — this is the
+            # expected shape.
+            session._run_cmd_exception_sequence = [ConnectionError("dropped")]
+
+            # Before-reboot reconnect count is zero.
+            testbase.assert_equal(session.reconnect_count, 0)
+
+            session.reboot()
+
+            testbase.assert_equal(invocations, ["cd FS0:", "map -r"])
+            testbase.assert_equal(session.reconnect_count, 1)
+            # Reconnect produced a second client.
+            testbase.assert_true(len(_factory_clients) >= 2)
+
+    return
+
+def test_replay_action_failure_raises_uefi_error() -> None:
+    """
+        A replay action that raises must surface as
+        :class:`UefiError` with the ``action_index`` in details and
+        the original exception chained via ``__cause__``.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_replay(ctx)
+    session = _make_session()
+
+    class _ReplayBoom(RuntimeError):
+        pass
+
+    def action_bad() -> None:
+        raise _ReplayBoom("replay failed")
+
+    session.record_action(action=action_bad)
+
+    raised: Optional[BaseException] = None
+    try:
+        session._replay_recorded_actions()
+    except UefiError as uerr:
+        raised = uerr
+
+    testbase.assert_true(raised is not None)
+    testbase.assert_true(isinstance(raised, UefiError))
+    testbase.assert_true(isinstance(raised.__cause__, _ReplayBoom))
+    detail_text = "\n".join(raised.details)
+    testbase.assert_true("ACTION_INDEX: 0" in detail_text)
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -696,135 +726,146 @@ class TestUefiSessionReplay(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestUefiSessionBasisCloning(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestUefiSessionBasisCloning
+# ----------------------------------------------------------------------
+
+"""
+    Verify that ``basis_session`` cloning inherits connection
+    parameters and reuses the upstream :class:`UefiClient`.
+"""
+
+def _setup_uefi_session_basis_cloning(ctx) -> None:
+    _factory_clients.clear()
+    return
+
+def test_basis_inherits_connection_fields() -> None:
     """
-        Verify that ``basis_session`` cloning inherits connection
-        parameters and reuses the upstream :class:`UefiClient`.
+        A derived session inherits host, transport kind, credential,
+        users, jump, called_id, and ssh_agent from the basis.
     """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_basis_cloning(ctx)
+    primary = object()
+    users = {"admin": object()}
+    jump = object()
 
-    def setUp(self) -> None:
-        _factory_clients.clear()
+    basis = UefiSession(
+        host="10.0.0.9",
+        primary_credential=primary,
+        transport_kind="ssh-host",
+        users=users,
+        jump=jump,
+        called_id="server-A",
+        ssh_agent=object(),
+    )
+
+    # NOTE: Because _StubUefiBase demands both host and credential be
+    # passed through, the derived session explicitly passes None to
+    # trigger basis fall-through.
+    derived = UefiSession(
+        host=None,  # type: ignore[arg-type]
+        primary_credential=None,
+        transport_kind=None,  # type: ignore[arg-type]
+        basis_session=basis,
+    )
+
+    testbase.assert_equal(derived._host, "10.0.0.9")
+    testbase.assert_true(derived._primary_credential is primary)
+    testbase.assert_equal(derived._transport_kind, "ssh-host")
+    testbase.assert_true(derived._users is users)
+    testbase.assert_true(derived._jump is jump)
+    testbase.assert_equal(derived._called_id, "server-A")
+    testbase.assert_true(derived._ssh_agent is basis._ssh_agent)
+    return
+
+def test_basis_replay_actions_seeded() -> None:
+    """
+        The derived session starts with a copy of the basis's
+        replay actions.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_basis_cloning(ctx)
+    basis = _make_session()
+
+    def action() -> None:
         return
 
-    def test_basis_inherits_connection_fields(self) -> None:
-        """
-            A derived session inherits host, transport kind, credential,
-            users, jump, called_id, and ssh_agent from the basis.
-        """
-        primary = object()
-        users = {"admin": object()}
-        jump = object()
+    basis.record_action(action=action)
 
-        basis = UefiSession(
-            host="10.0.0.9",
-            primary_credential=primary,
-            transport_kind="ssh-host",
-            users=users,
-            jump=jump,
-            called_id="server-A",
-            ssh_agent=object(),
-        )
+    derived = UefiSession(
+        host=None,  # type: ignore[arg-type]
+        primary_credential=None,
+        transport_kind=None,  # type: ignore[arg-type]
+        basis_session=basis,
+    )
 
-        # NOTE: Because _StubUefiBase demands both host and credential be
-        # passed through, the derived session explicitly passes None to
-        # trigger basis fall-through.
+    testbase.assert_equal(len(derived._replay_actions), 1)
+    # A new list reference — derived mutation must not touch basis.
+    testbase.assert_true(derived._replay_actions is not basis._replay_actions)
+    return
+
+def test_derived_session_reuses_basis_client() -> None:
+    """
+        When the derived session is entered, it reuses the basis
+        session's client rather than building a fresh one.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_basis_cloning(ctx)
+    aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
+    basis = _make_session(aspects=aspects)
+
+    with basis:
+        basis_client = basis._client
         derived = UefiSession(
             host=None,  # type: ignore[arg-type]
             primary_credential=None,
             transport_kind=None,  # type: ignore[arg-type]
+            aspects=aspects,
             basis_session=basis,
         )
 
-        self.assertEqual(derived._host, "10.0.0.9")
-        self.assertIs(derived._primary_credential, primary)
-        self.assertEqual(derived._transport_kind, "ssh-host")
-        self.assertIs(derived._users, users)
-        self.assertIs(derived._jump, jump)
-        self.assertEqual(derived._called_id, "server-A")
-        self.assertIs(derived._ssh_agent, basis._ssh_agent)
-        return
+        with derived:
+            testbase.assert_true(derived._client is basis_client)
+            # Derived still opened its own channel.
+            testbase.assert_true(derived._channel is not None)
+            testbase.assert_true(derived._channel is not basis._channel)
 
-    def test_basis_replay_actions_seeded(self) -> None:
-        """
-            The derived session starts with a copy of the basis's
-            replay actions.
-        """
-        basis = _make_session()
+        # Exiting derived must NOT close the basis client.
+        testbase.assert_equal(basis_client.closed_count, 0)
+        testbase.assert_true(basis_client.connected_flag)
 
-        def action() -> None:
-            return
+    # Basis's own __exit__ closes the owned client.
+    testbase.assert_equal(basis_client.closed_count, 1)
+    return
 
-        basis.record_action(action=action)
+def test_basis_with_released_client_raises_runtime_error() -> None:
+    """
+        When the basis session's client is ``None`` at the moment
+        the derived session tries to enter, ``RuntimeError`` is
+        raised.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_basis_cloning(ctx)
+    basis = _make_session()
+    # Basis never entered — its _client is None.
 
-        derived = UefiSession(
-            host=None,  # type: ignore[arg-type]
-            primary_credential=None,
-            transport_kind=None,  # type: ignore[arg-type]
-            basis_session=basis,
-        )
+    derived = UefiSession(
+        host=None,  # type: ignore[arg-type]
+        primary_credential=None,
+        transport_kind=None,  # type: ignore[arg-type]
+        basis_session=basis,
+    )
 
-        self.assertEqual(len(derived._replay_actions), 1)
-        # A new list reference — derived mutation must not touch basis.
-        self.assertIsNot(derived._replay_actions, basis._replay_actions)
-        return
+    raised: Optional[BaseException] = None
+    try:
+        derived.__enter__()
+    except RuntimeError as rerr:
+        raised = rerr
 
-    def test_derived_session_reuses_basis_client(self) -> None:
-        """
-            When the derived session is entered, it reuses the basis
-            session's client rather than building a fresh one.
-        """
-        aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
-        basis = _make_session(aspects=aspects)
-
-        with basis:
-            basis_client = basis._client
-            derived = UefiSession(
-                host=None,  # type: ignore[arg-type]
-                primary_credential=None,
-                transport_kind=None,  # type: ignore[arg-type]
-                aspects=aspects,
-                basis_session=basis,
-            )
-
-            with derived:
-                self.assertIs(derived._client, basis_client)
-                # Derived still opened its own channel.
-                self.assertIsNotNone(derived._channel)
-                self.assertIsNot(derived._channel, basis._channel)
-
-            # Exiting derived must NOT close the basis client.
-            self.assertEqual(basis_client.closed_count, 0)
-            self.assertTrue(basis_client.connected_flag)
-
-        # Basis's own __exit__ closes the owned client.
-        self.assertEqual(basis_client.closed_count, 1)
-        return
-
-    def test_basis_with_released_client_raises_runtime_error(self) -> None:
-        """
-            When the basis session's client is ``None`` at the moment
-            the derived session tries to enter, ``RuntimeError`` is
-            raised.
-        """
-        basis = _make_session()
-        # Basis never entered — its _client is None.
-
-        derived = UefiSession(
-            host=None,  # type: ignore[arg-type]
-            primary_credential=None,
-            transport_kind=None,  # type: ignore[arg-type]
-            basis_session=basis,
-        )
-
-        raised: Optional[BaseException] = None
-        try:
-            derived.__enter__()
-        except RuntimeError as rerr:
-            raised = rerr
-
-        self.assertIsNotNone(raised)
-        self.assertIsInstance(raised, RuntimeError)
-        return
+    testbase.assert_true(raised is not None)
+    testbase.assert_true(isinstance(raised, RuntimeError))
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -832,107 +873,113 @@ class TestUefiSessionBasisCloning(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestUefiSessionActionPatterns(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestUefiSessionActionPatterns
+# ----------------------------------------------------------------------
+
+"""
+    Verify session-only action-pattern semantics.
+"""
+
+def _setup_uefi_session_action_patterns(ctx) -> None:
+    _factory_clients.clear()
+    return
+
+def test_unsupported_patterns_raise_semantic_error() -> None:
     """
-        Verify session-only action-pattern semantics.
+        Each of :data:`SESSION_UNSUPPORTED_PATTERNS` must raise
+        :class:`SemanticError` at call time.
     """
-
-    def setUp(self) -> None:
-        _factory_clients.clear()
-        return
-
-    def test_unsupported_patterns_raise_semantic_error(self) -> None:
-        """
-            Each of :data:`SESSION_UNSUPPORTED_PATTERNS` must raise
-            :class:`SemanticError` at call time.
-        """
-        for pattern in SESSION_UNSUPPORTED_PATTERNS:
-            with self.subTest(pattern=pattern):
-                aspects = _make_aspects(action_pattern=pattern)
-                session = _make_session(aspects=aspects)
-
-                with session:
-                    raised: Optional[BaseException] = None
-                    try:
-                        session.run_cmd(command="echo Hello")
-                    except SemanticError as serr:
-                        raised = serr
-
-                    self.assertIsNotNone(raised)
-                    self.assertIsInstance(raised, SemanticError)
-        return
-
-    def test_do_until_connection_failure_surfaces_connection_error(self) -> None:
-        """
-            Under :data:`ActionPattern.DO_UNTIL_CONNECTION_FAILURE` a
-            mid-loop :class:`ConnectionError` is the intended exit
-            signal — it propagates to the caller, and the channel is
-            marked cleared so a subsequent call rebuilds it.
-        """
-        aspects = _make_aspects(
-            action_pattern=ActionPattern.DO_UNTIL_CONNECTION_FAILURE,
-            allowed_connection_exceptions=(ConnectionError,),
-        )
+    ctx = SimpleNamespace()
+    _setup_uefi_session_action_patterns(ctx)
+    for pattern in SESSION_UNSUPPORTED_PATTERNS:
+        aspects = _make_aspects(action_pattern=pattern)
         session = _make_session(aspects=aspects)
 
         with session:
-            session._run_cmd_exception_sequence = [ConnectionError("drop")]
-
-            raised: Optional[BaseException] = None
-            try:
-                session.run_cmd(command="tail -f logs")
-            except ConnectionError as cerr:
-                raised = cerr
-
-            self.assertIsNotNone(raised)
-            self.assertIsInstance(raised, ConnectionError)
-            # Channel reference cleared so the next call reopens it.
-            self.assertIsNone(session._channel)
-        return
-
-    def test_single_connected_call_attempts_one_reconnect_on_connection_error(self) -> None:
-        """
-            :data:`ActionPattern.SINGLE_CONNECTED_CALL` attempts exactly
-            one reconnect on :class:`ConnectionError` and then
-            re-raises the original exception.  A successful reconnect
-            increments ``reconnect_count``.
-        """
-        aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
-        session = _make_session(aspects=aspects)
-
-        with session:
-            session._run_cmd_exception_sequence = [ConnectionError("single drop")]
-            initial_client = session._client
-
             raised: Optional[BaseException] = None
             try:
                 session.run_cmd(command="echo Hello")
-            except ConnectionError as cerr:
-                raised = cerr
+            except SemanticError as serr:
+                raised = serr
 
-            self.assertIsNotNone(raised)
-            self.assertIsInstance(raised, ConnectionError)
-            # Single reconnect attempted -> new client built.
-            self.assertEqual(session.reconnect_count, 1)
-            self.assertIsNotNone(session._client)
-            self.assertIsNot(session._client, initial_client)
-        return
+            testbase.assert_true(raised is not None)
+            testbase.assert_true(isinstance(raised, SemanticError))
+    return
 
-    def test_supported_pattern_list_is_correct(self) -> None:
-        """
-            The module-level constant exposes exactly the two
-            session-supported patterns.
-        """
-        self.assertIn(ActionPattern.SINGLE_CONNECTED_CALL, SESSION_SUPPORTED_PATTERNS)
-        self.assertIn(ActionPattern.DO_UNTIL_CONNECTION_FAILURE, SESSION_SUPPORTED_PATTERNS)
-        self.assertEqual(len(SESSION_SUPPORTED_PATTERNS), 2)
-        return
+def test_do_until_connection_failure_surfaces_connection_error() -> None:
+    """
+        Under :data:`ActionPattern.DO_UNTIL_CONNECTION_FAILURE` a
+        mid-loop :class:`ConnectionError` is the intended exit
+        signal — it propagates to the caller, and the channel is
+        marked cleared so a subsequent call rebuilds it.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_action_patterns(ctx)
+    aspects = _make_aspects(
+        action_pattern=ActionPattern.DO_UNTIL_CONNECTION_FAILURE,
+        allowed_connection_exceptions=(ConnectionError,),
+    )
+    session = _make_session(aspects=aspects)
+
+    with session:
+        session._run_cmd_exception_sequence = [ConnectionError("drop")]
+
+        raised: Optional[BaseException] = None
+        try:
+            session.run_cmd(command="tail -f logs")
+        except ConnectionError as cerr:
+            raised = cerr
+
+        testbase.assert_true(raised is not None)
+        testbase.assert_true(isinstance(raised, ConnectionError))
+        # Channel reference cleared so the next call reopens it.
+        testbase.assert_true(session._channel is None)
+    return
+
+def test_single_connected_call_attempts_one_reconnect_on_connection_error() -> None:
+    """
+        :data:`ActionPattern.SINGLE_CONNECTED_CALL` attempts exactly
+        one reconnect on :class:`ConnectionError` and then
+        re-raises the original exception.  A successful reconnect
+        increments ``reconnect_count``.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_action_patterns(ctx)
+    aspects = _make_aspects(action_pattern=ActionPattern.SINGLE_CONNECTED_CALL)
+    session = _make_session(aspects=aspects)
+
+    with session:
+        session._run_cmd_exception_sequence = [ConnectionError("single drop")]
+        initial_client = session._client
+
+        raised: Optional[BaseException] = None
+        try:
+            session.run_cmd(command="echo Hello")
+        except ConnectionError as cerr:
+            raised = cerr
+
+        testbase.assert_true(raised is not None)
+        testbase.assert_true(isinstance(raised, ConnectionError))
+        # Single reconnect attempted -> new client built.
+        testbase.assert_equal(session.reconnect_count, 1)
+        testbase.assert_true(session._client is not None)
+        testbase.assert_true(session._client is not initial_client)
+    return
+
+def test_supported_pattern_list_is_correct() -> None:
+    """
+        The module-level constant exposes exactly the two
+        session-supported patterns.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_session_action_patterns(ctx)
+    testbase.assert_true(ActionPattern.SINGLE_CONNECTED_CALL in SESSION_SUPPORTED_PATTERNS)
+    testbase.assert_true(ActionPattern.DO_UNTIL_CONNECTION_FAILURE in SESSION_SUPPORTED_PATTERNS)
+    testbase.assert_equal(len(SESSION_SUPPORTED_PATTERNS), 2)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -14,9 +14,11 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+import contextlib
+from ccai import testbase
+
 import logging
 import re
-import unittest
 
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -41,6 +43,59 @@ from ccai.protocols.uefi.uefichannel import (
 # ---------------------------------------------------------------------------
 # Streaming-transport stubs
 # ---------------------------------------------------------------------------
+
+class _CapturedLogs:
+    """
+        Holds the records collected by :func:`_capture_logs`.
+
+        :ivar output: Formatted "LEVEL:name:message" strings, the same
+                      shape unittest's assertLogs produced, so the
+                      assertions that consume it are unchanged.
+    """
+
+    def __init__(self) -> None:
+        self.records = []
+        self.output = []
+        return
+
+
+@contextlib.contextmanager
+def _capture_logs(logger: str, level: int):
+    """
+        Capture records emitted to a logger, replacing assertLogs.
+
+        testbase has no assertLogs equivalent, so this reproduces the
+        part of it these tests rely on: the records emitted inside the
+        block, exposed as 'output' once the block exits.
+
+        :param logger: Name of the logger to capture.
+        :param level: Minimum level to record.
+
+        :returns: A :class:`_CapturedLogs` populated on exit.
+    """
+    target = logging.getLogger(logger)
+    captured = _CapturedLogs()
+
+    class _Collector(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            captured.records.append(record)
+            return
+
+    handler = _Collector(level=level)
+    prior_level = target.level
+    target.addHandler(handler)
+    target.setLevel(level)
+
+    try:
+        yield captured
+    finally:
+        target.removeHandler(handler)
+        target.setLevel(prior_level)
+        captured.output = [
+            "{}:{}:{}".format(rec.levelname, rec.name, rec.getMessage())
+            for rec in captured.records
+        ]
+
 
 class _StreamingStub:
     """
@@ -215,493 +270,504 @@ class _SshHostStub:
 # UefiChannel (abstract base) tests
 # ---------------------------------------------------------------------------
 
-class UefiChannelAbstractTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiChannelAbstractTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise the abstract-method surface of :class:`UefiChannel`
+    itself.  Every byte-pipe method on the base must raise
+    :class:`AbstractMethodError`.
+"""
+
+def test_send_raises_abstract_method_error() -> None:
     """
-        Exercise the abstract-method surface of :class:`UefiChannel`
-        itself.  Every byte-pipe method on the base must raise
-        :class:`AbstractMethodError`.
+        Base ``send`` must raise :class:`AbstractMethodError`.
     """
+    transport = _StreamingStub()
+    channel = UefiChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(AbstractMethodError):
+        channel.send(data=b"hello")
+    return
 
-    def test_send_raises_abstract_method_error(self) -> None:
-        """
-            Base ``send`` must raise :class:`AbstractMethodError`.
-        """
-        transport = _StreamingStub()
-        channel = UefiChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        with self.assertRaises(AbstractMethodError):
-            channel.send(data=b"hello")
-        return
+def test_recv_raises_abstract_method_error() -> None:
+    """
+        Base ``recv`` must raise :class:`AbstractMethodError`.
+    """
+    transport = _StreamingStub()
+    channel = UefiChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(AbstractMethodError):
+        channel.recv(max_bytes=16, timeout=0.1)
+    return
 
-    def test_recv_raises_abstract_method_error(self) -> None:
-        """
-            Base ``recv`` must raise :class:`AbstractMethodError`.
-        """
-        transport = _StreamingStub()
-        channel = UefiChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        with self.assertRaises(AbstractMethodError):
-            channel.recv(max_bytes=16, timeout=0.1)
-        return
+def test_recv_until_raises_abstract_method_error() -> None:
+    """
+        Base ``recv_until`` must raise :class:`AbstractMethodError`.
+    """
+    transport = _StreamingStub()
+    channel = UefiChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(AbstractMethodError):
+        channel.recv_until(pattern=b"Shell> ", timeout=0.1)
+    return
 
-    def test_recv_until_raises_abstract_method_error(self) -> None:
-        """
-            Base ``recv_until`` must raise :class:`AbstractMethodError`.
-        """
-        transport = _StreamingStub()
-        channel = UefiChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        with self.assertRaises(AbstractMethodError):
-            channel.recv_until(pattern=b"Shell> ", timeout=0.1)
-        return
+def test_close_raises_abstract_method_error() -> None:
+    """
+        Base ``close`` must raise :class:`AbstractMethodError`.
+    """
+    transport = _StreamingStub()
+    channel = UefiChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(AbstractMethodError):
+        channel.close()
+    return
 
-    def test_close_raises_abstract_method_error(self) -> None:
-        """
-            Base ``close`` must raise :class:`AbstractMethodError`.
-        """
-        transport = _StreamingStub()
-        channel = UefiChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        with self.assertRaises(AbstractMethodError):
-            channel.close()
-        return
+def test_none_transport_rejected() -> None:
+    """
+        Constructing a channel with a ``None`` transport must raise
+        :class:`ConfigurationError`.
+    """
+    with testbase.raises(ConfigurationError):
+        UefiChannel(transport=None, aspects=DEFAULT_CMD_ASPECTS)
+    return
 
-    def test_none_transport_rejected(self) -> None:
-        """
-            Constructing a channel with a ``None`` transport must raise
-            :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            UefiChannel(transport=None, aspects=DEFAULT_CMD_ASPECTS)
-        return
-
-    def test_bad_aspects_rejected(self) -> None:
-        """
-            Constructing a channel with a non-:class:`UefiCmdAspects`
-            ``aspects`` must raise :class:`ConfigurationError`.
-        """
-        transport = _StreamingStub()
-        with self.assertRaises(ConfigurationError):
-            UefiChannel(transport=transport, aspects="not-aspects")  # type: ignore[arg-type]
-        return
+def test_bad_aspects_rejected() -> None:
+    """
+        Constructing a channel with a non-:class:`UefiCmdAspects`
+        ``aspects`` must raise :class:`ConfigurationError`.
+    """
+    transport = _StreamingStub()
+    with testbase.raises(ConfigurationError):
+        UefiChannel(transport=transport, aspects="not-aspects")  # type: ignore[arg-type]
+    return
 
 
 # ---------------------------------------------------------------------------
 # UefiShellChannel tests
 # ---------------------------------------------------------------------------
 
-class UefiShellChannelTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiShellChannelTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise the pass-through semantics of :class:`UefiShellChannel`
+    and its close-never-raises contract.
+"""
+
+def test_send_delegates_to_transport() -> None:
     """
-        Exercise the pass-through semantics of :class:`UefiShellChannel`
-        and its close-never-raises contract.
+        ``send`` must forward bytes to the transport and return the
+        byte count reported by the transport.
     """
+    transport = _StreamingStub()
+    channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_send_delegates_to_transport(self) -> None:
-        """
-            ``send`` must forward bytes to the transport and return the
-            byte count reported by the transport.
-        """
-        transport = _StreamingStub()
-        channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    written = channel.send(data=b"ver\r\n")
 
-        written = channel.send(data=b"ver\r\n")
+    testbase.assert_equal(written, 5)
+    testbase.assert_equal(len(transport.sent), 1)
+    testbase.assert_equal(transport.sent[0], b"ver\r\n")
+    return
 
-        self.assertEqual(written, 5)
-        self.assertEqual(len(transport.sent), 1)
-        self.assertEqual(transport.sent[0], b"ver\r\n")
-        return
+def test_recv_delegates_to_transport() -> None:
+    """
+        ``recv`` must forward its arguments to the transport and
+        return the transport's response verbatim.
+    """
+    transport = _StreamingStub()
+    transport.canned_recv = b"UEFI Shell> "
+    channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_recv_delegates_to_transport(self) -> None:
-        """
-            ``recv`` must forward its arguments to the transport and
-            return the transport's response verbatim.
-        """
-        transport = _StreamingStub()
-        transport.canned_recv = b"UEFI Shell> "
-        channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    chunk = channel.recv(max_bytes=64, timeout=0.5)
 
-        chunk = channel.recv(max_bytes=64, timeout=0.5)
+    testbase.assert_equal(chunk, b"UEFI Shell> ")
+    testbase.assert_equal(len(transport.recv_calls), 1)
+    recorded_max_bytes, recorded_timeout = transport.recv_calls[0]
+    testbase.assert_equal(recorded_max_bytes, 64)
+    testbase.assert_equal(recorded_timeout, 0.5)
+    return
 
-        self.assertEqual(chunk, b"UEFI Shell> ")
-        self.assertEqual(len(transport.recv_calls), 1)
-        recorded_max_bytes, recorded_timeout = transport.recv_calls[0]
-        self.assertEqual(recorded_max_bytes, 64)
-        self.assertEqual(recorded_timeout, 0.5)
-        return
+def test_recv_until_delegates_to_transport() -> None:
+    """
+        ``recv_until`` must forward its arguments to the transport
+        and return the transport's response verbatim.
+    """
+    transport = _StreamingStub()
+    transport.canned_recv_until = b"hello\r\nShell> "
+    channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_recv_until_delegates_to_transport(self) -> None:
-        """
-            ``recv_until`` must forward its arguments to the transport
-            and return the transport's response verbatim.
-        """
-        transport = _StreamingStub()
-        transport.canned_recv_until = b"hello\r\nShell> "
-        channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    pattern = re.compile(rb"Shell>\s*")
+    collected = channel.recv_until(pattern=pattern, timeout=1.0)
 
-        pattern = re.compile(rb"Shell>\s*")
-        collected = channel.recv_until(pattern=pattern, timeout=1.0)
+    testbase.assert_equal(collected, b"hello\r\nShell> ")
+    testbase.assert_equal(len(transport.recv_until_calls), 1)
+    recorded_pattern, recorded_timeout = transport.recv_until_calls[0]
+    testbase.assert_true(recorded_pattern is pattern)
+    testbase.assert_equal(recorded_timeout, 1.0)
+    return
 
-        self.assertEqual(collected, b"hello\r\nShell> ")
-        self.assertEqual(len(transport.recv_until_calls), 1)
-        recorded_pattern, recorded_timeout = transport.recv_until_calls[0]
-        self.assertIs(recorded_pattern, pattern)
-        self.assertEqual(recorded_timeout, 1.0)
-        return
+def test_send_on_closed_channel_raises() -> None:
+    """
+        ``send`` on a closed channel must raise
+        :class:`ConnectionError`.
+    """
+    transport = _StreamingStub()
+    channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    channel.close()
 
-    def test_send_on_closed_channel_raises(self) -> None:
-        """
-            ``send`` on a closed channel must raise
-            :class:`ConnectionError`.
-        """
-        transport = _StreamingStub()
-        channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(ConnectionError):
+        channel.send(data=b"ver\r\n")
+    return
+
+def test_close_marks_closed_and_does_not_disconnect_transport() -> None:
+    """
+        ``close`` must mark the channel closed and MUST NOT call
+        ``transport.disconnect`` — transport lifecycle is owned by a
+        higher layer.
+    """
+    transport = _StreamingStub()
+    channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+
+    testbase.assert_false(channel.closed)
+    channel.close()
+    testbase.assert_true(channel.closed)
+    testbase.assert_equal(transport.disconnect_count, 0)
+    return
+
+def test_close_is_idempotent() -> None:
+    """
+        Subsequent ``close`` calls must be no-ops.
+    """
+    transport = _StreamingStub()
+    channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+
+    channel.close()
+    channel.close()
+    channel.close()
+    testbase.assert_true(channel.closed)
+    testbase.assert_equal(transport.disconnect_count, 0)
+    return
+
+def test_close_never_raises_and_logs_warning_on_failure() -> None:
+    """
+        ``close`` must not raise even when an underlying clean-up
+        action fails; it must log at WARNING under ``uefi.transport``.
+
+        The current :class:`UefiShellChannel` implementation does not
+        invoke the transport's ``disconnect`` during close, so we
+        simulate a failure by monkey-patching the channel's
+        ``_logger`` and then invoking ``close`` on a channel whose
+        transport is the :class:`_FailingStub`.  The guard here is
+        the contract — ``close`` must not raise regardless of
+        underlying state.
+    """
+    transport = _FailingStub()
+    channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+
+    with _capture_logs(logger="uefi.transport", level=logging.WARNING) as ctx:
+        # Prime the logger so assertLogs records at least one line
+        # even when the happy-path close produces no WARNING.  This
+        # lets us assert the overall close-never-raises contract
+        # cleanly while still exercising the _FailingStub wiring.
+        channel._logger.warning("uefi.transport: test harness primer channel=%s",
+                                channel.channel_id)
         channel.close()
 
-        with self.assertRaises(ConnectionError):
-            channel.send(data=b"ver\r\n")
-        return
-
-    def test_close_marks_closed_and_does_not_disconnect_transport(self) -> None:
-        """
-            ``close`` must mark the channel closed and MUST NOT call
-            ``transport.disconnect`` — transport lifecycle is owned by a
-            higher layer.
-        """
-        transport = _StreamingStub()
-        channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-
-        self.assertFalse(channel.closed)
-        channel.close()
-        self.assertTrue(channel.closed)
-        self.assertEqual(transport.disconnect_count, 0)
-        return
-
-    def test_close_is_idempotent(self) -> None:
-        """
-            Subsequent ``close`` calls must be no-ops.
-        """
-        transport = _StreamingStub()
-        channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-
-        channel.close()
-        channel.close()
-        channel.close()
-        self.assertTrue(channel.closed)
-        self.assertEqual(transport.disconnect_count, 0)
-        return
-
-    def test_close_never_raises_and_logs_warning_on_failure(self) -> None:
-        """
-            ``close`` must not raise even when an underlying clean-up
-            action fails; it must log at WARNING under ``uefi.transport``.
-
-            The current :class:`UefiShellChannel` implementation does not
-            invoke the transport's ``disconnect`` during close, so we
-            simulate a failure by monkey-patching the channel's
-            ``_logger`` and then invoking ``close`` on a channel whose
-            transport is the :class:`_FailingStub`.  The guard here is
-            the contract — ``close`` must not raise regardless of
-            underlying state.
-        """
-        transport = _FailingStub()
-        channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-
-        with self.assertLogs(logger="uefi.transport", level=logging.WARNING) as ctx:
-            # Prime the logger so assertLogs records at least one line
-            # even when the happy-path close produces no WARNING.  This
-            # lets us assert the overall close-never-raises contract
-            # cleanly while still exercising the _FailingStub wiring.
-            channel._logger.warning("uefi.transport: test harness primer channel=%s",
-                                    channel.channel_id)
-            channel.close()
-
-        self.assertTrue(channel.closed)
-        self.assertEqual(transport.disconnect_count, 0)  # transport lifecycle NOT touched
-        self.assertTrue(any("uefi.transport" in line for line in ctx.output))
-        return
+    testbase.assert_true(channel.closed)
+    testbase.assert_equal(transport.disconnect_count, 0)  # transport lifecycle NOT touched
+    testbase.assert_true(any("uefi.transport" in line for line in ctx.output))
+    return
 
 
 # ---------------------------------------------------------------------------
 # UefiRedfishChannel tests
 # ---------------------------------------------------------------------------
 
-class UefiRedfishChannelTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiRedfishChannelTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise the HTTP-facade behavior of :class:`UefiRedfishChannel`
+    and its byte-pipe-unsupported contract.
+"""
+
+def test_send_raises_semantic_error() -> None:
     """
-        Exercise the HTTP-facade behavior of :class:`UefiRedfishChannel`
-        and its byte-pipe-unsupported contract.
+        ``send`` must raise :class:`SemanticError`.
     """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_send_raises_semantic_error(self) -> None:
-        """
-            ``send`` must raise :class:`SemanticError`.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(SemanticError):
+        channel.send(data=b"payload")
+    return
 
-        with self.assertRaises(SemanticError):
-            channel.send(data=b"payload")
-        return
+def test_recv_raises_semantic_error() -> None:
+    """
+        ``recv`` must raise :class:`SemanticError`.
+    """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_recv_raises_semantic_error(self) -> None:
-        """
-            ``recv`` must raise :class:`SemanticError`.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(SemanticError):
+        channel.recv(max_bytes=32, timeout=1.0)
+    return
 
-        with self.assertRaises(SemanticError):
-            channel.recv(max_bytes=32, timeout=1.0)
-        return
+def test_recv_until_raises_semantic_error() -> None:
+    """
+        ``recv_until`` must raise :class:`SemanticError`.
+    """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_recv_until_raises_semantic_error(self) -> None:
-        """
-            ``recv_until`` must raise :class:`SemanticError`.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(SemanticError):
+        channel.recv_until(pattern=b"Shell> ", timeout=1.0)
+    return
 
-        with self.assertRaises(SemanticError):
-            channel.recv_until(pattern=b"Shell> ", timeout=1.0)
-        return
+def test_get_delegates_to_transport() -> None:
+    """
+        ``get`` must forward to the wrapped transport's ``get``.
+    """
+    transport = _RedfishStub()
+    transport.canned_body = {"Name": "BMC"}
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_get_delegates_to_transport(self) -> None:
-        """
-            ``get`` must forward to the wrapped transport's ``get``.
-        """
-        transport = _RedfishStub()
-        transport.canned_body = {"Name": "BMC"}
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    body = channel.get(path="/redfish/v1/Managers/BMC")
 
-        body = channel.get(path="/redfish/v1/Managers/BMC")
+    testbase.assert_equal(body, {"Name": "BMC"})
+    testbase.assert_equal(len(transport.get_calls), 1)
+    recorded_path, recorded_aspects = transport.get_calls[0]
+    testbase.assert_equal(recorded_path, "/redfish/v1/Managers/BMC")
+    testbase.assert_true(recorded_aspects is DEFAULT_CMD_ASPECTS)
+    return
 
-        self.assertEqual(body, {"Name": "BMC"})
-        self.assertEqual(len(transport.get_calls), 1)
-        recorded_path, recorded_aspects = transport.get_calls[0]
-        self.assertEqual(recorded_path, "/redfish/v1/Managers/BMC")
-        self.assertIs(recorded_aspects, DEFAULT_CMD_ASPECTS)
-        return
+def test_post_delegates_to_transport() -> None:
+    """
+        ``post`` must forward to the wrapped transport's ``post``.
+    """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_post_delegates_to_transport(self) -> None:
-        """
-            ``post`` must forward to the wrapped transport's ``post``.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    channel.post(path="/redfish/v1/Actions/Reset", body={"ResetType": "GracefulRestart"})
 
-        channel.post(path="/redfish/v1/Actions/Reset", body={"ResetType": "GracefulRestart"})
+    testbase.assert_equal(len(transport.post_calls), 1)
+    recorded_path, recorded_body, recorded_aspects = transport.post_calls[0]
+    testbase.assert_equal(recorded_path, "/redfish/v1/Actions/Reset")
+    testbase.assert_equal(recorded_body, {"ResetType": "GracefulRestart"})
+    testbase.assert_true(recorded_aspects is DEFAULT_CMD_ASPECTS)
+    return
 
-        self.assertEqual(len(transport.post_calls), 1)
-        recorded_path, recorded_body, recorded_aspects = transport.post_calls[0]
-        self.assertEqual(recorded_path, "/redfish/v1/Actions/Reset")
-        self.assertEqual(recorded_body, {"ResetType": "GracefulRestart"})
-        self.assertIs(recorded_aspects, DEFAULT_CMD_ASPECTS)
-        return
+def test_patch_delegates_to_transport() -> None:
+    """
+        ``patch`` must forward to the wrapped transport's ``patch``.
+    """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_patch_delegates_to_transport(self) -> None:
-        """
-            ``patch`` must forward to the wrapped transport's ``patch``.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    channel.patch(path="/redfish/v1/Systems/Self", body={"AssetTag": "tag"})
 
-        channel.patch(path="/redfish/v1/Systems/Self", body={"AssetTag": "tag"})
+    testbase.assert_equal(len(transport.patch_calls), 1)
+    recorded_path, recorded_body, _recorded_aspects = transport.patch_calls[0]
+    testbase.assert_equal(recorded_path, "/redfish/v1/Systems/Self")
+    testbase.assert_equal(recorded_body, {"AssetTag": "tag"})
+    return
 
-        self.assertEqual(len(transport.patch_calls), 1)
-        recorded_path, recorded_body, _recorded_aspects = transport.patch_calls[0]
-        self.assertEqual(recorded_path, "/redfish/v1/Systems/Self")
-        self.assertEqual(recorded_body, {"AssetTag": "tag"})
-        return
+def test_delete_delegates_to_transport() -> None:
+    """
+        ``delete`` must forward to the wrapped transport's ``delete``.
+    """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_delete_delegates_to_transport(self) -> None:
-        """
-            ``delete`` must forward to the wrapped transport's ``delete``.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    channel.delete(path="/redfish/v1/SessionService/Sessions/5")
 
-        channel.delete(path="/redfish/v1/SessionService/Sessions/5")
+    testbase.assert_equal(len(transport.delete_calls), 1)
+    recorded_path, _recorded_aspects = transport.delete_calls[0]
+    testbase.assert_equal(recorded_path, "/redfish/v1/SessionService/Sessions/5")
+    return
 
-        self.assertEqual(len(transport.delete_calls), 1)
-        recorded_path, _recorded_aspects = transport.delete_calls[0]
-        self.assertEqual(recorded_path, "/redfish/v1/SessionService/Sessions/5")
-        return
+def test_close_marks_closed_without_touching_transport() -> None:
+    """
+        ``close`` must mark the channel closed without touching the
+        transport, and must be idempotent.
+    """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_close_marks_closed_without_touching_transport(self) -> None:
-        """
-            ``close`` must mark the channel closed without touching the
-            transport, and must be idempotent.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    testbase.assert_false(channel.closed)
+    channel.close()
+    testbase.assert_true(channel.closed)
+    channel.close()
+    testbase.assert_true(channel.closed)
+    return
 
-        self.assertFalse(channel.closed)
-        channel.close()
-        self.assertTrue(channel.closed)
-        channel.close()
-        self.assertTrue(channel.closed)
-        return
+def test_get_on_closed_channel_raises() -> None:
+    """
+        ``get`` on a closed channel must raise
+        :class:`ConnectionError`.
+    """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    channel.close()
 
-    def test_get_on_closed_channel_raises(self) -> None:
-        """
-            ``get`` on a closed channel must raise
-            :class:`ConnectionError`.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        channel.close()
-
-        with self.assertRaises(ConnectionError):
-            channel.get(path="/redfish/v1/")
-        return
+    with testbase.raises(ConnectionError):
+        channel.get(path="/redfish/v1/")
+    return
 
 
 # ---------------------------------------------------------------------------
 # UefiHostOsChannel tests
 # ---------------------------------------------------------------------------
 
-class UefiHostOsChannelTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiHostOsChannelTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise the ``run_cmd`` facade behavior of
+    :class:`UefiHostOsChannel` and its byte-pipe-unsupported
+    contract.
+"""
+
+def test_send_raises_semantic_error_uefi_host_os_channel() -> None:
     """
-        Exercise the ``run_cmd`` facade behavior of
-        :class:`UefiHostOsChannel` and its byte-pipe-unsupported
-        contract.
+        ``send`` must raise :class:`SemanticError`.
     """
+    transport = _SshHostStub()
+    channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_send_raises_semantic_error(self) -> None:
-        """
-            ``send`` must raise :class:`SemanticError`.
-        """
-        transport = _SshHostStub()
-        channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(SemanticError):
+        channel.send(data=b"uname -a\n")
+    return
 
-        with self.assertRaises(SemanticError):
-            channel.send(data=b"uname -a\n")
-        return
+def test_recv_raises_semantic_error_uefi_host_os_channel() -> None:
+    """
+        ``recv`` must raise :class:`SemanticError`.
+    """
+    transport = _SshHostStub()
+    channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_recv_raises_semantic_error(self) -> None:
-        """
-            ``recv`` must raise :class:`SemanticError`.
-        """
-        transport = _SshHostStub()
-        channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(SemanticError):
+        channel.recv(max_bytes=64, timeout=1.0)
+    return
 
-        with self.assertRaises(SemanticError):
-            channel.recv(max_bytes=64, timeout=1.0)
-        return
+def test_recv_until_raises_semantic_error_2() -> None:
+    """
+        ``recv_until`` must raise :class:`SemanticError`.
+    """
+    transport = _SshHostStub()
+    channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_recv_until_raises_semantic_error(self) -> None:
-        """
-            ``recv_until`` must raise :class:`SemanticError`.
-        """
-        transport = _SshHostStub()
-        channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    with testbase.raises(SemanticError):
+        channel.recv_until(pattern=b"$ ", timeout=1.0)
+    return
 
-        with self.assertRaises(SemanticError):
-            channel.recv_until(pattern=b"$ ", timeout=1.0)
-        return
+def test_run_cmd_delegates_to_transport() -> None:
+    """
+        ``run_cmd`` must forward to the wrapped transport's
+        ``run_cmd`` and return its result tuple.
+    """
+    transport = _SshHostStub()
+    transport.canned_result = (0, "Linux\n", "")
+    channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_run_cmd_delegates_to_transport(self) -> None:
-        """
-            ``run_cmd`` must forward to the wrapped transport's
-            ``run_cmd`` and return its result tuple.
-        """
-        transport = _SshHostStub()
-        transport.canned_result = (0, "Linux\n", "")
-        channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    status, stdout, stderr = channel.run_cmd(command="uname -s")
 
-        status, stdout, stderr = channel.run_cmd(command="uname -s")
+    testbase.assert_equal(status, 0)
+    testbase.assert_equal(stdout, "Linux\n")
+    testbase.assert_equal(stderr, "")
+    testbase.assert_equal(len(transport.run_cmd_calls), 1)
+    recorded_command, recorded_as_root, recorded_aspects = transport.run_cmd_calls[0]
+    testbase.assert_equal(recorded_command, "uname -s")
+    testbase.assert_false(recorded_as_root)
+    testbase.assert_true(recorded_aspects is DEFAULT_CMD_ASPECTS)
+    return
 
-        self.assertEqual(status, 0)
-        self.assertEqual(stdout, "Linux\n")
-        self.assertEqual(stderr, "")
-        self.assertEqual(len(transport.run_cmd_calls), 1)
-        recorded_command, recorded_as_root, recorded_aspects = transport.run_cmd_calls[0]
-        self.assertEqual(recorded_command, "uname -s")
-        self.assertFalse(recorded_as_root)
-        self.assertIs(recorded_aspects, DEFAULT_CMD_ASPECTS)
-        return
+def test_run_cmd_passes_as_root_flag() -> None:
+    """
+        ``run_cmd`` must forward the ``as_root`` flag to the wrapped
+        transport.
+    """
+    transport = _SshHostStub()
+    channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_run_cmd_passes_as_root_flag(self) -> None:
-        """
-            ``run_cmd`` must forward the ``as_root`` flag to the wrapped
-            transport.
-        """
-        transport = _SshHostStub()
-        channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    channel.run_cmd(command="efibootmgr", as_root=True)
 
-        channel.run_cmd(command="efibootmgr", as_root=True)
+    testbase.assert_equal(len(transport.run_cmd_calls), 1)
+    _command, recorded_as_root, _aspects = transport.run_cmd_calls[0]
+    testbase.assert_true(recorded_as_root)
+    return
 
-        self.assertEqual(len(transport.run_cmd_calls), 1)
-        _command, recorded_as_root, _aspects = transport.run_cmd_calls[0]
-        self.assertTrue(recorded_as_root)
-        return
+def test_close_marks_closed_without_touching_transport_2() -> None:
+    """
+        ``close`` must mark the channel closed without invoking any
+        method on the transport.
+    """
+    transport = _SshHostStub()
+    channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
 
-    def test_close_marks_closed_without_touching_transport(self) -> None:
-        """
-            ``close`` must mark the channel closed without invoking any
-            method on the transport.
-        """
-        transport = _SshHostStub()
-        channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    testbase.assert_false(channel.closed)
+    channel.close()
+    testbase.assert_true(channel.closed)
+    testbase.assert_equal(len(transport.run_cmd_calls), 0)
+    return
 
-        self.assertFalse(channel.closed)
-        channel.close()
-        self.assertTrue(channel.closed)
-        self.assertEqual(len(transport.run_cmd_calls), 0)
-        return
+def test_run_cmd_on_closed_channel_raises() -> None:
+    """
+        ``run_cmd`` on a closed channel must raise
+        :class:`ConnectionError`.
+    """
+    transport = _SshHostStub()
+    channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    channel.close()
 
-    def test_run_cmd_on_closed_channel_raises(self) -> None:
-        """
-            ``run_cmd`` on a closed channel must raise
-            :class:`ConnectionError`.
-        """
-        transport = _SshHostStub()
-        channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        channel.close()
-
-        with self.assertRaises(ConnectionError):
-            channel.run_cmd(command="true")
-        return
+    with testbase.raises(ConnectionError):
+        channel.run_cmd(command="true")
+    return
 
 
 # ---------------------------------------------------------------------------
 # closed-property tests spanning all subclasses
 # ---------------------------------------------------------------------------
 
-class ClosedPropertyTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# ClosedPropertyTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify that the ``closed`` property reports ``False`` initially
+    and ``True`` after ``close`` for every concrete subclass.
+"""
+
+def test_shell_channel_closed_property() -> None:
     """
-        Verify that the ``closed`` property reports ``False`` initially
-        and ``True`` after ``close`` for every concrete subclass.
+        :class:`UefiShellChannel`.closed transitions ``False`` → ``True``.
     """
+    transport = _StreamingStub()
+    channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    testbase.assert_false(channel.closed)
+    channel.close()
+    testbase.assert_true(channel.closed)
+    return
 
-    def test_shell_channel_closed_property(self) -> None:
-        """
-            :class:`UefiShellChannel`.closed transitions ``False`` → ``True``.
-        """
-        transport = _StreamingStub()
-        channel = UefiShellChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        self.assertFalse(channel.closed)
-        channel.close()
-        self.assertTrue(channel.closed)
-        return
+def test_redfish_channel_closed_property() -> None:
+    """
+        :class:`UefiRedfishChannel`.closed transitions ``False`` → ``True``.
+    """
+    transport = _RedfishStub()
+    channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    testbase.assert_false(channel.closed)
+    channel.close()
+    testbase.assert_true(channel.closed)
+    return
 
-    def test_redfish_channel_closed_property(self) -> None:
-        """
-            :class:`UefiRedfishChannel`.closed transitions ``False`` → ``True``.
-        """
-        transport = _RedfishStub()
-        channel = UefiRedfishChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        self.assertFalse(channel.closed)
-        channel.close()
-        self.assertTrue(channel.closed)
-        return
-
-    def test_host_os_channel_closed_property(self) -> None:
-        """
-            :class:`UefiHostOsChannel`.closed transitions ``False`` → ``True``.
-        """
-        transport = _SshHostStub()
-        channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
-        self.assertFalse(channel.closed)
-        channel.close()
-        self.assertTrue(channel.closed)
-        return
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_host_os_channel_closed_property() -> None:
+    """
+        :class:`UefiHostOsChannel`.closed transitions ``False`` → ``True``.
+    """
+    transport = _SshHostStub()
+    channel = UefiHostOsChannel(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
+    testbase.assert_false(channel.closed)
+    channel.close()
+    testbase.assert_true(channel.closed)
+    return

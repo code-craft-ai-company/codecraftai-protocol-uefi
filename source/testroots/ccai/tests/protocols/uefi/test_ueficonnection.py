@@ -18,7 +18,10 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+
+import logging
+import contextlib
+from ccai import testbase
 
 from typing import List, Optional
 
@@ -42,6 +45,58 @@ from ccai.protocols.uefi.ueficonnection import (
 # ---------------------------------------------------------------------------
 # Stub transport
 # ---------------------------------------------------------------------------
+
+class _CapturedLogs:
+    """
+        Holds the records collected by :func:`_capture_logs`.
+
+        :ivar output: Formatted "LEVEL:name:message" strings, the same
+                      shape unittest's assertLogs produced, so the
+                      assertions that consume it are unchanged.
+    """
+
+    def __init__(self) -> None:
+        self.records = []
+        self.output = []
+        return
+
+
+@contextlib.contextmanager
+def _capture_logs(logger: str, level: int):
+    """
+        Capture records emitted to a logger, replacing assertLogs.
+
+        testbase has no assertLogs equivalent, so this reproduces the
+        part of it these tests rely on: the records emitted inside the
+        block, exposed as 'output' once the block exits.
+
+        :param logger: Name of the logger to capture.
+        :param level: Minimum level to record.
+
+        :returns: A :class:`_CapturedLogs` populated on exit.
+    """
+    target = logging.getLogger(logger)
+    captured = _CapturedLogs()
+
+    class _Collector(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            captured.records.append(record)
+            return
+
+    handler = _Collector(level=level)
+    prior_level = target.level
+    target.addHandler(handler)
+    target.setLevel(level)
+
+    try:
+        yield captured
+    finally:
+        target.removeHandler(handler)
+        target.setLevel(prior_level)
+        captured.output = [
+            "{}:{}:{}".format(rec.levelname, rec.name, rec.getMessage())
+            for rec in captured.records
+        ]
 
 class _StubTransport:
     """
@@ -159,331 +214,342 @@ def _build_aspects(connection_timeout: float = 1.0,
 # Construction and validation
 # ---------------------------------------------------------------------------
 
-class ConstructionTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# ConstructionTests
+# ----------------------------------------------------------------------
+
+"""
+    Construction-time validation: non-``IUefiTransport`` arguments must
+    raise :class:`ConfigurationError` with a descriptive message.
+"""
+
+def test_reconnect_count_starts_at_zero() -> None:
     """
-        Construction-time validation: non-``IUefiTransport`` arguments must
-        raise :class:`ConfigurationError` with a descriptive message.
+        A freshly-constructed :class:`UefiConnection` has
+        ``reconnect_count == 0``.
     """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_reconnect_count_starts_at_zero(self) -> None:
-        """
-            A freshly-constructed :class:`UefiConnection` has
-            ``reconnect_count == 0``.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    testbase.assert_equal(conn.reconnect_count, 0)
+    return
 
-        self.assertEqual(conn.reconnect_count, 0)
-        return
+def test_non_transport_argument_raises_configuration_error() -> None:
+    """
+        Passing any object that does not structurally satisfy
+        :class:`IUefiTransport` raises :class:`ConfigurationError`.
+    """
+    # A plain object() is missing every protocol method / property.
+    with testbase.raises(ConfigurationError):
+        UefiConnection(transport=object(), aspects=_build_aspects())
 
-    def test_non_transport_argument_raises_configuration_error(self) -> None:
-        """
-            Passing any object that does not structurally satisfy
-            :class:`IUefiTransport` raises :class:`ConfigurationError`.
-        """
-        # A plain object() is missing every protocol method / property.
-        with self.assertRaises(ConfigurationError):
-            UefiConnection(transport=object(), aspects=_build_aspects())
+    # A dict is also not a transport.
+    with testbase.raises(ConfigurationError):
+        UefiConnection(transport={"not": "a transport"}, aspects=_build_aspects())
+    return
 
-        # A dict is also not a transport.
-        with self.assertRaises(ConfigurationError):
-            UefiConnection(transport={"not": "a transport"}, aspects=_build_aspects())
-        return
+def test_non_cmd_aspects_raises_configuration_error() -> None:
+    """
+        Passing an aspects object that is not a
+        :class:`UefiCmdAspects` instance raises
+        :class:`ConfigurationError`.
+    """
+    stub = _StubTransport()
+    with testbase.raises(ConfigurationError):
+        UefiConnection(transport=stub, aspects="not-aspects")  # type: ignore[arg-type]
+    return
 
-    def test_non_cmd_aspects_raises_configuration_error(self) -> None:
-        """
-            Passing an aspects object that is not a
-            :class:`UefiCmdAspects` instance raises
-            :class:`ConfigurationError`.
-        """
-        stub = _StubTransport()
-        with self.assertRaises(ConfigurationError):
-            UefiConnection(transport=stub, aspects="not-aspects")  # type: ignore[arg-type]
-        return
+def test_default_aspects_used_when_not_passed() -> None:
+    """
+        When no aspects argument is supplied the connection uses the
+        module-level :data:`DEFAULT_CMD_ASPECTS` default.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub)
 
-    def test_default_aspects_used_when_not_passed(self) -> None:
-        """
-            When no aspects argument is supplied the connection uses the
-            module-level :data:`DEFAULT_CMD_ASPECTS` default.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub)
-
-        self.assertIs(conn.aspects, DEFAULT_CMD_ASPECTS)
-        return
+    testbase.assert_true(conn.aspects is DEFAULT_CMD_ASPECTS)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Happy-path lifecycle
 # ---------------------------------------------------------------------------
 
-class LifecycleTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# LifecycleTests
+# ----------------------------------------------------------------------
+
+"""
+    Happy-path lifecycle: connect, disconnect, and read-only property
+    semantics.
+"""
+
+def test_connect_then_disconnect_calls_delegate_exactly_once() -> None:
     """
-        Happy-path lifecycle: connect, disconnect, and read-only property
-        semantics.
+        ``connect`` then ``disconnect`` delegate to the underlying
+        transport exactly once each.
     """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_connect_then_disconnect_calls_delegate_exactly_once(self) -> None:
-        """
-            ``connect`` then ``disconnect`` delegate to the underlying
-            transport exactly once each.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    conn.connect()
+    testbase.assert_equal(stub.connect_call_count, 1)
+    testbase.assert_true(conn.connected)
 
-        conn.connect()
-        self.assertEqual(stub.connect_call_count, 1)
-        self.assertTrue(conn.connected)
+    conn.disconnect()
+    testbase.assert_equal(stub.disconnect_call_count, 1)
+    testbase.assert_false(conn.connected)
+    return
 
-        conn.disconnect()
-        self.assertEqual(stub.disconnect_call_count, 1)
-        self.assertFalse(conn.connected)
-        return
+def test_connected_property_reflects_transport_state() -> None:
+    """
+        The :attr:`connected` property returns the underlying
+        transport's own ``connected`` flag.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_connected_property_reflects_transport_state(self) -> None:
-        """
-            The :attr:`connected` property returns the underlying
-            transport's own ``connected`` flag.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    testbase.assert_false(conn.connected)
 
-        self.assertFalse(conn.connected)
+    conn.connect()
+    testbase.assert_true(conn.connected)
 
-        conn.connect()
-        self.assertTrue(conn.connected)
+    conn.disconnect()
+    testbase.assert_false(conn.connected)
+    return
 
-        conn.disconnect()
-        self.assertFalse(conn.connected)
-        return
+def test_connected_property_is_read_only() -> None:
+    """
+        Assignment to :attr:`connected` raises :class:`AttributeError`.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_connected_property_is_read_only(self) -> None:
-        """
-            Assignment to :attr:`connected` raises :class:`AttributeError`.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    with testbase.raises(AttributeError):
+        conn.connected = True  # type: ignore[misc]
+    return
 
-        with self.assertRaises(AttributeError):
-            conn.connected = True  # type: ignore[misc]
-        return
+def test_reconnect_count_is_read_only() -> None:
+    """
+        Assignment to :attr:`reconnect_count` raises
+        :class:`AttributeError`.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_reconnect_count_is_read_only(self) -> None:
-        """
-            Assignment to :attr:`reconnect_count` raises
-            :class:`AttributeError`.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    with testbase.raises(AttributeError):
+        conn.reconnect_count = 99  # type: ignore[misc]
+    return
 
-        with self.assertRaises(AttributeError):
-            conn.reconnect_count = 99  # type: ignore[misc]
-        return
+def test_transport_kind_reflects_underlying_transport() -> None:
+    """
+        The :attr:`transport_kind` property is drawn from the
+        underlying transport.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_transport_kind_reflects_underlying_transport(self) -> None:
-        """
-            The :attr:`transport_kind` property is drawn from the
-            underlying transport.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
-
-        self.assertEqual(conn.transport_kind, "serial")
-        return
+    testbase.assert_equal(conn.transport_kind, "serial")
+    return
 
 
 # ---------------------------------------------------------------------------
 # Reconnect semantics
 # ---------------------------------------------------------------------------
 
-class ReconnectTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# ReconnectTests
+# ----------------------------------------------------------------------
+
+"""
+    Reconnect increments the reconnect counter, delegates
+    disconnect-then-connect, and preserves aspects.
+"""
+
+def test_reconnect_disconnects_then_connects_and_increments_counter() -> None:
     """
-        Reconnect increments the reconnect counter, delegates
-        disconnect-then-connect, and preserves aspects.
+        ``reconnect()`` on an already-connected transport calls
+        ``disconnect`` then ``connect`` exactly once each and
+        increments :attr:`reconnect_count` by one.
     """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_reconnect_disconnects_then_connects_and_increments_counter(self) -> None:
-        """
-            ``reconnect()`` on an already-connected transport calls
-            ``disconnect`` then ``connect`` exactly once each and
-            increments :attr:`reconnect_count` by one.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    conn.connect()
+    baseline_connect_calls = stub.connect_call_count
+    baseline_disconnect_calls = stub.disconnect_call_count
 
-        conn.connect()
-        baseline_connect_calls = stub.connect_call_count
-        baseline_disconnect_calls = stub.disconnect_call_count
+    conn.reconnect()
 
-        conn.reconnect()
+    testbase.assert_equal(stub.connect_call_count, baseline_connect_calls + 1)
+    testbase.assert_equal(stub.disconnect_call_count, baseline_disconnect_calls + 1)
+    testbase.assert_equal(conn.reconnect_count, 1)
+    testbase.assert_true(conn.connected)
+    return
 
-        self.assertEqual(stub.connect_call_count, baseline_connect_calls + 1)
-        self.assertEqual(stub.disconnect_call_count, baseline_disconnect_calls + 1)
-        self.assertEqual(conn.reconnect_count, 1)
-        self.assertTrue(conn.connected)
-        return
+def test_reconnect_when_disconnected_skips_disconnect() -> None:
+    """
+        ``reconnect()`` on a disconnected transport does not call
+        ``disconnect`` (there is nothing to tear down) and still
+        increments :attr:`reconnect_count` on success.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_reconnect_when_disconnected_skips_disconnect(self) -> None:
-        """
-            ``reconnect()`` on a disconnected transport does not call
-            ``disconnect`` (there is nothing to tear down) and still
-            increments :attr:`reconnect_count` on success.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    conn.reconnect()
 
-        conn.reconnect()
+    testbase.assert_equal(stub.disconnect_call_count, 0)
+    testbase.assert_equal(stub.connect_call_count, 1)
+    testbase.assert_equal(conn.reconnect_count, 1)
+    return
 
-        self.assertEqual(stub.disconnect_call_count, 0)
-        self.assertEqual(stub.connect_call_count, 1)
-        self.assertEqual(conn.reconnect_count, 1)
-        return
+def test_reconnect_preserves_passed_aspects() -> None:
+    """
+        ``reconnect(aspects=X)`` uses ``X`` for the delegated
+        connect; the instance-default aspects are not mutated.
+    """
+    instance_default = _build_aspects(connection_timeout=1.0, connection_interval=0.05)
+    override = _build_aspects(connection_timeout=5.0, connection_interval=0.25)
 
-    def test_reconnect_preserves_passed_aspects(self) -> None:
-        """
-            ``reconnect(aspects=X)`` uses ``X`` for the delegated
-            connect; the instance-default aspects are not mutated.
-        """
-        instance_default = _build_aspects(connection_timeout=1.0, connection_interval=0.05)
-        override = _build_aspects(connection_timeout=5.0, connection_interval=0.25)
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=instance_default)
 
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=instance_default)
+    conn.reconnect(aspects=override)
 
-        conn.reconnect(aspects=override)
+    # The most recent aspects seen by the stub's connect() must be the override.
+    testbase.assert_true(conn.aspects is instance_default)
+    testbase.assert_true(len(stub.connect_aspects_seen) >= 1)
+    testbase.assert_true(stub.connect_aspects_seen[-1] is override)
+    return
 
-        # The most recent aspects seen by the stub's connect() must be the override.
-        self.assertIs(conn.aspects, instance_default)
-        self.assertGreaterEqual(len(stub.connect_aspects_seen), 1)
-        self.assertIs(stub.connect_aspects_seen[-1], override)
-        return
+def test_reconnect_none_aspects_uses_instance_default() -> None:
+    """
+        ``reconnect(aspects=None)`` resolves to the instance-default
+        aspects; the default is forwarded unchanged to the underlying
+        transport.
+    """
+    instance_default = _build_aspects()
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=instance_default)
 
-    def test_reconnect_none_aspects_uses_instance_default(self) -> None:
-        """
-            ``reconnect(aspects=None)`` resolves to the instance-default
-            aspects; the default is forwarded unchanged to the underlying
-            transport.
-        """
-        instance_default = _build_aspects()
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=instance_default)
+    conn.reconnect(aspects=None)
 
-        conn.reconnect(aspects=None)
-
-        self.assertIs(stub.connect_aspects_seen[-1], instance_default)
-        return
+    testbase.assert_true(stub.connect_aspects_seen[-1] is instance_default)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Structured log events
 # ---------------------------------------------------------------------------
 
-class StructuredLogTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# StructuredLogTests
+# ----------------------------------------------------------------------
+
+"""
+    Connect / disconnect / reconnect each emit an INFO-level event on
+    the ``uefi.transport`` channel carrying the expected event name.
+"""
+
+def test_connect_emits_connection_open_event() -> None:
     """
-        Connect / disconnect / reconnect each emit an INFO-level event on
-        the ``uefi.transport`` channel carrying the expected event name.
+        A successful :meth:`connect` emits an event whose message
+        contains ``event=connection.open``.
     """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_connect_emits_connection_open_event(self) -> None:
-        """
-            A successful :meth:`connect` emits an event whose message
-            contains ``event=connection.open``.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
-
-        with self.assertLogs("uefi.transport", level="INFO") as captured:
-            conn.connect()
-
-        formatted = "\n".join(captured.output)
-        self.assertIn("event={}".format(EVENT_CONNECTION_OPEN), formatted)
-        return
-
-    def test_disconnect_emits_connection_close_event(self) -> None:
-        """
-            A successful :meth:`disconnect` emits an event whose message
-            contains ``event=connection.close``.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    with _capture_logs(logger="uefi.transport", level=logging.INFO) as captured:
         conn.connect()
 
-        with self.assertLogs("uefi.transport", level="INFO") as captured:
-            conn.disconnect()
+    formatted = "\n".join(captured.output)
+    testbase.assert_true("event={}".format(EVENT_CONNECTION_OPEN) in formatted)
+    return
 
-        formatted = "\n".join(captured.output)
-        self.assertIn("event={}".format(EVENT_CONNECTION_CLOSE), formatted)
-        return
+def test_disconnect_emits_connection_close_event() -> None:
+    """
+        A successful :meth:`disconnect` emits an event whose message
+        contains ``event=connection.close``.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    conn.connect()
 
-    def test_reconnect_emits_all_three_events(self) -> None:
-        """
-            A successful :meth:`reconnect` emits all three event names:
-            ``connection.close``, ``connection.open``, and
-            ``connection.reconnect``.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
-        conn.connect()
+    with _capture_logs(logger="uefi.transport", level=logging.INFO) as captured:
+        conn.disconnect()
 
-        with self.assertLogs("uefi.transport", level="INFO") as captured:
-            conn.reconnect()
+    formatted = "\n".join(captured.output)
+    testbase.assert_true("event={}".format(EVENT_CONNECTION_CLOSE) in formatted)
+    return
 
-        formatted = "\n".join(captured.output)
-        self.assertIn("event={}".format(EVENT_CONNECTION_CLOSE), formatted)
-        self.assertIn("event={}".format(EVENT_CONNECTION_OPEN), formatted)
-        self.assertIn("event={}".format(EVENT_CONNECTION_RECONNECT), formatted)
-        self.assertIn("reconnect_count=1", formatted)
-        return
+def test_reconnect_emits_all_three_events() -> None:
+    """
+        A successful :meth:`reconnect` emits all three event names:
+        ``connection.close``, ``connection.open``, and
+        ``connection.reconnect``.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    conn.connect()
+
+    with _capture_logs(logger="uefi.transport", level=logging.INFO) as captured:
+        conn.reconnect()
+
+    formatted = "\n".join(captured.output)
+    testbase.assert_true("event={}".format(EVENT_CONNECTION_CLOSE) in formatted)
+    testbase.assert_true("event={}".format(EVENT_CONNECTION_OPEN) in formatted)
+    testbase.assert_true("event={}".format(EVENT_CONNECTION_RECONNECT) in formatted)
+    testbase.assert_true("reconnect_count=1" in formatted)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Context manager
 # ---------------------------------------------------------------------------
 
-class ContextManagerTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# ContextManagerTests
+# ----------------------------------------------------------------------
+
+"""
+    ``UefiConnection`` supports the ``with`` protocol; ``__enter__``
+    calls ``connect`` and ``__exit__`` calls ``disconnect`` even when
+    the ``with`` body raises.
+"""
+
+def test_with_block_connects_then_disconnects() -> None:
     """
-        ``UefiConnection`` supports the ``with`` protocol; ``__enter__``
-        calls ``connect`` and ``__exit__`` calls ``disconnect`` even when
-        the ``with`` body raises.
+        Entering a ``with`` block connects; exiting cleanly
+        disconnects.
     """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_with_block_connects_then_disconnects(self) -> None:
-        """
-            Entering a ``with`` block connects; exiting cleanly
-            disconnects.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    with conn as bound:
+        testbase.assert_true(bound is conn)
+        testbase.assert_true(conn.connected)
+        testbase.assert_equal(stub.connect_call_count, 1)
 
-        with conn as bound:
-            self.assertIs(bound, conn)
-            self.assertTrue(conn.connected)
-            self.assertEqual(stub.connect_call_count, 1)
+    testbase.assert_false(conn.connected)
+    testbase.assert_equal(stub.disconnect_call_count, 1)
+    return
 
-        self.assertFalse(conn.connected)
-        self.assertEqual(stub.disconnect_call_count, 1)
-        return
+def test_with_block_disconnects_after_exception() -> None:
+    """
+        An exception raised inside a ``with`` block still triggers
+        ``disconnect`` on exit and does not suppress the exception.
+    """
+    stub = _StubTransport()
+    conn = UefiConnection(transport=stub, aspects=_build_aspects())
 
-    def test_with_block_disconnects_after_exception(self) -> None:
-        """
-            An exception raised inside a ``with`` block still triggers
-            ``disconnect`` on exit and does not suppress the exception.
-        """
-        stub = _StubTransport()
-        conn = UefiConnection(transport=stub, aspects=_build_aspects())
+    class _Boom(RuntimeError):
+        """Sentinel exception for this test."""
 
-        class _Boom(RuntimeError):
-            """Sentinel exception for this test."""
+    with testbase.raises(_Boom):
+        with conn:
+            testbase.assert_true(conn.connected)
+            raise _Boom("body exploded")
 
-        with self.assertRaises(_Boom):
-            with conn:
-                self.assertTrue(conn.connected)
-                raise _Boom("body exploded")
-
-        self.assertFalse(conn.connected)
-        self.assertEqual(stub.disconnect_call_count, 1)
-        return
-
-
-if __name__ == "__main__":
-    unittest.main()
+    testbase.assert_false(conn.connected)
+    testbase.assert_equal(stub.disconnect_call_count, 1)
+    return

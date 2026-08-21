@@ -23,7 +23,10 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+
+from types import SimpleNamespace
+
+from ccai import testbase
 
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
@@ -269,435 +272,481 @@ def _build_workflow(agent: _FakeUefiAgent,
 # ---------------------------------------------------------------------------
 
 
-class TestRebootResult(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestRebootResult
+# ----------------------------------------------------------------------
+
+"""
+    Verify the :class:`RebootResult` dataclass shape and defaults.
+"""
+
+def test_default_reset_kind_is_warm() -> None:
     """
-        Verify the :class:`RebootResult` dataclass shape and defaults.
+        Omitting ``reset_kind`` yields :class:`ResetKind.WARM`.
     """
+    result = RebootResult(
+        success=True,
+        elapsed_seconds=0.0,
+        shell_ready=True,
+    )
+    testbase.assert_equal(result.reset_kind, ResetKind.WARM)
+    testbase.assert_true(result.captured_console is None)
+    return
 
-    def test_default_reset_kind_is_warm(self) -> None:
-        """
-            Omitting ``reset_kind`` yields :class:`ResetKind.WARM`.
-        """
-        result = RebootResult(
-            success=True,
-            elapsed_seconds=0.0,
-            shell_ready=True,
-        )
-        self.assertEqual(result.reset_kind, ResetKind.WARM)
-        self.assertIsNone(result.captured_console)
-        return
-
-    def test_all_fields_populated(self) -> None:
-        """
-            All fields can be populated explicitly and are readable.
-        """
-        result = RebootResult(
-            success=True,
-            elapsed_seconds=1.25,
-            shell_ready=True,
-            captured_console="boot log",
-            reset_kind=ResetKind.COLD,
-        )
-        self.assertIs(result.success, True)
-        self.assertAlmostEqual(result.elapsed_seconds, 1.25)
-        self.assertIs(result.shell_ready, True)
-        self.assertEqual(result.captured_console, "boot log")
-        self.assertEqual(result.reset_kind, ResetKind.COLD)
-        return
-
-
-class TestRebootWorkflowHappyPath(unittest.TestCase):
+def test_all_fields_populated() -> None:
     """
-        Verify that the happy-path orchestration drives SystemReset
-        and verify_connectivity in the documented order.
+        All fields can be populated explicitly and are readable.
     """
+    result = RebootResult(
+        success=True,
+        elapsed_seconds=1.25,
+        shell_ready=True,
+        captured_console="boot log",
+        reset_kind=ResetKind.COLD,
+    )
+    testbase.assert_true(result.success is True)
+    testbase.assert_true(abs(result.elapsed_seconds - 1.25) < 1e-6)
+    testbase.assert_true(result.shell_ready is True)
+    testbase.assert_equal(result.captured_console, "boot log")
+    testbase.assert_equal(result.reset_kind, ResetKind.COLD)
+    return
 
-    def setUp(self) -> None:
-        """
-            Reset the class-level mock recording before every test.
-        """
-        _MockSystemReset.reset_recording()
-        return
 
-    def test_reset_succeeds_and_verify_returns_true(self) -> None:
-        """
-            Successful reset and ``verify_connectivity=True`` yields
-            ``RebootResult(success=True, shell_ready=True)``.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
+# ----------------------------------------------------------------------
+# TestRebootWorkflowHappyPath
+# ----------------------------------------------------------------------
 
-        workflow = _build_workflow(agent=agent)
+"""
+    Verify that the happy-path orchestration drives SystemReset
+    and verify_connectivity in the documented order.
+"""
 
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+def _setup_reboot_workflow_happy_path(ctx) -> None:
+    """
+        Reset the class-level mock recording before every test.
+    """
+    _MockSystemReset.reset_recording()
+    return
+
+def test_reset_succeeds_and_verify_returns_true() -> None:
+    """
+        Successful reset and ``verify_connectivity=True`` yields
+        ``RebootResult(success=True, shell_ready=True)``.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_happy_path(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+
+    workflow = _build_workflow(agent=agent)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(kind=ResetKind.WARM)
+
+    testbase.assert_true(isinstance(result, RebootResult))
+    testbase.assert_true(result.success is True)
+    testbase.assert_true(result.shell_ready is True)
+    testbase.assert_equal(result.reset_kind, ResetKind.WARM)
+    testbase.assert_equal(agent.verify_calls, 1)
+    testbase.assert_equal(len(_MockSystemReset.reset_calls), 1)
+    recorded = _MockSystemReset.reset_calls[0]
+    testbase.assert_equal(recorded["kind"], ResetKind.WARM)
+    testbase.assert_true(recorded["wait_for_reconnect"] is True)
+    return
+
+def test_default_kind_is_warm() -> None:
+    """
+        Omitting ``kind`` defaults to :class:`ResetKind.WARM`.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_happy_path(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+
+    workflow = _build_workflow(agent=agent)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify()
+
+    testbase.assert_equal(result.reset_kind, ResetKind.WARM)
+    testbase.assert_equal(_MockSystemReset.reset_calls[0]["kind"], ResetKind.WARM)
+    return
+
+def test_cold_reset_forwarded_to_system_reset() -> None:
+    """
+        A caller-supplied :class:`ResetKind.COLD` is forwarded to
+        the underlying :class:`SystemReset`.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_happy_path(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+
+    workflow = _build_workflow(agent=agent)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(kind=ResetKind.COLD)
+
+    testbase.assert_equal(result.reset_kind, ResetKind.COLD)
+    testbase.assert_equal(_MockSystemReset.reset_calls[0]["kind"], ResetKind.COLD)
+    return
+
+
+# ----------------------------------------------------------------------
+# TestRebootWorkflowResetFailure
+# ----------------------------------------------------------------------
+
+"""
+    Verify that a :class:`ResetFailedError` raised by the
+    underlying reset is captured and surfaced as a failed
+    :class:`RebootResult` rather than propagated.
+"""
+
+def _setup_reboot_workflow_reset_failure(ctx) -> None:
+    """
+        Reset the class-level mock recording before every test.
+    """
+    _MockSystemReset.reset_recording()
+    return
+
+def test_reset_failed_yields_failed_result() -> None:
+    """
+        A :class:`ResetFailedError` raised by
+        :meth:`SystemReset.reset` results in a
+        ``RebootResult(success=False, shell_ready=False)`` with
+        no propagation.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_reset_failure(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+
+    reset_exception = ResetFailedError(
+        "target did not return within completion_timeout",
+        details=["kind=warm", "host=target.example"],
+    )
+    _MockSystemReset.reset_side_effect = reset_exception
+
+    workflow = _build_workflow(agent=agent)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(kind=ResetKind.WARM)
+
+    testbase.assert_true(isinstance(result, RebootResult))
+    testbase.assert_true(result.success is False)
+    testbase.assert_true(result.shell_ready is False)
+    testbase.assert_equal(result.reset_kind, ResetKind.WARM)
+    # verify_connectivity must not be called when the reset
+    # failed, because there is no transport to probe.
+    testbase.assert_equal(agent.verify_calls, 0)
+    return
+
+
+# ----------------------------------------------------------------------
+# TestRebootWorkflowWaitForShellFlag
+# ----------------------------------------------------------------------
+
+"""
+    Verify the ``wait_for_shell`` flag controls the post-reset
+    Shell probe.
+"""
+
+def _setup_reboot_workflow_wait_for_shell_flag(ctx) -> None:
+    """
+        Reset the class-level mock recording before every test.
+    """
+    _MockSystemReset.reset_recording()
+    return
+
+def test_wait_for_shell_false_skips_verify() -> None:
+    """
+        ``wait_for_shell=False`` skips the
+        ``verify_connectivity`` call entirely.  The result's
+        ``shell_ready`` field is ``False`` and ``success`` is
+        ``True`` once the reset-side-effect-free path returns.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_wait_for_shell_flag(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+
+    workflow = _build_workflow(agent=agent)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(
+                kind=ResetKind.WARM,
+                wait_for_shell=False,
+            )
+
+    testbase.assert_equal(agent.verify_calls, 0)
+    testbase.assert_true(result.shell_ready is False)
+    testbase.assert_true(result.success is True)
+    return
+
+def test_wait_for_shell_true_invokes_verify() -> None:
+    """
+        ``wait_for_shell=True`` (default) invokes
+        ``verify_connectivity`` exactly once.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_wait_for_shell_flag(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+
+    workflow = _build_workflow(agent=agent)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            workflow.reboot_and_verify(
+                kind=ResetKind.WARM,
+                wait_for_shell=True,
+            )
+
+    testbase.assert_equal(agent.verify_calls, 1)
+    return
+
+def test_verify_returns_false_marks_result_failed() -> None:
+    """
+        ``wait_for_shell=True`` with ``verify_connectivity``
+        returning ``False`` yields a failed result.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_wait_for_shell_flag(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [False]
+    agent.verify_default = False
+
+    workflow = _build_workflow(agent=agent)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(
+                kind=ResetKind.WARM,
+                wait_for_shell=True,
+            )
+
+    testbase.assert_true(result.shell_ready is False)
+    testbase.assert_true(result.success is False)
+    return
+
+
+# ----------------------------------------------------------------------
+# TestRebootWorkflowElapsedSeconds
+# ----------------------------------------------------------------------
+
+"""
+    Verify that ``elapsed_seconds`` is computed via
+    :func:`time.time` bracketing the core orchestration.
+"""
+
+def _setup_reboot_workflow_elapsed_seconds(ctx) -> None:
+    """
+        Reset the class-level mock recording before every test.
+    """
+    _MockSystemReset.reset_recording()
+    return
+
+def test_elapsed_seconds_computed_from_time_time() -> None:
+    """
+        Bracketing :func:`time.time` yields an
+        ``elapsed_seconds`` equal to the difference between the
+        two programmed values.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_elapsed_seconds(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+
+    # Programmed time.time sequence: begin_time=100.0, end_time=102.5.
+    # The patch below replaces the attribute on the stdlib time module, so
+    # every caller inside the block shares this clock -- under testbase the
+    # logging machinery is one of them.  Keying the reading off workflow
+    # progress rather than off call count keeps the bracket deterministic
+    # no matter how many times anything else asks for the time.
+    def _fake_time() -> float:
+        """
+            Return the bracketing time.time() value for the current phase.
+
+            :returns: 100.0 before the reset is issued, 102.5 afterwards.
+        """
+        if len(_MockSystemReset.reset_calls) == 0:
+            rtnval = 100.0
+        else:
+            rtnval = 102.5
+
+        return rtnval
+
+    workflow = _build_workflow(agent=agent)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefirebootworkflow.time, "time", _fake_time):
             with patch.object(uefireset.time, "sleep"):
                 result = workflow.reboot_and_verify(kind=ResetKind.WARM)
 
-        self.assertIsInstance(result, RebootResult)
-        self.assertIs(result.success, True)
-        self.assertIs(result.shell_ready, True)
-        self.assertEqual(result.reset_kind, ResetKind.WARM)
-        self.assertEqual(agent.verify_calls, 1)
-        self.assertEqual(len(_MockSystemReset.reset_calls), 1)
-        recorded = _MockSystemReset.reset_calls[0]
-        self.assertEqual(recorded["kind"], ResetKind.WARM)
-        self.assertIs(recorded["wait_for_reconnect"], True)
-        return
+    testbase.assert_true(abs(result.elapsed_seconds - 2.5) < 1e-6)
+    return
 
-    def test_default_kind_is_warm(self) -> None:
-        """
-            Omitting ``kind`` defaults to :class:`ResetKind.WARM`.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify()
-
-        self.assertEqual(result.reset_kind, ResetKind.WARM)
-        self.assertEqual(_MockSystemReset.reset_calls[0]["kind"], ResetKind.WARM)
-        return
-
-    def test_cold_reset_forwarded_to_system_reset(self) -> None:
-        """
-            A caller-supplied :class:`ResetKind.COLD` is forwarded to
-            the underlying :class:`SystemReset`.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify(kind=ResetKind.COLD)
-
-        self.assertEqual(result.reset_kind, ResetKind.COLD)
-        self.assertEqual(_MockSystemReset.reset_calls[0]["kind"], ResetKind.COLD)
-        return
-
-
-class TestRebootWorkflowResetFailure(unittest.TestCase):
+def test_elapsed_seconds_non_negative_on_failure() -> None:
     """
-        Verify that a :class:`ResetFailedError` raised by the
-        underlying reset is captured and surfaced as a failed
-        :class:`RebootResult` rather than propagated.
+        Even on a failed reset the ``elapsed_seconds`` field is a
+        non-negative float.
     """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_elapsed_seconds(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
 
-    def setUp(self) -> None:
-        """
-            Reset the class-level mock recording before every test.
-        """
-        _MockSystemReset.reset_recording()
-        return
+    _MockSystemReset.reset_side_effect = ResetFailedError(
+        "target did not return",
+    )
 
-    def test_reset_failed_yields_failed_result(self) -> None:
-        """
-            A :class:`ResetFailedError` raised by
-            :meth:`SystemReset.reset` results in a
-            ``RebootResult(success=False, shell_ready=False)`` with
-            no propagation.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
+    workflow = _build_workflow(agent=agent)
 
-        reset_exception = ResetFailedError(
-            "target did not return within completion_timeout",
-            details=["kind=warm", "host=target.example"],
-        )
-        _MockSystemReset.reset_side_effect = reset_exception
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(kind=ResetKind.WARM)
 
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify(kind=ResetKind.WARM)
-
-        self.assertIsInstance(result, RebootResult)
-        self.assertIs(result.success, False)
-        self.assertIs(result.shell_ready, False)
-        self.assertEqual(result.reset_kind, ResetKind.WARM)
-        # verify_connectivity must not be called when the reset
-        # failed, because there is no transport to probe.
-        self.assertEqual(agent.verify_calls, 0)
-        return
+    testbase.assert_true(result.elapsed_seconds >= 0.0)
+    return
 
 
-class TestRebootWorkflowWaitForShellFlag(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestRebootWorkflowCaptureConsole
+# ----------------------------------------------------------------------
+
+"""
+    Verify the best-effort console-capture path.
+"""
+
+def _setup_reboot_workflow_capture_console(ctx) -> None:
     """
-        Verify the ``wait_for_shell`` flag controls the post-reset
-        Shell probe.
+        Reset the class-level mock recording before every test.
     """
+    _MockSystemReset.reset_recording()
+    return
 
-    def setUp(self) -> None:
-        """
-            Reset the class-level mock recording before every test.
-        """
-        _MockSystemReset.reset_recording()
-        return
-
-    def test_wait_for_shell_false_skips_verify(self) -> None:
-        """
-            ``wait_for_shell=False`` skips the
-            ``verify_connectivity`` call entirely.  The result's
-            ``shell_ready`` field is ``False`` and ``success`` is
-            ``True`` once the reset-side-effect-free path returns.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify(
-                    kind=ResetKind.WARM,
-                    wait_for_shell=False,
-                )
-
-        self.assertEqual(agent.verify_calls, 0)
-        self.assertIs(result.shell_ready, False)
-        self.assertIs(result.success, True)
-        return
-
-    def test_wait_for_shell_true_invokes_verify(self) -> None:
-        """
-            ``wait_for_shell=True`` (default) invokes
-            ``verify_connectivity`` exactly once.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                workflow.reboot_and_verify(
-                    kind=ResetKind.WARM,
-                    wait_for_shell=True,
-                )
-
-        self.assertEqual(agent.verify_calls, 1)
-        return
-
-    def test_verify_returns_false_marks_result_failed(self) -> None:
-        """
-            ``wait_for_shell=True`` with ``verify_connectivity``
-            returning ``False`` yields a failed result.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [False]
-        agent.verify_default = False
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify(
-                    kind=ResetKind.WARM,
-                    wait_for_shell=True,
-                )
-
-        self.assertIs(result.shell_ready, False)
-        self.assertIs(result.success, False)
-        return
-
-
-class TestRebootWorkflowElapsedSeconds(unittest.TestCase):
+def test_capture_console_false_never_calls_hooks() -> None:
     """
-        Verify that ``elapsed_seconds`` is computed via
-        :func:`time.time` bracketing the core orchestration.
+        With ``capture_console=False`` the begin / end hooks are
+        never invoked and ``captured_console`` is ``None``.
     """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_capture_console(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+    agent.enable_capture_hooks = True
+    agent.capture_bytes = b"firmware-diag"
 
-    def setUp(self) -> None:
-        """
-            Reset the class-level mock recording before every test.
-        """
-        _MockSystemReset.reset_recording()
-        return
+    workflow = _build_workflow(agent=agent)
 
-    def test_elapsed_seconds_computed_from_time_time(self) -> None:
-        """
-            Bracketing :func:`time.time` yields an
-            ``elapsed_seconds`` equal to the difference between the
-            two programmed values.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(
+                kind=ResetKind.WARM,
+                capture_console=False,
+            )
 
-        # Programmed time.time sequence: begin_time=100.0, end_time=102.5.
-        time_values = iter([100.0, 102.5])
+    testbase.assert_equal(agent.begin_capture_calls, 0)
+    testbase.assert_equal(agent.end_capture_calls, 0)
+    testbase.assert_true(result.captured_console is None)
+    return
 
-        def _fake_time() -> float:
-            """
-                Return the next pre-programmed time.time() value.
-            """
-            rtnval = next(time_values)
-            return rtnval
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefirebootworkflow.time, "time", _fake_time):
-                with patch.object(uefireset.time, "sleep"):
-                    result = workflow.reboot_and_verify(kind=ResetKind.WARM)
-
-        self.assertAlmostEqual(result.elapsed_seconds, 2.5)
-        return
-
-    def test_elapsed_seconds_non_negative_on_failure(self) -> None:
-        """
-            Even on a failed reset the ``elapsed_seconds`` field is a
-            non-negative float.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-
-        _MockSystemReset.reset_side_effect = ResetFailedError(
-            "target did not return",
-        )
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify(kind=ResetKind.WARM)
-
-        self.assertGreaterEqual(result.elapsed_seconds, 0.0)
-        return
-
-
-class TestRebootWorkflowCaptureConsole(unittest.TestCase):
+def test_capture_console_true_invokes_hooks_and_decodes() -> None:
     """
-        Verify the best-effort console-capture path.
+        With ``capture_console=True`` and the hooks present the
+        captured bytes are decoded as UTF-8 and placed on the
+        result.
     """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_capture_console(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+    agent.enable_capture_hooks = True
+    agent.capture_bytes = b"hello\n"
 
-    def setUp(self) -> None:
-        """
-            Reset the class-level mock recording before every test.
-        """
-        _MockSystemReset.reset_recording()
-        return
+    workflow = _build_workflow(agent=agent)
 
-    def test_capture_console_false_never_calls_hooks(self) -> None:
-        """
-            With ``capture_console=False`` the begin / end hooks are
-            never invoked and ``captured_console`` is ``None``.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-        agent.enable_capture_hooks = True
-        agent.capture_bytes = b"firmware-diag"
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(
+                kind=ResetKind.WARM,
+                capture_console=True,
+            )
 
-        workflow = _build_workflow(agent=agent)
+    testbase.assert_equal(agent.begin_capture_calls, 1)
+    testbase.assert_equal(agent.end_capture_calls, 1)
+    testbase.assert_equal(result.captured_console, "hello\n")
+    return
 
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify(
-                    kind=ResetKind.WARM,
-                    capture_console=False,
-                )
-
-        self.assertEqual(agent.begin_capture_calls, 0)
-        self.assertEqual(agent.end_capture_calls, 0)
-        self.assertIsNone(result.captured_console)
-        return
-
-    def test_capture_console_true_invokes_hooks_and_decodes(self) -> None:
-        """
-            With ``capture_console=True`` and the hooks present the
-            captured bytes are decoded as UTF-8 and placed on the
-            result.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
-        agent.enable_capture_hooks = True
-        agent.capture_bytes = b"hello\n"
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify(
-                    kind=ResetKind.WARM,
-                    capture_console=True,
-                )
-
-        self.assertEqual(agent.begin_capture_calls, 1)
-        self.assertEqual(agent.end_capture_calls, 1)
-        self.assertEqual(result.captured_console, "hello\n")
-        return
-
-    def test_capture_console_true_without_hooks_is_noop(self) -> None:
-        """
-            With ``capture_console=True`` on an agent that does not
-            expose the hooks the workflow silently skips capture.
-        """
-        agent = _FakeUefiAgent(transport_kind="redfish")
-        agent.verify_sequence = [True]
-        agent.enable_capture_hooks = False
-
-        workflow = _build_workflow(agent=agent)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                result = workflow.reboot_and_verify(
-                    kind=ResetKind.WARM,
-                    capture_console=True,
-                )
-
-        self.assertIsNone(result.captured_console)
-        return
-
-
-class TestRebootWorkflowAspectsForwarding(unittest.TestCase):
+def test_capture_console_true_without_hooks_is_noop() -> None:
     """
-        Verify that a per-call ``aspects`` override is resolved once
-        and forwarded to :class:`SystemReset` construction and
-        :meth:`SystemReset.reset`.
+        With ``capture_console=True`` on an agent that does not
+        expose the hooks the workflow silently skips capture.
     """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_capture_console(ctx)
+    agent = _FakeUefiAgent(transport_kind="redfish")
+    agent.verify_sequence = [True]
+    agent.enable_capture_hooks = False
 
-    def setUp(self) -> None:
-        """
-            Reset the class-level mock recording before every test.
-        """
-        _MockSystemReset.reset_recording()
-        return
+    workflow = _build_workflow(agent=agent)
 
-    def test_per_call_aspects_forwarded(self) -> None:
-        """
-            Per-call aspects supplied to ``reboot_and_verify`` are
-            forwarded verbatim to the underlying :class:`SystemReset`.
-        """
-        agent = _FakeUefiAgent(transport_kind="serial")
-        agent.verify_sequence = [True]
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            result = workflow.reboot_and_verify(
+                kind=ResetKind.WARM,
+                capture_console=True,
+            )
 
-        instance_aspects = UefiCmdAspects()
-        per_call_aspects = UefiCmdAspects()
-
-        workflow = _build_workflow(agent=agent, aspects=instance_aspects)
-
-        with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
-            with patch.object(uefireset.time, "sleep"):
-                workflow.reboot_and_verify(
-                    kind=ResetKind.WARM,
-                    aspects=per_call_aspects,
-                )
-
-        self.assertEqual(len(_MockSystemReset.construction_calls), 1)
-        self.assertIs(
-            _MockSystemReset.construction_calls[0]["aspects"],
-            per_call_aspects,
-        )
-        self.assertEqual(len(_MockSystemReset.reset_calls), 1)
-        self.assertIs(
-            _MockSystemReset.reset_calls[0]["aspects"],
-            per_call_aspects,
-        )
-        return
+    testbase.assert_true(result.captured_console is None)
+    return
 
 
-if __name__ == "__main__":
-    unittest.main()
+# ----------------------------------------------------------------------
+# TestRebootWorkflowAspectsForwarding
+# ----------------------------------------------------------------------
+
+"""
+    Verify that a per-call ``aspects`` override is resolved once
+    and forwarded to :class:`SystemReset` construction and
+    :meth:`SystemReset.reset`.
+"""
+
+def _setup_reboot_workflow_aspects_forwarding(ctx) -> None:
+    """
+        Reset the class-level mock recording before every test.
+    """
+    _MockSystemReset.reset_recording()
+    return
+
+def test_per_call_aspects_forwarded() -> None:
+    """
+        Per-call aspects supplied to ``reboot_and_verify`` are
+        forwarded verbatim to the underlying :class:`SystemReset`.
+    """
+    ctx = SimpleNamespace()
+    _setup_reboot_workflow_aspects_forwarding(ctx)
+    agent = _FakeUefiAgent(transport_kind="serial")
+    agent.verify_sequence = [True]
+
+    instance_aspects = UefiCmdAspects()
+    per_call_aspects = UefiCmdAspects()
+
+    workflow = _build_workflow(agent=agent, aspects=instance_aspects)
+
+    with patch.object(uefirebootworkflow, "SystemReset", _MockSystemReset):
+        with patch.object(uefireset.time, "sleep"):
+            workflow.reboot_and_verify(
+                kind=ResetKind.WARM,
+                aspects=per_call_aspects,
+            )
+
+    testbase.assert_equal(len(_MockSystemReset.construction_calls), 1)
+    testbase.assert_true(_MockSystemReset.construction_calls[0]["aspects"] is per_call_aspects)
+    testbase.assert_equal(len(_MockSystemReset.reset_calls), 1)
+    testbase.assert_true(_MockSystemReset.reset_calls[0]["aspects"] is per_call_aspects)
+    return

@@ -20,7 +20,10 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+
+from ccai import testbase
+
+from ccai.testbase.properties import expect_exception
 
 from typing import List, Optional
 
@@ -168,579 +171,602 @@ def _phoenix_screen(selected_label: str, items: List[str]) -> str:
 # Tests — ScreenShape registry
 # ---------------------------------------------------------------------------
 
-class TestScreenShapes(unittest.TestCase):
-    """
-        Exercises the shipped :data:`SCREEN_SHAPES` registry.
-    """
+# ----------------------------------------------------------------------
+# TestScreenShapes
+# ----------------------------------------------------------------------
 
-    def test_four_vendors_present(self) -> None:
-        """
-            The registry exposes AMI, Insyde, Phoenix, and tianocore.
-        """
-        expected = {"ami", "insyde", "phoenix", "tianocore"}
-        observed = set(SCREEN_SHAPES.keys())
-        self.assertEqual(observed, expected)
-        return
+"""
+    Exercises the shipped :data:`SCREEN_SHAPES` registry.
+"""
 
-    def test_shapes_are_frozen_dataclasses(self) -> None:
-        """
-            Each shipped shape is a :class:`ScreenShape` with a
-            matching ``vendor_id``.
-        """
-        for key, shape in SCREEN_SHAPES.items():
-            self.assertIsInstance(shape, ScreenShape)
-            self.assertEqual(shape.vendor_id, key)
-            with self.assertRaises(Exception):
-                # Frozen dataclass; assignment must fail.
-                shape.vendor_id = "mutated"  # type: ignore[misc]
-        return
+def test_four_vendors_present() -> None:
+    """
+        The registry exposes AMI, Insyde, Phoenix, and tianocore.
+    """
+    expected = {"ami", "insyde", "phoenix", "tianocore"}
+    observed = set(SCREEN_SHAPES.keys())
+    testbase.assert_equal(observed, expected)
+    return
+
+def test_shapes_are_frozen_dataclasses() -> None:
+    """
+        Each shipped shape is a :class:`ScreenShape` with a
+        matching ``vendor_id``.
+    """
+    for key, shape in SCREEN_SHAPES.items():
+        testbase.assert_true(isinstance(shape, ScreenShape))
+        testbase.assert_equal(shape.vendor_id, key)
+        with testbase.raises(Exception):
+            # Frozen dataclass; assignment must fail.
+            shape.vendor_id = "mutated"  # type: ignore[misc]
+    return
 
 
 # ---------------------------------------------------------------------------
 # Tests — current_items parsing
 # ---------------------------------------------------------------------------
 
-class TestCurrentItemsParsing(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestCurrentItemsParsing
+# ----------------------------------------------------------------------
+
+"""
+    Exercises screen parsing for each shipped vendor.
+"""
+
+def test_ami_parses_submenu_labels() -> None:
     """
-        Exercises screen parsing for each shipped vendor.
+        An AMI screen containing label-only entries parses to
+        submenu :class:`FormItem` values (``is_menu=True``).
     """
+    screen = _ami_screen(
+        selected_label="Boot Options",
+        items=["Boot Options", "Security", "Save & Exit"],
+    )
+    transport = _FakeTransport(screens=[screen])
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+        aspects=DEFAULT_CMD_ASPECTS,
+    )
 
-    def test_ami_parses_submenu_labels(self) -> None:
-        """
-            An AMI screen containing label-only entries parses to
-            submenu :class:`FormItem` values (``is_menu=True``).
-        """
-        screen = _ami_screen(
-            selected_label="Boot Options",
-            items=["Boot Options", "Security", "Save & Exit"],
-        )
-        transport = _FakeTransport(screens=[screen])
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-            aspects=DEFAULT_CMD_ASPECTS,
-        )
+    items = navigator.current_items()
 
-        items = navigator.current_items()
+    labels = [item.label for item in items]
+    testbase.assert_true("Boot Options" in labels)
+    testbase.assert_true("Security" in labels)
+    testbase.assert_true("Save & Exit" in labels)
 
-        labels = [item.label for item in items]
-        self.assertIn("Boot Options", labels)
-        self.assertIn("Security", labels)
-        self.assertIn("Save & Exit", labels)
+    for item in items:
+        testbase.assert_true(item.is_menu)
+        testbase.assert_true(item.value is None)
+    return
 
-        for item in items:
-            self.assertTrue(item.is_menu)
-            self.assertIsNone(item.value)
-        return
+@expect_exception(AssertionError, reason="the heuristic AMI screen parser requires real-firmware tuning")
+def test_ami_parses_label_value_pairs() -> None:
+    """
+        An AMI screen with ``"label  value"`` entries parses them
+        as non-menu items whose values are preserved.
 
-    @unittest.expectedFailure
-    def test_ami_parses_label_value_pairs(self) -> None:
-        """
-            An AMI screen with ``"label  value"`` entries parses them
-            as non-menu items whose values are preserved.
+        Expected failure: the heuristic AMI screen parser requires
+        real-firmware tuning.
+    """
+    screen = _ami_screen(
+        selected_label="Secure Boot",
+        items=["Secure Boot  Enabled", "Boot Mode  UEFI", "Quiet Boot  Disabled"],
+    )
+    transport = _FakeTransport(screens=[screen])
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-            Expected failure: the heuristic AMI screen parser requires
-            real-firmware tuning.
-        """
-        screen = _ami_screen(
-            selected_label="Secure Boot",
-            items=["Secure Boot  Enabled", "Boot Mode  UEFI", "Quiet Boot  Disabled"],
-        )
-        transport = _FakeTransport(screens=[screen])
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    items = navigator.current_items()
 
-        items = navigator.current_items()
+    labels_to_values = {item.label: item.value for item in items}
+    testbase.assert_equal(labels_to_values.get("Secure Boot"), "Enabled")
+    testbase.assert_equal(labels_to_values.get("Boot Mode"), "UEFI")
+    testbase.assert_equal(labels_to_values.get("Quiet Boot"), "Disabled")
+    for item in items:
+        testbase.assert_false(item.is_menu)
+    return
 
-        labels_to_values = {item.label: item.value for item in items}
-        self.assertEqual(labels_to_values.get("Secure Boot"), "Enabled")
-        self.assertEqual(labels_to_values.get("Boot Mode"), "UEFI")
-        self.assertEqual(labels_to_values.get("Quiet Boot"), "Disabled")
-        for item in items:
-            self.assertFalse(item.is_menu)
-        return
+def test_insyde_uses_colon_separator() -> None:
+    """
+        Insyde shape uses ``": "`` as the field-value separator.
+    """
+    insyde_shape = SCREEN_SHAPES["insyde"]
+    screen_lines = [
+        "=== InsydeH2O Setup ===",
+        "\x1b[7mSecure Boot: Enabled\x1b[0m",
+        "Boot Mode: UEFI",
+        "Quiet Boot: Disabled",
+        "========================",
+    ]
+    screen = "\r\n".join(screen_lines) + "\r\n"
 
-    def test_insyde_uses_colon_separator(self) -> None:
-        """
-            Insyde shape uses ``": "`` as the field-value separator.
-        """
-        insyde_shape = SCREEN_SHAPES["insyde"]
-        screen_lines = [
-            "=== InsydeH2O Setup ===",
-            "\x1b[7mSecure Boot: Enabled\x1b[0m",
-            "Boot Mode: UEFI",
-            "Quiet Boot: Disabled",
-            "========================",
-        ]
-        screen = "\r\n".join(screen_lines) + "\r\n"
+    transport = _FakeTransport(screens=[screen])
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=insyde_shape,
+    )
 
-        transport = _FakeTransport(screens=[screen])
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=insyde_shape,
-        )
+    items = navigator.current_items()
+    labels_to_values = {item.label: item.value for item in items}
+    testbase.assert_equal(labels_to_values.get("Secure Boot"), "Enabled")
+    testbase.assert_equal(labels_to_values.get("Boot Mode"), "UEFI")
+    testbase.assert_equal(labels_to_values.get("Quiet Boot"), "Disabled")
+    return
 
-        items = navigator.current_items()
-        labels_to_values = {item.label: item.value for item in items}
-        self.assertEqual(labels_to_values.get("Secure Boot"), "Enabled")
-        self.assertEqual(labels_to_values.get("Boot Mode"), "UEFI")
-        self.assertEqual(labels_to_values.get("Quiet Boot"), "Disabled")
-        return
+@expect_exception(AssertionError, reason="the heuristic Phoenix screen parser requires real-firmware tuning")
+def test_phoenix_strips_prefix_and_marker() -> None:
+    """
+        Phoenix shape uses ``">"`` as the item prefix and ``"*"``
+        as the selected marker.  Both must be stripped from the
+        label.
 
-    @unittest.expectedFailure
-    def test_phoenix_strips_prefix_and_marker(self) -> None:
-        """
-            Phoenix shape uses ``">"`` as the item prefix and ``"*"``
-            as the selected marker.  Both must be stripped from the
-            label.
+        Expected failure: the heuristic Phoenix screen parser
+        requires real-firmware tuning.
+    """
+    screen = _phoenix_screen(
+        selected_label="Boot Options",
+        items=["> Boot Options", "> Security", "> Save & Exit"],
+    )
+    transport = _FakeTransport(screens=[screen])
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["phoenix"],
+    )
 
-            Expected failure: the heuristic Phoenix screen parser
-            requires real-firmware tuning.
-        """
-        screen = _phoenix_screen(
-            selected_label="Boot Options",
-            items=["> Boot Options", "> Security", "> Save & Exit"],
-        )
-        transport = _FakeTransport(screens=[screen])
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["phoenix"],
-        )
+    items = navigator.current_items()
+    labels = [item.label for item in items]
+    testbase.assert_true("Boot Options" in labels)
+    testbase.assert_true("Security" in labels)
+    testbase.assert_true("Save & Exit" in labels)
+    # No leading "*" carried into the selected label.
+    for label in labels:
+        testbase.assert_false(label.startswith("*"))
+    return
 
-        items = navigator.current_items()
-        labels = [item.label for item in items]
-        self.assertIn("Boot Options", labels)
-        self.assertIn("Security", labels)
-        self.assertIn("Save & Exit", labels)
-        # No leading "*" carried into the selected label.
-        for label in labels:
-            self.assertFalse(label.startswith("*"))
-        return
+def test_tianocore_like_ami() -> None:
+    """
+        The tianocore shape follows the AMI convention for
+        separators and highlight marker.
+    """
+    screen = _ami_screen(
+        selected_label="OVMF Platform",
+        items=["OVMF Platform", "CPU Features  Enabled"],
+    )
+    # Swap shape to tianocore — same separator and marker as ami.
+    transport = _FakeTransport(screens=[screen])
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["tianocore"],
+    )
 
-    def test_tianocore_like_ami(self) -> None:
-        """
-            The tianocore shape follows the AMI convention for
-            separators and highlight marker.
-        """
-        screen = _ami_screen(
-            selected_label="OVMF Platform",
-            items=["OVMF Platform", "CPU Features  Enabled"],
-        )
-        # Swap shape to tianocore — same separator and marker as ami.
-        transport = _FakeTransport(screens=[screen])
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["tianocore"],
-        )
-
-        items = navigator.current_items()
-        labels = [item.label for item in items]
-        self.assertIn("OVMF Platform", labels)
-        self.assertIn("CPU Features", labels)
-        return
+    items = navigator.current_items()
+    labels = [item.label for item in items]
+    testbase.assert_true("OVMF Platform" in labels)
+    testbase.assert_true("CPU Features" in labels)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Tests — find_item
 # ---------------------------------------------------------------------------
 
-class TestFindItem(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestFindItem
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`HiiFormNavigator.find_item`.
+"""
+
+def _make_navigator(screen: str,
+                          shape_key: str) -> HiiFormNavigator:
     """
-        Exercises :meth:`HiiFormNavigator.find_item`.
+        Build a navigator wired to a single-screen fake transport.
+
+        :param screen: The screen the fake transport will return.
+        :param shape_key: Key into :data:`SCREEN_SHAPES`.
+
+        :returns: A ready-to-use :class:`HiiFormNavigator`.
     """
+    transport = _FakeTransport(screens=[screen])
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES[shape_key],
+    )
+    return navigator
 
-    def _make_navigator(self, screen: str,
-                              shape_key: str) -> HiiFormNavigator:
-        """
-            Build a navigator wired to a single-screen fake transport.
+@expect_exception(AssertionError, reason="depends on the heuristic screen parser, which requires real-firmware tuning")
+def test_returns_index() -> None:
+    """
+        ``find_item`` returns the zero-based index of the first
+        matching label.
 
-            :param screen: The screen the fake transport will return.
-            :param shape_key: Key into :data:`SCREEN_SHAPES`.
+        Expected failure: depends on the heuristic screen parser,
+        which requires real-firmware tuning.
+    """
+    screen = _ami_screen(
+        selected_label="Security",
+        items=["Boot Options", "Security", "Save & Exit"],
+    )
+    navigator = _make_navigator(screen=screen, shape_key="ami")
 
-            :returns: A ready-to-use :class:`HiiFormNavigator`.
-        """
-        transport = _FakeTransport(screens=[screen])
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES[shape_key],
-        )
-        return navigator
+    index_security = navigator.find_item(label="Security")
+    index_save = navigator.find_item(label="Save & Exit")
 
-    @unittest.expectedFailure
-    def test_returns_index(self) -> None:
-        """
-            ``find_item`` returns the zero-based index of the first
-            matching label.
+    testbase.assert_equal(index_security, 1)
+    testbase.assert_equal(index_save, 2)
+    return
 
-            Expected failure: depends on the heuristic screen parser,
-            which requires real-firmware tuning.
-        """
-        screen = _ami_screen(
-            selected_label="Security",
-            items=["Boot Options", "Security", "Save & Exit"],
-        )
-        navigator = self._make_navigator(screen=screen, shape_key="ami")
+def test_raises_when_absent() -> None:
+    """
+        ``find_item`` raises :class:`HiiNavigationError` when the
+        label is not on the current screen; the captured screen
+        appears in ``details``.
+    """
+    screen = _ami_screen(
+        selected_label="Boot Options",
+        items=["Boot Options", "Security"],
+    )
+    navigator = _make_navigator(screen=screen, shape_key="ami")
 
-        index_security = navigator.find_item(label="Security")
-        index_save = navigator.find_item(label="Save & Exit")
-
-        self.assertEqual(index_security, 1)
-        self.assertEqual(index_save, 2)
-        return
-
-    def test_raises_when_absent(self) -> None:
-        """
-            ``find_item`` raises :class:`HiiNavigationError` when the
-            label is not on the current screen; the captured screen
-            appears in ``details``.
-        """
-        screen = _ami_screen(
-            selected_label="Boot Options",
-            items=["Boot Options", "Security"],
-        )
-        navigator = self._make_navigator(screen=screen, shape_key="ami")
-
-        try:
-            navigator.find_item(label="Nonexistent")
-            self.fail("Expected HiiNavigationError")
-        except HiiNavigationError as xcpt:
-            observed_details = "\n".join(xcpt.details)
-            self.assertIn("Nonexistent", str(xcpt))
-            self.assertIn("BIOS Setup", observed_details)
-        return
+    try:
+        navigator.find_item(label="Nonexistent")
+        raise AssertionError("Expected HiiNavigationError")
+    except HiiNavigationError as xcpt:
+        observed_details = "\n".join(xcpt.details)
+        testbase.assert_true("Nonexistent" in str(xcpt))
+        testbase.assert_true("BIOS Setup" in observed_details)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Tests — navigate_to
 # ---------------------------------------------------------------------------
 
-class TestNavigateTo(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestNavigateTo
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`HiiFormNavigator.navigate_to`.
+"""
+
+def test_down_arrows_until_highlight_matches() -> None:
     """
-        Exercises :meth:`HiiFormNavigator.navigate_to`.
+        Navigating from highlight=0 to index=2 emits exactly two
+        DOWN keystrokes.
     """
+    items = ["Boot Options", "Security", "Save & Exit"]
+    screens = [
+        _ami_screen(selected_label="Boot Options", items=items),
+        _ami_screen(selected_label="Security", items=items),
+        _ami_screen(selected_label="Save & Exit", items=items),
+    ]
 
-    def test_down_arrows_until_highlight_matches(self) -> None:
-        """
-            Navigating from highlight=0 to index=2 emits exactly two
-            DOWN keystrokes.
-        """
-        items = ["Boot Options", "Security", "Save & Exit"]
-        screens = [
-            _ami_screen(selected_label="Boot Options", items=items),
-            _ami_screen(selected_label="Security", items=items),
-            _ami_screen(selected_label="Save & Exit", items=items),
-        ]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.navigate_to(label="Save & Exit")
 
-        navigator.navigate_to(label="Save & Exit")
+    expected_sequence = [KEY_DOWN, KEY_DOWN]
+    testbase.assert_equal(transport.sent, expected_sequence)
+    return
 
-        expected_sequence = [KEY_DOWN, KEY_DOWN]
-        self.assertEqual(transport.sent, expected_sequence)
-        return
+def test_up_arrows_when_target_above() -> None:
+    """
+        Navigating from highlight=2 upward to index=0 emits two
+        UP keystrokes.
+    """
+    items = ["Boot Options", "Security", "Save & Exit"]
+    screens = [
+        _ami_screen(selected_label="Save & Exit", items=items),
+        _ami_screen(selected_label="Security", items=items),
+        _ami_screen(selected_label="Boot Options", items=items),
+    ]
 
-    def test_up_arrows_when_target_above(self) -> None:
-        """
-            Navigating from highlight=2 upward to index=0 emits two
-            UP keystrokes.
-        """
-        items = ["Boot Options", "Security", "Save & Exit"]
-        screens = [
-            _ami_screen(selected_label="Save & Exit", items=items),
-            _ami_screen(selected_label="Security", items=items),
-            _ami_screen(selected_label="Boot Options", items=items),
-        ]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.navigate_to(label="Boot Options")
 
-        navigator.navigate_to(label="Boot Options")
+    expected_sequence = [KEY_UP, KEY_UP]
+    testbase.assert_equal(transport.sent, expected_sequence)
+    return
 
-        expected_sequence = [KEY_UP, KEY_UP]
-        self.assertEqual(transport.sent, expected_sequence)
-        return
+def test_no_op_when_already_on_target() -> None:
+    """
+        When the highlight already matches the target, no key is
+        pressed.
+    """
+    items = ["Boot Options", "Security"]
+    screens = [_ami_screen(selected_label="Security", items=items)]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-    def test_no_op_when_already_on_target(self) -> None:
-        """
-            When the highlight already matches the target, no key is
-            pressed.
-        """
-        items = ["Boot Options", "Security"]
-        screens = [_ami_screen(selected_label="Security", items=items)]
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.navigate_to(label="Security")
 
-        navigator.navigate_to(label="Security")
+    testbase.assert_equal(transport.sent, [])
+    return
 
-        self.assertEqual(transport.sent, [])
-        return
+def test_label_not_on_screen_raises() -> None:
+    """
+        Navigating to a label that is not rendered raises
+        :class:`HiiNavigationError` without emitting any keystroke.
+    """
+    items = ["Boot Options", "Security"]
+    screens = [_ami_screen(selected_label="Boot Options", items=items)]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-    def test_label_not_on_screen_raises(self) -> None:
-        """
-            Navigating to a label that is not rendered raises
-            :class:`HiiNavigationError` without emitting any keystroke.
-        """
-        items = ["Boot Options", "Security"]
-        screens = [_ami_screen(selected_label="Boot Options", items=items)]
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    try:
+        navigator.navigate_to(label="Ghost Menu")
+        raise AssertionError("Expected HiiNavigationError")
+    except HiiNavigationError:
+        pass
 
-        try:
-            navigator.navigate_to(label="Ghost Menu")
-            self.fail("Expected HiiNavigationError")
-        except HiiNavigationError:
-            pass
-
-        self.assertEqual(transport.sent, [])
-        return
+    testbase.assert_equal(transport.sent, [])
+    return
 
 
 # ---------------------------------------------------------------------------
 # Tests — set_boolean
 # ---------------------------------------------------------------------------
 
-class TestSetBoolean(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestSetBoolean
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`HiiFormNavigator.set_boolean`.
+"""
+
+def test_toggles_until_desired_state() -> None:
     """
-        Exercises :meth:`HiiFormNavigator.set_boolean`.
+        When the current state does not match, pressing SPACE
+        advances the displayed value and the navigator returns
+        when convergence is observed.
     """
+    items_disabled = ["Secure Boot  Disabled"]
+    items_enabled = ["Secure Boot  Enabled"]
 
-    def test_toggles_until_desired_state(self) -> None:
-        """
-            When the current state does not match, pressing SPACE
-            advances the displayed value and the navigator returns
-            when convergence is observed.
-        """
-        items_disabled = ["Secure Boot  Disabled"]
-        items_enabled = ["Secure Boot  Enabled"]
+    screens = [
+        # navigate_to: find the label (highlight=0 -> selected index matches).
+        _ami_screen(selected_label="Secure Boot", items=items_disabled),
+        # set_boolean: first capture, still Disabled, must press SPACE.
+        _ami_screen(selected_label="Secure Boot", items=items_disabled),
+        # After SPACE: value flipped.
+        _ami_screen(selected_label="Secure Boot", items=items_enabled),
+    ]
 
-        screens = [
-            # navigate_to: find the label (highlight=0 -> selected index matches).
-            _ami_screen(selected_label="Secure Boot", items=items_disabled),
-            # set_boolean: first capture, still Disabled, must press SPACE.
-            _ami_screen(selected_label="Secure Boot", items=items_disabled),
-            # After SPACE: value flipped.
-            _ami_screen(selected_label="Secure Boot", items=items_enabled),
-        ]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.set_boolean(label="Secure Boot", value=True)
 
-        navigator.set_boolean(label="Secure Boot", value=True)
+    # Exactly one SPACE keystroke recorded.
+    testbase.assert_equal(transport.sent, [KEY_SPACE])
+    return
 
-        # Exactly one SPACE keystroke recorded.
-        self.assertEqual(transport.sent, [KEY_SPACE])
-        return
+def test_no_toggle_when_already_matches() -> None:
+    """
+        When the current state already matches ``value`` no
+        keystroke is emitted.
+    """
+    items_enabled = ["Secure Boot  Enabled"]
+    screens = [
+        _ami_screen(selected_label="Secure Boot", items=items_enabled),
+        _ami_screen(selected_label="Secure Boot", items=items_enabled),
+    ]
 
-    def test_no_toggle_when_already_matches(self) -> None:
-        """
-            When the current state already matches ``value`` no
-            keystroke is emitted.
-        """
-        items_enabled = ["Secure Boot  Enabled"]
-        screens = [
-            _ami_screen(selected_label="Secure Boot", items=items_enabled),
-            _ami_screen(selected_label="Secure Boot", items=items_enabled),
-        ]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.set_boolean(label="Secure Boot", value=True)
 
-        navigator.set_boolean(label="Secure Boot", value=True)
-
-        self.assertEqual(transport.sent, [])
-        return
+    testbase.assert_equal(transport.sent, [])
+    return
 
 
 # ---------------------------------------------------------------------------
 # Tests — set_enum
 # ---------------------------------------------------------------------------
 
-class TestSetEnum(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestSetEnum
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`HiiFormNavigator.set_enum`.
+"""
+
+def test_right_arrow_until_value_matches() -> None:
     """
-        Exercises :meth:`HiiFormNavigator.set_enum`.
+        When the displayed value does not match, RIGHT is pressed
+        and the screen is re-read until it matches.
     """
+    legacy = ["Boot Mode  Legacy"]
+    uefi = ["Boot Mode  UEFI"]
 
-    def test_right_arrow_until_value_matches(self) -> None:
-        """
-            When the displayed value does not match, RIGHT is pressed
-            and the screen is re-read until it matches.
-        """
-        legacy = ["Boot Mode  Legacy"]
-        uefi = ["Boot Mode  UEFI"]
+    screens = [
+        # navigate_to capture.
+        _ami_screen(selected_label="Boot Mode", items=legacy),
+        # First set_enum capture — still Legacy.
+        _ami_screen(selected_label="Boot Mode", items=legacy),
+        # After RIGHT — now UEFI.
+        _ami_screen(selected_label="Boot Mode", items=uefi),
+    ]
 
-        screens = [
-            # navigate_to capture.
-            _ami_screen(selected_label="Boot Mode", items=legacy),
-            # First set_enum capture — still Legacy.
-            _ami_screen(selected_label="Boot Mode", items=legacy),
-            # After RIGHT — now UEFI.
-            _ami_screen(selected_label="Boot Mode", items=uefi),
-        ]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.set_enum(label="Boot Mode", value="UEFI")
 
-        navigator.set_enum(label="Boot Mode", value="UEFI")
+    testbase.assert_equal(transport.sent, [KEY_RIGHT])
+    return
 
-        self.assertEqual(transport.sent, [KEY_RIGHT])
-        return
+def test_no_press_when_already_matches() -> None:
+    """
+        No RIGHT keystroke is emitted when the current value
+        already matches the desired value.
+    """
+    uefi = ["Boot Mode  UEFI"]
+    screens = [
+        _ami_screen(selected_label="Boot Mode", items=uefi),
+        _ami_screen(selected_label="Boot Mode", items=uefi),
+    ]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-    def test_no_press_when_already_matches(self) -> None:
-        """
-            No RIGHT keystroke is emitted when the current value
-            already matches the desired value.
-        """
-        uefi = ["Boot Mode  UEFI"]
-        screens = [
-            _ami_screen(selected_label="Boot Mode", items=uefi),
-            _ami_screen(selected_label="Boot Mode", items=uefi),
-        ]
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.set_enum(label="Boot Mode", value="UEFI")
 
-        navigator.set_enum(label="Boot Mode", value="UEFI")
-
-        self.assertEqual(transport.sent, [])
-        return
+    testbase.assert_equal(transport.sent, [])
+    return
 
 
 # ---------------------------------------------------------------------------
 # Tests — set_number
 # ---------------------------------------------------------------------------
 
-class TestSetNumber(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestSetNumber
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`HiiFormNavigator.set_number`.
+"""
+
+def test_types_digits_between_enters() -> None:
     """
-        Exercises :meth:`HiiFormNavigator.set_number`.
+        Setting a numeric field produces the sequence: Enter,
+        each digit in ASCII, Enter.
     """
+    items = ["Boot Timeout  5"]
+    screens = [_ami_screen(selected_label="Boot Timeout", items=items)]
+    transport = _FakeTransport(screens=screens)
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-    def test_types_digits_between_enters(self) -> None:
-        """
-            Setting a numeric field produces the sequence: Enter,
-            each digit in ASCII, Enter.
-        """
-        items = ["Boot Timeout  5"]
-        screens = [_ami_screen(selected_label="Boot Timeout", items=items)]
-        transport = _FakeTransport(screens=screens)
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.set_number(label="Boot Timeout", value=42)
 
-        navigator.set_number(label="Boot Timeout", value=42)
-
-        expected = [KEY_ENTER, b"4", b"2", KEY_ENTER]
-        self.assertEqual(transport.sent, expected)
-        return
+    expected = [KEY_ENTER, b"4", b"2", KEY_ENTER]
+    testbase.assert_equal(transport.sent, expected)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Tests — save_and_exit
 # ---------------------------------------------------------------------------
 
-class TestSaveAndExit(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestSaveAndExit
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`HiiFormNavigator.save_and_exit`.
+"""
+
+def test_sends_f10() -> None:
     """
-        Exercises :meth:`HiiFormNavigator.save_and_exit`.
+        ``save_and_exit`` emits exactly the F10 escape sequence.
     """
+    transport = _FakeTransport(screens=[])
+    navigator = HiiFormNavigator(
+        send=transport.send,
+        read_screen=transport.read_screen,
+        shape=SCREEN_SHAPES["ami"],
+    )
 
-    def test_sends_f10(self) -> None:
-        """
-            ``save_and_exit`` emits exactly the F10 escape sequence.
-        """
-        transport = _FakeTransport(screens=[])
-        navigator = HiiFormNavigator(
-            send=transport.send,
-            read_screen=transport.read_screen,
-            shape=SCREEN_SHAPES["ami"],
-        )
+    navigator.save_and_exit()
 
-        navigator.save_and_exit()
-
-        self.assertEqual(transport.sent, [KEY_F10])
-        return
+    testbase.assert_equal(transport.sent, [KEY_F10])
+    return
 
 
 # ---------------------------------------------------------------------------
 # Tests — constructor argument validation
 # ---------------------------------------------------------------------------
 
-class TestConstructor(unittest.TestCase):
+# ----------------------------------------------------------------------
+# TestConstructor
+# ----------------------------------------------------------------------
+
+"""
+    Exercises the constructor's type gates.
+"""
+
+def test_rejects_non_callable_send() -> None:
     """
-        Exercises the constructor's type gates.
+        A non-callable ``send`` raises :class:`TypeError`.
     """
+    try:
+        HiiFormNavigator(
+            send="not-callable",  # type: ignore[arg-type]
+            read_screen=lambda t: "",
+            shape=SCREEN_SHAPES["ami"],
+        )
+        raise AssertionError("Expected TypeError")
+    except TypeError:
+        pass
+    return
 
-    def test_rejects_non_callable_send(self) -> None:
-        """
-            A non-callable ``send`` raises :class:`TypeError`.
-        """
-        try:
-            HiiFormNavigator(
-                send="not-callable",  # type: ignore[arg-type]
-                read_screen=lambda t: "",
-                shape=SCREEN_SHAPES["ami"],
-            )
-            self.fail("Expected TypeError")
-        except TypeError:
-            pass
-        return
-
-    def test_rejects_non_screenshape(self) -> None:
-        """
-            A non-:class:`ScreenShape` ``shape`` raises
-            :class:`TypeError`.
-        """
-        try:
-            HiiFormNavigator(
-                send=lambda b: len(b),
-                read_screen=lambda t: "",
-                shape="ami",  # type: ignore[arg-type]
-            )
-            self.fail("Expected TypeError")
-        except TypeError:
-            pass
-        return
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_rejects_non_screenshape() -> None:
+    """
+        A non-:class:`ScreenShape` ``shape`` raises
+        :class:`TypeError`.
+    """
+    try:
+        HiiFormNavigator(
+            send=lambda b: len(b),
+            read_screen=lambda t: "",
+            shape="ami",  # type: ignore[arg-type]
+        )
+        raise AssertionError("Expected TypeError")
+    except TypeError:
+        pass
+    return

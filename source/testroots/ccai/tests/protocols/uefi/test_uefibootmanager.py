@@ -29,8 +29,11 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+from types import SimpleNamespace
+
+from ccai import testbase
+
 import dataclasses
-import unittest
 import uuid
 
 from typing import Any, Dict, Iterator, List, Optional, Tuple
@@ -270,291 +273,303 @@ def _uri_node(uri: str) -> DevicePathNode:
 # pack_u16_array / unpack_u16_array
 # ---------------------------------------------------------------------------
 
-class U16ArrayCodecTests(unittest.TestCase):
-    """
-        Exercise :func:`pack_u16_array` and :func:`unpack_u16_array`.
-    """
+# ----------------------------------------------------------------------
+# U16ArrayCodecTests
+# ----------------------------------------------------------------------
 
-    def test_empty_round_trip(self) -> None:
-        packed = pack_u16_array(values=[])
-        self.assertEqual(packed, b"")
-        self.assertEqual(unpack_u16_array(buf=packed), tuple())
-        return
+"""
+    Exercise :func:`pack_u16_array` and :func:`unpack_u16_array`.
+"""
 
-    def test_simple_round_trip(self) -> None:
-        values = [0x0001, 0x0002, 0x0007, 0xFFFE]
-        packed = pack_u16_array(values=values)
-        self.assertEqual(len(packed), 2 * len(values))
-        unpacked = unpack_u16_array(buf=packed)
-        self.assertEqual(unpacked, tuple(values))
-        return
+def test_empty_round_trip() -> None:
+    packed = pack_u16_array(values=[])
+    testbase.assert_equal(packed, b"")
+    testbase.assert_equal(unpack_u16_array(buf=packed), tuple())
+    return
 
-    def test_out_of_range_raises(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            pack_u16_array(values=[0x1FFFF])
-        with self.assertRaises(ConfigurationError):
-            pack_u16_array(values=[-1])
-        return
+def test_simple_round_trip() -> None:
+    values = [0x0001, 0x0002, 0x0007, 0xFFFE]
+    packed = pack_u16_array(values=values)
+    testbase.assert_equal(len(packed), 2 * len(values))
+    unpacked = unpack_u16_array(buf=packed)
+    testbase.assert_equal(unpacked, tuple(values))
+    return
 
-    def test_odd_length_buffer_raises(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            unpack_u16_array(buf=b"\x01\x02\x03")
-        return
+def test_out_of_range_raises() -> None:
+    with testbase.raises(ConfigurationError):
+        pack_u16_array(values=[0x1FFFF])
+    with testbase.raises(ConfigurationError):
+        pack_u16_array(values=[-1])
+    return
+
+def test_odd_length_buffer_raises() -> None:
+    with testbase.raises(ConfigurationError):
+        unpack_u16_array(buf=b"\x01\x02\x03")
+    return
 
 
 # ---------------------------------------------------------------------------
 # LoadOptionAttribute flag round-trip
 # ---------------------------------------------------------------------------
 
-class LoadOptionAttributeTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# LoadOptionAttributeTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify every :class:`LoadOptionAttribute` flag survives
+    serialization through :meth:`BootOption.encode` /
+    :meth:`BootOption.decode`.
+"""
+
+def _build_option(attrs: int) -> BootOption:
     """
-        Verify every :class:`LoadOptionAttribute` flag survives
-        serialization through :meth:`BootOption.encode` /
-        :meth:`BootOption.decode`.
+        Construct a minimal :class:`BootOption` carrying ``attrs``.
     """
+    device_path = DevicePath(nodes=(_file_path_node(path="\\SHELL.EFI"),))
+    rtnval = BootOption(
+        attributes=LoadOptionAttribute(attrs),
+        description="flag-test",
+        file_path=device_path,
+        optional_data=b"",
+    )
+    return rtnval
 
-    def _build_option(self, attrs: int) -> BootOption:
-        """
-            Construct a minimal :class:`BootOption` carrying ``attrs``.
-        """
-        device_path = DevicePath(nodes=(_file_path_node(path="\\SHELL.EFI"),))
-        rtnval = BootOption(
-            attributes=LoadOptionAttribute(attrs),
-            description="flag-test",
-            file_path=device_path,
-            optional_data=b"",
-        )
-        return rtnval
+def test_active_flag_round_trip() -> None:
+    option = _build_option(attrs=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE))
+    decoded = BootOption.decode(data=option.encode())
+    testbase.assert_equal(decoded.attributes, LoadOptionAttribute.LOAD_OPTION_ACTIVE)
+    return
 
-    def test_active_flag_round_trip(self) -> None:
-        option = self._build_option(attrs=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE))
-        decoded = BootOption.decode(data=option.encode())
-        self.assertEqual(decoded.attributes, LoadOptionAttribute.LOAD_OPTION_ACTIVE)
-        return
+def test_force_reconnect_flag_round_trip() -> None:
+    option = _build_option(attrs=int(LoadOptionAttribute.LOAD_OPTION_FORCE_RECONNECT))
+    decoded = BootOption.decode(data=option.encode())
+    testbase.assert_equal(decoded.attributes, LoadOptionAttribute.LOAD_OPTION_FORCE_RECONNECT)
+    return
 
-    def test_force_reconnect_flag_round_trip(self) -> None:
-        option = self._build_option(attrs=int(LoadOptionAttribute.LOAD_OPTION_FORCE_RECONNECT))
-        decoded = BootOption.decode(data=option.encode())
-        self.assertEqual(decoded.attributes, LoadOptionAttribute.LOAD_OPTION_FORCE_RECONNECT)
-        return
+def test_hidden_flag_round_trip() -> None:
+    option = _build_option(attrs=int(LoadOptionAttribute.LOAD_OPTION_HIDDEN))
+    decoded = BootOption.decode(data=option.encode())
+    testbase.assert_equal(decoded.attributes, LoadOptionAttribute.LOAD_OPTION_HIDDEN)
+    return
 
-    def test_hidden_flag_round_trip(self) -> None:
-        option = self._build_option(attrs=int(LoadOptionAttribute.LOAD_OPTION_HIDDEN))
-        decoded = BootOption.decode(data=option.encode())
-        self.assertEqual(decoded.attributes, LoadOptionAttribute.LOAD_OPTION_HIDDEN)
-        return
+def test_category_app_round_trip() -> None:
+    combined = (
+        int(LoadOptionAttribute.LOAD_OPTION_ACTIVE)
+        | int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_APP)
+    )
+    option = _build_option(attrs=combined)
+    decoded = BootOption.decode(data=option.encode())
+    testbase.assert_equal(int(decoded.attributes), combined)
+    category = int(decoded.attributes) & int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_MASK)
+    testbase.assert_equal(category, int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_APP))
+    return
 
-    def test_category_app_round_trip(self) -> None:
-        combined = (
-            int(LoadOptionAttribute.LOAD_OPTION_ACTIVE)
-            | int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_APP)
-        )
-        option = self._build_option(attrs=combined)
-        decoded = BootOption.decode(data=option.encode())
-        self.assertEqual(int(decoded.attributes), combined)
-        category = int(decoded.attributes) & int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_MASK)
-        self.assertEqual(category, int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_APP))
-        return
-
-    def test_category_boot_is_zero(self) -> None:
-        option = self._build_option(attrs=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE))
-        decoded = BootOption.decode(data=option.encode())
-        category = int(decoded.attributes) & int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_MASK)
-        self.assertEqual(category, int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_BOOT))
-        return
+def test_category_boot_is_zero() -> None:
+    option = _build_option(attrs=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE))
+    decoded = BootOption.decode(data=option.encode())
+    category = int(decoded.attributes) & int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_MASK)
+    testbase.assert_equal(category, int(LoadOptionAttribute.LOAD_OPTION_CATEGORY_BOOT))
+    return
 
 
 # ---------------------------------------------------------------------------
 # BootOption decode / encode corpus
 # ---------------------------------------------------------------------------
 
-class BootOptionCorpusTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# BootOptionCorpusTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise decode / encode round trip for a realistic BootOption
+    corpus covering common loader identities seen on modern systems.
+"""
+
+def _round_trip(raw: bytes, description: str,
+                      expected_node_count: int) -> BootOption:
     """
-        Exercise decode / encode round trip for a realistic BootOption
-        corpus covering common loader identities seen on modern systems.
+        Decode ``raw``, encode, re-decode, and verify equivalence.
     """
+    decoded = BootOption.decode(data=raw)
+    testbase.assert_equal(decoded.description, description)
+    testbase.assert_equal(len(decoded.file_path.nodes), expected_node_count)
 
-    def _round_trip(self, raw: bytes, description: str,
-                          expected_node_count: int) -> BootOption:
-        """
-            Decode ``raw``, encode, re-decode, and verify equivalence.
-        """
-        decoded = BootOption.decode(data=raw)
-        self.assertEqual(decoded.description, description)
-        self.assertEqual(len(decoded.file_path.nodes), expected_node_count)
+    re_encoded = decoded.encode()
+    testbase.assert_equal(re_encoded, raw)
 
-        re_encoded = decoded.encode()
-        self.assertEqual(re_encoded, raw)
+    re_decoded = BootOption.decode(data=re_encoded)
+    testbase.assert_equal(decoded, re_decoded)
 
-        re_decoded = BootOption.decode(data=re_encoded)
-        self.assertEqual(decoded, re_decoded)
+    rtnval = decoded
+    return rtnval
 
-        rtnval = decoded
-        return rtnval
+def test_windows_boot_manager() -> None:
+    raw = _build_boot_option_bytes(
+        attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
+        description="Windows Boot Manager",
+        file_path_nodes=(
+            _hd_node(),
+            _file_path_node(path="\\EFI\\Microsoft\\Boot\\bootmgfw.efi"),
+        ),
+        optional_data=b"WINDOWS\x00",
+    )
+    decoded = _round_trip(
+        raw=raw, description="Windows Boot Manager",
+        expected_node_count=2,
+    )
+    testbase.assert_equal(decoded.optional_data, b"WINDOWS\x00")
+    return
 
-    def test_windows_boot_manager(self) -> None:
-        raw = _build_boot_option_bytes(
-            attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
-            description="Windows Boot Manager",
-            file_path_nodes=(
-                _hd_node(),
-                _file_path_node(path="\\EFI\\Microsoft\\Boot\\bootmgfw.efi"),
-            ),
-            optional_data=b"WINDOWS\x00",
-        )
-        decoded = self._round_trip(
-            raw=raw, description="Windows Boot Manager",
-            expected_node_count=2,
-        )
-        self.assertEqual(decoded.optional_data, b"WINDOWS\x00")
-        return
+def test_shim() -> None:
+    raw = _build_boot_option_bytes(
+        attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
+        description="ubuntu",
+        file_path_nodes=(
+            _hd_node(),
+            _file_path_node(path="\\EFI\\ubuntu\\shimx64.efi"),
+        ),
+        optional_data=b"",
+    )
+    _round_trip(raw=raw, description="ubuntu", expected_node_count=2)
+    return
 
-    def test_shim(self) -> None:
-        raw = _build_boot_option_bytes(
-            attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
-            description="ubuntu",
-            file_path_nodes=(
-                _hd_node(),
-                _file_path_node(path="\\EFI\\ubuntu\\shimx64.efi"),
-            ),
-            optional_data=b"",
-        )
-        self._round_trip(raw=raw, description="ubuntu", expected_node_count=2)
-        return
+def test_grub() -> None:
+    raw = _build_boot_option_bytes(
+        attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
+        description="GRUB",
+        file_path_nodes=(
+            _hd_node(),
+            _file_path_node(path="\\EFI\\ubuntu\\grubx64.efi"),
+        ),
+        optional_data=b"",
+    )
+    _round_trip(raw=raw, description="GRUB", expected_node_count=2)
+    return
 
-    def test_grub(self) -> None:
-        raw = _build_boot_option_bytes(
-            attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
-            description="GRUB",
-            file_path_nodes=(
-                _hd_node(),
-                _file_path_node(path="\\EFI\\ubuntu\\grubx64.efi"),
-            ),
-            optional_data=b"",
-        )
-        self._round_trip(raw=raw, description="GRUB", expected_node_count=2)
-        return
+def test_refind() -> None:
+    raw = _build_boot_option_bytes(
+        attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
+        description="rEFInd Boot Manager",
+        file_path_nodes=(
+            _hd_node(),
+            _file_path_node(path="\\EFI\\refind\\refind_x64.efi"),
+        ),
+        optional_data=b"",
+    )
+    _round_trip(
+        raw=raw, description="rEFInd Boot Manager",
+        expected_node_count=2,
+    )
+    return
 
-    def test_refind(self) -> None:
-        raw = _build_boot_option_bytes(
-            attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
-            description="rEFInd Boot Manager",
-            file_path_nodes=(
-                _hd_node(),
-                _file_path_node(path="\\EFI\\refind\\refind_x64.efi"),
-            ),
-            optional_data=b"",
-        )
-        self._round_trip(
-            raw=raw, description="rEFInd Boot Manager",
-            expected_node_count=2,
-        )
-        return
+def test_uefi_shell() -> None:
+    raw = _build_boot_option_bytes(
+        attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
+        description="UEFI Shell",
+        file_path_nodes=(
+            _file_path_node(path="\\Shell.efi"),
+        ),
+        optional_data=b"",
+    )
+    _round_trip(raw=raw, description="UEFI Shell", expected_node_count=1)
+    return
 
-    def test_uefi_shell(self) -> None:
-        raw = _build_boot_option_bytes(
-            attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
-            description="UEFI Shell",
-            file_path_nodes=(
-                _file_path_node(path="\\Shell.efi"),
-            ),
-            optional_data=b"",
-        )
-        self._round_trip(raw=raw, description="UEFI Shell", expected_node_count=1)
-        return
-
-    def test_http_boot_uri(self) -> None:
-        raw = _build_boot_option_bytes(
-            attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
-            description="HTTP Boot",
-            file_path_nodes=(
-                _uri_node(uri="http://example.com/boot/loader.efi"),
-            ),
-            optional_data=b"\x01\x02\x03\x04",
-        )
-        decoded = self._round_trip(
-            raw=raw, description="HTTP Boot", expected_node_count=1,
-        )
-        self.assertEqual(decoded.optional_data, b"\x01\x02\x03\x04")
-        return
+def test_http_boot_uri() -> None:
+    raw = _build_boot_option_bytes(
+        attributes=int(LoadOptionAttribute.LOAD_OPTION_ACTIVE),
+        description="HTTP Boot",
+        file_path_nodes=(
+            _uri_node(uri="http://example.com/boot/loader.efi"),
+        ),
+        optional_data=b"\x01\x02\x03\x04",
+    )
+    decoded = _round_trip(
+        raw=raw, description="HTTP Boot", expected_node_count=1,
+    )
+    testbase.assert_equal(decoded.optional_data, b"\x01\x02\x03\x04")
+    return
 
 
 # ---------------------------------------------------------------------------
 # BootOption error paths
 # ---------------------------------------------------------------------------
 
-class BootOptionErrorPathTests(unittest.TestCase):
-    """
-        Exercise the defensive error paths in :meth:`BootOption.decode`
-        and :meth:`BootOption.encode`.
-    """
+# ----------------------------------------------------------------------
+# BootOptionErrorPathTests
+# ----------------------------------------------------------------------
 
-    def test_decode_rejects_short_buffer(self) -> None:
-        with self.assertRaises(UefiVariableError):
-            BootOption.decode(data=b"\x00\x00\x00")
-        return
+"""
+    Exercise the defensive error paths in :meth:`BootOption.decode`
+    and :meth:`BootOption.encode`.
+"""
 
-    def test_decode_rejects_missing_null_terminator(self) -> None:
-        # Header says FilePathListLength=0 but description never terminates.
-        buf = (
-            (1).to_bytes(length=4, byteorder="little", signed=False)
-            + (0).to_bytes(length=2, byteorder="little", signed=False)
-            + "abc".encode("utf-16-le")
-        )
-        with self.assertRaises(UefiVariableError):
-            BootOption.decode(data=buf)
-        return
+def test_decode_rejects_short_buffer() -> None:
+    with testbase.raises(UefiVariableError):
+        BootOption.decode(data=b"\x00\x00\x00")
+    return
 
-    def test_decode_rejects_over_declared_file_path(self) -> None:
-        desc = "X".encode("utf-16-le") + b"\x00\x00"
-        over = 256
-        buf = (
-            (1).to_bytes(length=4, byteorder="little", signed=False)
-            + over.to_bytes(length=2, byteorder="little", signed=False)
-            + desc
-            + b"\x00"  # only 1 byte of file path follows, far less than 256
-        )
-        with self.assertRaises(UefiVariableError):
-            BootOption.decode(data=buf)
-        return
+def test_decode_rejects_missing_null_terminator() -> None:
+    # Header says FilePathListLength=0 but description never terminates.
+    buf = (
+        (1).to_bytes(length=4, byteorder="little", signed=False)
+        + (0).to_bytes(length=2, byteorder="little", signed=False)
+        + "abc".encode("utf-16-le")
+    )
+    with testbase.raises(UefiVariableError):
+        BootOption.decode(data=buf)
+    return
 
-    def test_encode_rejects_non_bmp_description(self) -> None:
-        device_path = DevicePath(nodes=(_file_path_node(path="\\A.EFI"),))
-        option = BootOption(
-            attributes=LoadOptionAttribute.LOAD_OPTION_ACTIVE,
-            description="rocket-\U0001F680",
-            file_path=device_path,
-            optional_data=b"",
-        )
-        with self.assertRaises(UefiError):
-            option.encode()
-        return
+def test_decode_rejects_over_declared_file_path() -> None:
+    desc = "X".encode("utf-16-le") + b"\x00\x00"
+    over = 256
+    buf = (
+        (1).to_bytes(length=4, byteorder="little", signed=False)
+        + over.to_bytes(length=2, byteorder="little", signed=False)
+        + desc
+        + b"\x00"  # only 1 byte of file path follows, far less than 256
+    )
+    with testbase.raises(UefiVariableError):
+        BootOption.decode(data=buf)
+    return
 
-    def test_frozen_instance_rejects_mutation(self) -> None:
-        device_path = DevicePath(nodes=(_file_path_node(path="\\A.EFI"),))
-        option = BootOption(
-            attributes=LoadOptionAttribute.LOAD_OPTION_ACTIVE,
-            description="X",
-            file_path=device_path,
-            optional_data=b"",
-        )
-        with self.assertRaises(dataclasses.FrozenInstanceError):
-            option.description = "Y"  # type: ignore[misc]
-        return
+def test_encode_rejects_non_bmp_description() -> None:
+    device_path = DevicePath(nodes=(_file_path_node(path="\\A.EFI"),))
+    option = BootOption(
+        attributes=LoadOptionAttribute.LOAD_OPTION_ACTIVE,
+        description="rocket-\U0001F680",
+        file_path=device_path,
+        optional_data=b"",
+    )
+    with testbase.raises(UefiError):
+        option.encode()
+    return
 
-    def test_repr_includes_device_path_text(self) -> None:
-        device_path = DevicePath(nodes=(_file_path_node(path="\\Shell.efi"),))
-        option = BootOption(
-            attributes=LoadOptionAttribute.LOAD_OPTION_ACTIVE,
-            description="Shell",
-            file_path=device_path,
-            optional_data=b"",
-        )
-        rendered = repr(option)
-        self.assertIn("Shell", rendered)
-        # device_path_to_text for the file-path node includes the path string.
-        self.assertIn("Shell.efi", rendered)
-        return
+def test_frozen_instance_rejects_mutation() -> None:
+    device_path = DevicePath(nodes=(_file_path_node(path="\\A.EFI"),))
+    option = BootOption(
+        attributes=LoadOptionAttribute.LOAD_OPTION_ACTIVE,
+        description="X",
+        file_path=device_path,
+        optional_data=b"",
+    )
+    with testbase.raises(dataclasses.FrozenInstanceError):
+        option.description = "Y"  # type: ignore[misc]
+    return
+
+def test_repr_includes_device_path_text() -> None:
+    device_path = DevicePath(nodes=(_file_path_node(path="\\Shell.efi"),))
+    option = BootOption(
+        attributes=LoadOptionAttribute.LOAD_OPTION_ACTIVE,
+        description="Shell",
+        file_path=device_path,
+        optional_data=b"",
+    )
+    rendered = repr(option)
+    testbase.assert_true("Shell" in rendered)
+    # device_path_to_text for the file-path node includes the path string.
+    testbase.assert_true("Shell.efi" in rendered)
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -594,440 +609,514 @@ def _seed_boot(store: _FakeVariableStore, option_id: int,
     return name
 
 
-class BootManagerBootOptionTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# BootManagerBootOptionTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise Boot#### CRUD, list_boot_options enumeration, and
+    option-id validation.
+"""
+
+def _setup_boot_manager_boot_option(ctx) -> None:
     """
-        Exercise Boot#### CRUD, list_boot_options enumeration, and
-        option-id validation.
+        Fresh fake store and :class:`BootManager` per test.
     """
+    ctx.store = _FakeVariableStore()
+    # BootManager __init__ validates the store is a VariableStore; bypass
+    # that by using object.__setattr__ on a manually-constructed instance.
+    ctx.manager = BootManager.__new__(BootManager)
+    ctx.manager._variable_store = ctx.store  # type: ignore[attr-defined]
+    ctx.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
+    ctx.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
+    import logging
+    ctx.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
+    return
 
-    def setUp(self) -> None:
-        """
-            Fresh fake store and :class:`BootManager` per test.
-        """
-        self.store = _FakeVariableStore()
-        # BootManager __init__ validates the store is a VariableStore; bypass
-        # that by using object.__setattr__ on a manually-constructed instance.
-        self.manager = BootManager.__new__(BootManager)
-        self.manager._variable_store = self.store  # type: ignore[attr-defined]
-        self.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
-        self.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
-        import logging
-        self.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
-        return
+def test_list_boot_options_returns_all_seeded() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_option(ctx)
+    opt0 = _make_boot_option(description="Windows", path="\\EFI\\bootmgfw.efi")
+    opt1 = _make_boot_option(description="Shell", path="\\Shell.efi")
+    _seed_boot(store=ctx.store, option_id=0x0000, option=opt0)
+    _seed_boot(store=ctx.store, option_id=0x0001, option=opt1)
 
-    def test_list_boot_options_returns_all_seeded(self) -> None:
-        opt0 = _make_boot_option(description="Windows", path="\\EFI\\bootmgfw.efi")
-        opt1 = _make_boot_option(description="Shell", path="\\Shell.efi")
-        _seed_boot(store=self.store, option_id=0x0000, option=opt0)
-        _seed_boot(store=self.store, option_id=0x0001, option=opt1)
+    options = ctx.manager.list_boot_options()
 
-        options = self.manager.list_boot_options()
+    testbase.assert_equal(set(options.keys()), {0x0000, 0x0001})
+    testbase.assert_equal(options[0x0000].description, "Windows")
+    testbase.assert_equal(options[0x0001].description, "Shell")
+    return
 
-        self.assertEqual(set(options.keys()), {0x0000, 0x0001})
-        self.assertEqual(options[0x0000].description, "Windows")
-        self.assertEqual(options[0x0001].description, "Shell")
-        return
+def test_list_boot_options_skips_malformed_entry() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_option(ctx)
+    # Seed a valid one plus a malformed Boot0002 with too-short data.
+    opt_valid = _make_boot_option(description="Valid", path="\\Valid.efi")
+    _seed_boot(store=ctx.store, option_id=0x0001, option=opt_valid)
+    ctx.store.put(variable=UefiVariable(
+        name="Boot0002",
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=BOOT_OPTION_WRITE_ATTRIBUTES,
+        data=b"\x00\x00",
+    ))
 
-    def test_list_boot_options_skips_malformed_entry(self) -> None:
-        # Seed a valid one plus a malformed Boot0002 with too-short data.
-        opt_valid = _make_boot_option(description="Valid", path="\\Valid.efi")
-        _seed_boot(store=self.store, option_id=0x0001, option=opt_valid)
-        self.store.put(variable=UefiVariable(
-            name="Boot0002",
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=BOOT_OPTION_WRITE_ATTRIBUTES,
-            data=b"\x00\x00",
-        ))
+    options = ctx.manager.list_boot_options()
+    testbase.assert_true(0x0001 in options)
+    testbase.assert_true(0x0002 not in options)
+    return
 
-        options = self.manager.list_boot_options()
-        self.assertIn(0x0001, options)
-        self.assertNotIn(0x0002, options)
-        return
+def test_get_boot_option_decodes_seeded() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_option(ctx)
+    opt = _make_boot_option(description="X", path="\\X.efi")
+    _seed_boot(store=ctx.store, option_id=0x0005, option=opt)
 
-    def test_get_boot_option_decodes_seeded(self) -> None:
-        opt = _make_boot_option(description="X", path="\\X.efi")
-        _seed_boot(store=self.store, option_id=0x0005, option=opt)
+    decoded = ctx.manager.get_boot_option(index=0x0005)
+    testbase.assert_equal(decoded.description, "X")
+    return
 
-        decoded = self.manager.get_boot_option(index=0x0005)
-        self.assertEqual(decoded.description, "X")
-        return
+def test_get_boot_option_rejects_out_of_range_id() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_option(ctx)
+    with testbase.raises(ConfigurationError):
+        ctx.manager.get_boot_option(index=-1)
+    with testbase.raises(ConfigurationError):
+        ctx.manager.get_boot_option(index=0x10000)
+    return
 
-    def test_get_boot_option_rejects_out_of_range_id(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            self.manager.get_boot_option(index=-1)
-        with self.assertRaises(ConfigurationError):
-            self.manager.get_boot_option(index=0x10000)
-        return
+def test_set_boot_option_writes_variable() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_option(ctx)
+    opt = _make_boot_option(description="New", path="\\new.efi")
+    ctx.manager.set_boot_option(index=0x0010, option=opt)
 
-    def test_set_boot_option_writes_variable(self) -> None:
-        opt = _make_boot_option(description="New", path="\\new.efi")
-        self.manager.set_boot_option(index=0x0010, option=opt)
+    testbase.assert_true(ctx.store.exists(name="Boot0010", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
+    testbase.assert_equal(len(ctx.store.set_calls), 1)
+    written_var, _aspects = ctx.store.set_calls[0]
+    testbase.assert_equal(written_var.name, "Boot0010")
+    testbase.assert_equal(written_var.attributes, BOOT_OPTION_WRITE_ATTRIBUTES)
 
-        self.assertTrue(self.store.exists(name="Boot0010", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
-        self.assertEqual(len(self.store.set_calls), 1)
-        written_var, _aspects = self.store.set_calls[0]
-        self.assertEqual(written_var.name, "Boot0010")
-        self.assertEqual(written_var.attributes, BOOT_OPTION_WRITE_ATTRIBUTES)
+    round_trip = BootOption.decode(data=written_var.data)
+    testbase.assert_equal(round_trip, opt)
+    return
 
-        round_trip = BootOption.decode(data=written_var.data)
-        self.assertEqual(round_trip, opt)
-        return
+def test_delete_boot_option_removes_variable() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_option(ctx)
+    opt = _make_boot_option(description="Doomed", path="\\d.efi")
+    _seed_boot(store=ctx.store, option_id=0x0020, option=opt)
 
-    def test_delete_boot_option_removes_variable(self) -> None:
-        opt = _make_boot_option(description="Doomed", path="\\d.efi")
-        _seed_boot(store=self.store, option_id=0x0020, option=opt)
+    ctx.manager.delete_boot_option(index=0x0020)
 
-        self.manager.delete_boot_option(index=0x0020)
-
-        self.assertFalse(self.store.exists(name="Boot0020", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
-        self.assertEqual(len(self.store.delete_calls), 1)
-        return
+    testbase.assert_false(ctx.store.exists(name="Boot0020", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
+    testbase.assert_equal(len(ctx.store.delete_calls), 1)
+    return
 
 
-class BootManagerBootNextTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# BootManagerBootNextTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise BootNext get/set/clear including the existence-check
+    required by :meth:`BootManager.set_boot_next`.
+"""
+
+def _setup_boot_manager_boot_next(ctx) -> None:
     """
-        Exercise BootNext get/set/clear including the existence-check
-        required by :meth:`BootManager.set_boot_next`.
+        Fresh manager per test.
     """
+    ctx.store = _FakeVariableStore()
+    ctx.manager = BootManager.__new__(BootManager)
+    ctx.manager._variable_store = ctx.store  # type: ignore[attr-defined]
+    ctx.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
+    ctx.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
+    import logging
+    ctx.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
+    return
 
-    def setUp(self) -> None:
-        """
-            Fresh manager per test.
-        """
-        self.store = _FakeVariableStore()
-        self.manager = BootManager.__new__(BootManager)
-        self.manager._variable_store = self.store  # type: ignore[attr-defined]
-        self.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
-        self.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
-        import logging
-        self.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
-        return
+def test_get_boot_next_returns_none_when_unset() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_next(ctx)
+    result = ctx.manager.get_boot_next()
+    testbase.assert_true(result is None)
+    return
 
-    def test_get_boot_next_returns_none_when_unset(self) -> None:
-        result = self.manager.get_boot_next()
-        self.assertIsNone(result)
-        return
+def test_set_boot_next_requires_target() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_next(ctx)
+    with testbase.raises(UefiVariableError) as raised:
+        ctx.manager.set_boot_next(index=0x00AB)
+    testbase.assert_equal(raised.exception.efi_status, EFI_NOT_FOUND)
+    return
 
-    def test_set_boot_next_requires_target(self) -> None:
-        with self.assertRaises(UefiVariableError) as ctx:
-            self.manager.set_boot_next(index=0x00AB)
-        self.assertEqual(ctx.exception.efi_status, EFI_NOT_FOUND)
-        return
+def test_set_boot_next_writes_when_target_exists() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_next(ctx)
+    opt = _make_boot_option(description="Target", path="\\t.efi")
+    _seed_boot(store=ctx.store, option_id=0x0007, option=opt)
 
-    def test_set_boot_next_writes_when_target_exists(self) -> None:
-        opt = _make_boot_option(description="Target", path="\\t.efi")
-        _seed_boot(store=self.store, option_id=0x0007, option=opt)
+    ctx.manager.set_boot_next(index=0x0007)
 
-        self.manager.set_boot_next(index=0x0007)
+    read_back = ctx.manager.get_boot_next()
+    testbase.assert_equal(read_back, 0x0007)
+    return
 
-        read_back = self.manager.get_boot_next()
-        self.assertEqual(read_back, 0x0007)
-        return
+def test_clear_boot_next_deletes_variable() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_next(ctx)
+    opt = _make_boot_option(description="Target", path="\\t.efi")
+    _seed_boot(store=ctx.store, option_id=0x0007, option=opt)
+    ctx.manager.set_boot_next(index=0x0007)
 
-    def test_clear_boot_next_deletes_variable(self) -> None:
-        opt = _make_boot_option(description="Target", path="\\t.efi")
-        _seed_boot(store=self.store, option_id=0x0007, option=opt)
-        self.manager.set_boot_next(index=0x0007)
+    ctx.manager.clear_boot_next()
 
-        self.manager.clear_boot_next()
-
-        self.assertIsNone(self.manager.get_boot_next())
-        return
+    testbase.assert_true(ctx.manager.get_boot_next() is None)
+    return
 
 
-class BootManagerBootOrderTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# BootManagerBootOrderTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise :meth:`BootManager.get_boot_order` /
+    :meth:`BootManager.set_boot_order` including the optimistic
+    read-modify-write retry on concurrent change.
+"""
+
+def _setup_boot_manager_boot_order(ctx) -> None:
     """
-        Exercise :meth:`BootManager.get_boot_order` /
-        :meth:`BootManager.set_boot_order` including the optimistic
-        read-modify-write retry on concurrent change.
+        Fresh manager with a fast-retry aspects instance so tests
+        that exercise the retry loop do not wait seconds.
     """
+    ctx.store = _FakeVariableStore()
+    ctx.aspects = UefiCmdAspects(
+        action_pattern=ActionPattern.DO_UNTIL_SUCCESS,
+        completion_timeout=2.0,
+        completion_interval=0.01,
+    )
+    ctx.manager = BootManager.__new__(BootManager)
+    ctx.manager._variable_store = ctx.store  # type: ignore[attr-defined]
+    ctx.manager._aspects = ctx.aspects  # type: ignore[attr-defined]
+    ctx.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
+    import logging
+    ctx.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
+    return
 
-    def setUp(self) -> None:
+def test_get_boot_order_returns_empty_when_unset() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_order(ctx)
+    result = ctx.manager.get_boot_order()
+    testbase.assert_equal(result, tuple())
+    return
+
+def test_set_boot_order_writes_expected_bytes() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_order(ctx)
+    ctx.manager.set_boot_order(indices=[0x0001, 0x0002, 0x0003])
+
+    order = ctx.manager.get_boot_order()
+    testbase.assert_equal(order, (0x0001, 0x0002, 0x0003))
+    return
+
+def test_set_boot_order_retries_on_concurrent_change() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_order(ctx)
+    call_count = {"n": 0}
+
+    def mutator(store: _FakeVariableStore, variable: UefiVariable,
+                aspects: Optional[UefiCmdAspects]) -> None:
         """
-            Fresh manager with a fast-retry aspects instance so tests
-            that exercise the retry loop do not wait seconds.
+            On the first write only, overwrite storage with an
+            interfering value so the post-write verification fails
+            and a retry is forced.
         """
-        self.store = _FakeVariableStore()
-        self.aspects = UefiCmdAspects(
-            action_pattern=ActionPattern.DO_UNTIL_SUCCESS,
-            completion_timeout=2.0,
-            completion_interval=0.01,
-        )
-        self.manager = BootManager.__new__(BootManager)
-        self.manager._variable_store = self.store  # type: ignore[attr-defined]
-        self.manager._aspects = self.aspects  # type: ignore[attr-defined]
-        self.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
-        import logging
-        self.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
-        return
-
-    def test_get_boot_order_returns_empty_when_unset(self) -> None:
-        result = self.manager.get_boot_order()
-        self.assertEqual(result, tuple())
-        return
-
-    def test_set_boot_order_writes_expected_bytes(self) -> None:
-        self.manager.set_boot_order(indices=[0x0001, 0x0002, 0x0003])
-
-        order = self.manager.get_boot_order()
-        self.assertEqual(order, (0x0001, 0x0002, 0x0003))
-        return
-
-    def test_set_boot_order_retries_on_concurrent_change(self) -> None:
-        call_count = {"n": 0}
-
-        def mutator(store: _FakeVariableStore, variable: UefiVariable,
-                    aspects: Optional[UefiCmdAspects]) -> None:
-            """
-                On the first write only, overwrite storage with an
-                interfering value so the post-write verification fails
-                and a retry is forced.
-            """
-            if variable.name != "BootOrder":
-                return
-            call_count["n"] = call_count["n"] + 1
-            if call_count["n"] == 1:
-                # Simulate a concurrent writer clobbering us; the fake
-                # stores ``variable.data`` AFTER the mutator returns, so
-                # we overwrite it AFTER the fact in a wrapper callback
-                # chained via set_variable.  Simpler approach: replace
-                # the payload on the variable object before storage.
-                object.__setattr__(
-                    variable, "data",
-                    pack_u16_array(values=[0x0009, 0x0009]),
-                )
+        if variable.name != "BootOrder":
             return
-
-        self.store.pre_write_mutator = mutator
-
-        self.manager.set_boot_order(indices=[0x0001, 0x0002])
-
-        # After the retry the final stored value must match the requested order.
-        final = self.manager.get_boot_order()
-        self.assertEqual(final, (0x0001, 0x0002))
-        # Two writes: the first was clobbered, the second succeeded.
-        set_calls_boot_order = [c for c in self.store.set_calls if c[0].name == "BootOrder"]
-        self.assertGreaterEqual(len(set_calls_boot_order), 2)
+        call_count["n"] = call_count["n"] + 1
+        if call_count["n"] == 1:
+            # Simulate a concurrent writer clobbering us; the fake
+            # stores ``variable.data`` AFTER the mutator returns, so
+            # we overwrite it AFTER the fact in a wrapper callback
+            # chained via set_variable.  Simpler approach: replace
+            # the payload on the variable object before storage.
+            object.__setattr__(
+                variable, "data",
+                pack_u16_array(values=[0x0009, 0x0009]),
+            )
         return
 
-    def test_set_boot_order_converges_without_retry_when_stable(self) -> None:
-        self.manager.set_boot_order(indices=[0x0010, 0x0011])
-        set_calls_boot_order = [c for c in self.store.set_calls if c[0].name == "BootOrder"]
-        self.assertEqual(len(set_calls_boot_order), 1)
-        return
+    ctx.store.pre_write_mutator = mutator
+
+    ctx.manager.set_boot_order(indices=[0x0001, 0x0002])
+
+    # After the retry the final stored value must match the requested order.
+    final = ctx.manager.get_boot_order()
+    testbase.assert_equal(final, (0x0001, 0x0002))
+    # Two writes: the first was clobbered, the second succeeded.
+    set_calls_boot_order = [c for c in ctx.store.set_calls if c[0].name == "BootOrder"]
+    testbase.assert_true(len(set_calls_boot_order) >= 2)
+    return
+
+def test_set_boot_order_converges_without_retry_when_stable() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_order(ctx)
+    ctx.manager.set_boot_order(indices=[0x0010, 0x0011])
+    set_calls_boot_order = [c for c in ctx.store.set_calls if c[0].name == "BootOrder"]
+    testbase.assert_equal(len(set_calls_boot_order), 1)
+    return
 
 
-class BootManagerTimeoutTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# BootManagerTimeoutTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise :meth:`BootManager.get_boot_timeout` /
+    :meth:`BootManager.set_boot_timeout`.
+"""
+
+def _setup_boot_manager_timeout(ctx) -> None:
     """
-        Exercise :meth:`BootManager.get_boot_timeout` /
-        :meth:`BootManager.set_boot_timeout`.
+        Fresh manager per test.
     """
+    ctx.store = _FakeVariableStore()
+    ctx.manager = BootManager.__new__(BootManager)
+    ctx.manager._variable_store = ctx.store  # type: ignore[attr-defined]
+    ctx.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
+    ctx.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
+    import logging
+    ctx.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
+    return
 
-    def setUp(self) -> None:
-        """
-            Fresh manager per test.
-        """
-        self.store = _FakeVariableStore()
-        self.manager = BootManager.__new__(BootManager)
-        self.manager._variable_store = self.store  # type: ignore[attr-defined]
-        self.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
-        self.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
-        import logging
-        self.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
-        return
+def test_get_boot_timeout_returns_none_when_unset() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_timeout(ctx)
+    result = ctx.manager.get_boot_timeout()
+    testbase.assert_true(result is None)
+    return
 
-    def test_get_boot_timeout_returns_none_when_unset(self) -> None:
-        result = self.manager.get_boot_timeout()
-        self.assertIsNone(result)
-        return
+def test_set_and_get_boot_timeout_round_trip() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_timeout(ctx)
+    ctx.manager.set_boot_timeout(seconds=5)
+    testbase.assert_equal(ctx.manager.get_boot_timeout(), 5)
+    return
 
-    def test_set_and_get_boot_timeout_round_trip(self) -> None:
-        self.manager.set_boot_timeout(seconds=5)
-        self.assertEqual(self.manager.get_boot_timeout(), 5)
-        return
-
-    def test_set_boot_timeout_rejects_out_of_range(self) -> None:
-        with self.assertRaises(ConfigurationError):
-            self.manager.set_boot_timeout(seconds=-1)
-        with self.assertRaises(ConfigurationError):
-            self.manager.set_boot_timeout(seconds=0x10000)
-        return
+def test_set_boot_timeout_rejects_out_of_range() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_timeout(ctx)
+    with testbase.raises(ConfigurationError):
+        ctx.manager.set_boot_timeout(seconds=-1)
+    with testbase.raises(ConfigurationError):
+        ctx.manager.set_boot_timeout(seconds=0x10000)
+    return
 
 
-class BootManagerBootCurrentTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# BootManagerBootCurrentTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercise :meth:`BootManager.get_boot_current`.
+"""
+
+def _setup_boot_manager_boot_current(ctx) -> None:
     """
-        Exercise :meth:`BootManager.get_boot_current`.
+        Fresh manager per test.
     """
+    ctx.store = _FakeVariableStore()
+    ctx.manager = BootManager.__new__(BootManager)
+    ctx.manager._variable_store = ctx.store  # type: ignore[attr-defined]
+    ctx.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
+    ctx.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
+    import logging
+    ctx.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
+    return
 
-    def setUp(self) -> None:
-        """
-            Fresh manager per test.
-        """
-        self.store = _FakeVariableStore()
-        self.manager = BootManager.__new__(BootManager)
-        self.manager._variable_store = self.store  # type: ignore[attr-defined]
-        self.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
-        self.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
-        import logging
-        self.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
-        return
+def test_get_boot_current_returns_none_when_unset() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_current(ctx)
+    result = ctx.manager.get_boot_current()
+    testbase.assert_true(result is None)
+    return
 
-    def test_get_boot_current_returns_none_when_unset(self) -> None:
-        result = self.manager.get_boot_current()
-        self.assertIsNone(result)
-        return
-
-    def test_get_boot_current_decodes_stored_value(self) -> None:
-        record = UefiVariable(
-            name="BootCurrent",
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=UefiVariableAttributes(
-                UefiVariableAttributes.BOOTSERVICE_ACCESS
-                | UefiVariableAttributes.RUNTIME_ACCESS
-            ),
-            data=(0x0003).to_bytes(length=2, byteorder="little", signed=False),
-        )
-        self.store.put(variable=record)
-        self.assertEqual(self.manager.get_boot_current(), 0x0003)
-        return
+def test_get_boot_current_decodes_stored_value() -> None:
+    ctx = SimpleNamespace()
+    _setup_boot_manager_boot_current(ctx)
+    record = UefiVariable(
+        name="BootCurrent",
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=UefiVariableAttributes(
+            UefiVariableAttributes.BOOTSERVICE_ACCESS
+            | UefiVariableAttributes.RUNTIME_ACCESS
+        ),
+        data=(0x0003).to_bytes(length=2, byteorder="little", signed=False),
+    )
+    ctx.store.put(variable=record)
+    testbase.assert_equal(ctx.manager.get_boot_current(), 0x0003)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Driver#### / SysPrep#### parity
 # ---------------------------------------------------------------------------
 
-class DriverParityTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# DriverParityTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify the Driver#### wrappers write to the correct variable name
+    prefix and decode correctly.
+"""
+
+def _setup_driver_parity(ctx) -> None:
     """
-        Verify the Driver#### wrappers write to the correct variable name
-        prefix and decode correctly.
+        Fresh manager per test.
     """
+    ctx.store = _FakeVariableStore()
+    ctx.manager = BootManager.__new__(BootManager)
+    ctx.manager._variable_store = ctx.store  # type: ignore[attr-defined]
+    ctx.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
+    ctx.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
+    import logging
+    ctx.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
+    return
 
-    def setUp(self) -> None:
-        """
-            Fresh manager per test.
-        """
-        self.store = _FakeVariableStore()
-        self.manager = BootManager.__new__(BootManager)
-        self.manager._variable_store = self.store  # type: ignore[attr-defined]
-        self.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
-        self.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
-        import logging
-        self.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
-        return
+def test_set_driver_option_uses_driver_prefix() -> None:
+    ctx = SimpleNamespace()
+    _setup_driver_parity(ctx)
+    opt = _make_boot_option(description="NicDriver", path="\\drivers\\nic.efi")
+    ctx.manager.set_driver_option(index=0x0002, option=opt)
 
-    def test_set_driver_option_uses_driver_prefix(self) -> None:
-        opt = _make_boot_option(description="NicDriver", path="\\drivers\\nic.efi")
-        self.manager.set_driver_option(index=0x0002, option=opt)
+    testbase.assert_true(ctx.store.exists(name="Driver0002", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
+    return
 
-        self.assertTrue(self.store.exists(name="Driver0002", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
-        return
+def test_list_driver_options_enumerates_driver_prefix() -> None:
+    ctx = SimpleNamespace()
+    _setup_driver_parity(ctx)
+    opt = _make_boot_option(description="Drv", path="\\d.efi")
+    record = UefiVariable(
+        name="Driver0001",
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=BOOT_OPTION_WRITE_ATTRIBUTES,
+        data=opt.encode(),
+    )
+    ctx.store.put(variable=record)
 
-    def test_list_driver_options_enumerates_driver_prefix(self) -> None:
-        opt = _make_boot_option(description="Drv", path="\\d.efi")
-        record = UefiVariable(
-            name="Driver0001",
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=BOOT_OPTION_WRITE_ATTRIBUTES,
-            data=opt.encode(),
-        )
-        self.store.put(variable=record)
+    options = ctx.manager.list_driver_options()
+    testbase.assert_true(0x0001 in options)
+    return
 
-        options = self.manager.list_driver_options()
-        self.assertIn(0x0001, options)
-        return
-
-    def test_driver_order_round_trip(self) -> None:
-        self.manager.set_driver_order(indices=[0x0001, 0x0002])
-        order = self.manager.get_driver_order()
-        self.assertEqual(order, (0x0001, 0x0002))
-        self.assertTrue(self.store.exists(name="DriverOrder", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
-        return
+def test_driver_order_round_trip() -> None:
+    ctx = SimpleNamespace()
+    _setup_driver_parity(ctx)
+    ctx.manager.set_driver_order(indices=[0x0001, 0x0002])
+    order = ctx.manager.get_driver_order()
+    testbase.assert_equal(order, (0x0001, 0x0002))
+    testbase.assert_true(ctx.store.exists(name="DriverOrder", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
+    return
 
 
-class SysPrepParityTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# SysPrepParityTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify the SysPrep#### wrappers write to the correct variable
+    name prefix and decode correctly.
+"""
+
+def _setup_sys_prep_parity(ctx) -> None:
     """
-        Verify the SysPrep#### wrappers write to the correct variable
-        name prefix and decode correctly.
+        Fresh manager per test.
     """
+    ctx.store = _FakeVariableStore()
+    ctx.manager = BootManager.__new__(BootManager)
+    ctx.manager._variable_store = ctx.store  # type: ignore[attr-defined]
+    ctx.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
+    ctx.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
+    import logging
+    ctx.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
+    return
 
-    def setUp(self) -> None:
-        """
-            Fresh manager per test.
-        """
-        self.store = _FakeVariableStore()
-        self.manager = BootManager.__new__(BootManager)
-        self.manager._variable_store = self.store  # type: ignore[attr-defined]
-        self.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
-        self.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
-        import logging
-        self.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
-        return
+def test_set_sys_prep_option_uses_syspprep_prefix() -> None:
+    ctx = SimpleNamespace()
+    _setup_sys_prep_parity(ctx)
+    opt = _make_boot_option(description="Prep", path="\\prep.efi")
+    ctx.manager.set_sys_prep_option(index=0x0001, option=opt)
 
-    def test_set_sys_prep_option_uses_syspprep_prefix(self) -> None:
-        opt = _make_boot_option(description="Prep", path="\\prep.efi")
-        self.manager.set_sys_prep_option(index=0x0001, option=opt)
+    testbase.assert_true(ctx.store.exists(name="SysPrep0001", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
+    return
 
-        self.assertTrue(self.store.exists(name="SysPrep0001", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
-        return
+def test_list_sys_prep_options_enumerates_sys_prep_prefix() -> None:
+    ctx = SimpleNamespace()
+    _setup_sys_prep_parity(ctx)
+    opt = _make_boot_option(description="Prep", path="\\p.efi")
+    record = UefiVariable(
+        name="SysPrep0003",
+        vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
+        attributes=BOOT_OPTION_WRITE_ATTRIBUTES,
+        data=opt.encode(),
+    )
+    ctx.store.put(variable=record)
 
-    def test_list_sys_prep_options_enumerates_sys_prep_prefix(self) -> None:
-        opt = _make_boot_option(description="Prep", path="\\p.efi")
-        record = UefiVariable(
-            name="SysPrep0003",
-            vendor_guid=EFI_GLOBAL_VARIABLE_GUID,
-            attributes=BOOT_OPTION_WRITE_ATTRIBUTES,
-            data=opt.encode(),
-        )
-        self.store.put(variable=record)
+    options = ctx.manager.list_sys_prep_options()
+    testbase.assert_true(0x0003 in options)
+    return
 
-        options = self.manager.list_sys_prep_options()
-        self.assertIn(0x0003, options)
-        return
-
-    def test_sys_prep_order_round_trip(self) -> None:
-        self.manager.set_sys_prep_order(indices=[0x0011, 0x0012])
-        order = self.manager.get_sys_prep_order()
-        self.assertEqual(order, (0x0011, 0x0012))
-        self.assertTrue(self.store.exists(name="SysPrepOrder", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
-        return
+def test_sys_prep_order_round_trip() -> None:
+    ctx = SimpleNamespace()
+    _setup_sys_prep_parity(ctx)
+    ctx.manager.set_sys_prep_order(indices=[0x0011, 0x0012])
+    order = ctx.manager.get_sys_prep_order()
+    testbase.assert_equal(order, (0x0011, 0x0012))
+    testbase.assert_true(ctx.store.exists(name="SysPrepOrder", vendor_guid=EFI_GLOBAL_VARIABLE_GUID))
+    return
 
 
 # ---------------------------------------------------------------------------
 # ActionPattern semantic rejection
 # ---------------------------------------------------------------------------
 
-class ActionPatternSemanticTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# ActionPatternSemanticTests
+# ----------------------------------------------------------------------
+
+"""
+    Verify mutating operations reject action patterns that cannot
+    possibly succeed.
+"""
+
+def _setup_action_pattern_semantic(ctx) -> None:
     """
-        Verify mutating operations reject action patterns that cannot
-        possibly succeed.
+        Fresh manager per test.
     """
+    ctx.store = _FakeVariableStore()
+    ctx.manager = BootManager.__new__(BootManager)
+    ctx.manager._variable_store = ctx.store  # type: ignore[attr-defined]
+    ctx.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
+    ctx.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
+    import logging
+    ctx.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
+    return
 
-    def setUp(self) -> None:
-        """
-            Fresh manager per test.
-        """
-        self.store = _FakeVariableStore()
-        self.manager = BootManager.__new__(BootManager)
-        self.manager._variable_store = self.store  # type: ignore[attr-defined]
-        self.manager._aspects = DEFAULT_CMD_ASPECTS  # type: ignore[attr-defined]
-        self.manager._vendor_guid = EFI_GLOBAL_VARIABLE_GUID  # type: ignore[attr-defined]
-        import logging
-        self.manager._logger = logging.getLogger("uefi.bootmgr.test")  # type: ignore[attr-defined]
-        return
+def test_do_while_success_rejected_on_set_boot_option() -> None:
+    ctx = SimpleNamespace()
+    _setup_action_pattern_semantic(ctx)
+    opt = _make_boot_option(description="X", path="\\x.efi")
+    bad = UefiCmdAspects(action_pattern=ActionPattern.DO_WHILE_SUCCESS)
+    with testbase.raises(SemanticError):
+        ctx.manager.set_boot_option(index=0x0001, option=opt, aspects=bad)
+    return
 
-    def test_do_while_success_rejected_on_set_boot_option(self) -> None:
-        opt = _make_boot_option(description="X", path="\\x.efi")
-        bad = UefiCmdAspects(action_pattern=ActionPattern.DO_WHILE_SUCCESS)
-        with self.assertRaises(SemanticError):
-            self.manager.set_boot_option(index=0x0001, option=opt, aspects=bad)
-        return
-
-    def test_do_until_connection_failure_rejected_on_set_boot_order(self) -> None:
-        bad = UefiCmdAspects(action_pattern=ActionPattern.DO_UNTIL_CONNECTION_FAILURE)
-        with self.assertRaises(SemanticError):
-            self.manager.set_boot_order(indices=[0x0001], aspects=bad)
-        return
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_do_until_connection_failure_rejected_on_set_boot_order() -> None:
+    ctx = SimpleNamespace()
+    _setup_action_pattern_semantic(ctx)
+    bad = UefiCmdAspects(action_pattern=ActionPattern.DO_UNTIL_CONNECTION_FAILURE)
+    with testbase.raises(SemanticError):
+        ctx.manager.set_boot_order(indices=[0x0001], aspects=bad)
+    return

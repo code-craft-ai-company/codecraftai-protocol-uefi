@@ -25,9 +25,16 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+import contextlib
+import atexit
+from types import SimpleNamespace
+
+import unittest
+
+from ccai import testbase
+
 import sys
 import types
-import unittest
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from unittest.mock import MagicMock, patch
@@ -284,9 +291,9 @@ def _build_ipmi_credential() -> UefiIpmiCredential:
     return rtnval
 
 
-def _install_time_stubs(monkey: unittest.TestCase,
-                               sleep_record: Optional[List[float]] = None,
-                               time_sequence: Optional[List[float]] = None) -> None:
+@contextlib.contextmanager
+def _install_time_stubs(sleep_record: Optional[List[float]] = None,
+                        time_sequence: Optional[List[float]] = None) -> None:
     """
         Swap in deterministic ``time.sleep`` and ``time.time`` stubs that
         the :mod:`uefiagent` module will resolve through its ``time``
@@ -294,7 +301,6 @@ def _install_time_stubs(monkey: unittest.TestCase,
         in place of the real :mod:`time` module and restores the original
         on cleanup.
 
-        :param monkey: The test case (used to register cleanup).
         :param sleep_record: If non-None, each ``time.sleep(seconds)``
                              call appends ``seconds`` to this list and
                              returns immediately.
@@ -327,8 +333,10 @@ def _install_time_stubs(monkey: unittest.TestCase,
         uefiagent.time = original_time_module
         return
 
-    monkey.addCleanup(_cleanup)
-    return
+    try:
+        yield
+    finally:
+        _cleanup()
 
 
 # ---------------------------------------------------------------------------
@@ -336,192 +344,195 @@ def _install_time_stubs(monkey: unittest.TestCase,
 # ---------------------------------------------------------------------------
 
 
-class UefiAgentConstructionTests(unittest.TestCase):
-    """
-        Exercises :meth:`UefiAgent.__init__` — valid pairings, invalid
-        pairings, unknown transport kinds, missing SSH agent.
-    """
+# ----------------------------------------------------------------------
+# UefiAgentConstructionTests
+# ----------------------------------------------------------------------
 
-    def test_serial_construct_accepts_serial_credential(self) -> None:
-        """
-            Serial transport + :class:`UefiSerialCredential` constructs
-            successfully and stores all attributes.
-        """
-        cred = _build_serial_credential()
-        agent = UefiAgent(
+"""
+    Exercises :meth:`UefiAgent.__init__` — valid pairings, invalid
+    pairings, unknown transport kinds, missing SSH agent.
+"""
+
+def test_serial_construct_accepts_serial_credential() -> None:
+    """
+        Serial transport + :class:`UefiSerialCredential` constructs
+        successfully and stores all attributes.
+    """
+    cred = _build_serial_credential()
+    agent = UefiAgent(
+        host="target-a",
+        primary_credential=cred,
+        transport_kind="serial",
+        called_id="node-01",
+    )
+    testbase.assert_equal(agent._host, "target-a")
+    testbase.assert_true(agent._primary_credential is cred)
+    testbase.assert_equal(agent._transport_kind, "serial")
+    testbase.assert_equal(agent._called_id, "node-01")
+    testbase.assert_equal(agent._target_tag, "[node-01]")
+    testbase.assert_true(agent._aspects is DEFAULT_CMD_ASPECTS)
+    testbase.assert_true(agent._ssh_agent is None)
+    return
+
+def test_redfish_construct_accepts_redfish_credential() -> None:
+    """
+        Redfish transport + :class:`UefiRedfishCredential` constructs
+        successfully.
+    """
+    cred = _build_redfish_credential()
+    agent = UefiAgent(
+        host="bmc-a",
+        primary_credential=cred,
+        transport_kind="redfish",
+    )
+    testbase.assert_equal(agent._transport_kind, "redfish")
+    testbase.assert_true(agent._primary_credential is cred)
+    return
+
+def test_ipmi_sol_construct_accepts_ipmi_credential() -> None:
+    """
+        IPMI-SOL transport + :class:`UefiIpmiCredential` constructs
+        successfully.
+    """
+    cred = _build_ipmi_credential()
+    agent = UefiAgent(
+        host="bmc-b",
+        primary_credential=cred,
+        transport_kind="ipmi-sol",
+    )
+    testbase.assert_equal(agent._transport_kind, "ipmi-sol")
+    testbase.assert_true(agent._primary_credential is cred)
+    return
+
+def test_ssh_host_construct_requires_ssh_agent() -> None:
+    """
+        The ``ssh-host`` transport kind accepts any credential as
+        advisory but requires a non-None ``ssh_agent``.
+    """
+    sentinel_ssh_agent = object()
+    cred = _build_serial_credential()  # advisory — ssh-host accepts any
+    agent = UefiAgent(
+        host="host-a",
+        primary_credential=cred,
+        transport_kind="ssh-host",
+        ssh_agent=sentinel_ssh_agent,
+    )
+    testbase.assert_equal(agent._transport_kind, "ssh-host")
+    testbase.assert_true(agent._ssh_agent is sentinel_ssh_agent)
+    return
+
+def test_ssh_host_without_ssh_agent_raises() -> None:
+    """
+        Constructing an ``ssh-host`` agent without ``ssh_agent`` raises
+        :class:`ConfigurationError` with an informative message.
+    """
+    cred = _build_serial_credential()
+    with testbase.raises(ConfigurationError) as raised:
+        UefiAgent(
+            host="host-a",
+            primary_credential=cred,
+            transport_kind="ssh-host",
+        )
+    testbase.assert_true("ssh_agent" in str(raised.exception))
+    return
+
+def test_serial_with_redfish_credential_raises() -> None:
+    """
+        Passing a :class:`UefiRedfishCredential` to a ``serial``
+        transport raises :class:`ConfigurationError`; the message
+        names both sides.
+    """
+    cred = _build_redfish_credential()
+    with testbase.raises(ConfigurationError) as raised:
+        UefiAgent(
             host="target-a",
             primary_credential=cred,
             transport_kind="serial",
-            called_id="node-01",
         )
-        self.assertEqual(agent._host, "target-a")
-        self.assertIs(agent._primary_credential, cred)
-        self.assertEqual(agent._transport_kind, "serial")
-        self.assertEqual(agent._called_id, "node-01")
-        self.assertEqual(agent._target_tag, "[node-01]")
-        self.assertIs(agent._aspects, DEFAULT_CMD_ASPECTS)
-        self.assertIsNone(agent._ssh_agent)
-        return
+    message = str(raised.exception)
+    testbase.assert_true("serial" in message)
+    testbase.assert_true("UefiSerialCredential" in message)
+    testbase.assert_true("UefiRedfishCredential" in message)
+    return
 
-    def test_redfish_construct_accepts_redfish_credential(self) -> None:
-        """
-            Redfish transport + :class:`UefiRedfishCredential` constructs
-            successfully.
-        """
-        cred = _build_redfish_credential()
-        agent = UefiAgent(
+def test_redfish_with_ipmi_credential_raises() -> None:
+    """
+        Passing a :class:`UefiIpmiCredential` to a ``redfish`` transport
+        raises :class:`ConfigurationError`.
+    """
+    cred = _build_ipmi_credential()
+    with testbase.raises(ConfigurationError) as raised:
+        UefiAgent(
             host="bmc-a",
             primary_credential=cred,
             transport_kind="redfish",
         )
-        self.assertEqual(agent._transport_kind, "redfish")
-        self.assertIs(agent._primary_credential, cred)
-        return
+    testbase.assert_true("redfish" in str(raised.exception))
+    return
 
-    def test_ipmi_sol_construct_accepts_ipmi_credential(self) -> None:
-        """
-            IPMI-SOL transport + :class:`UefiIpmiCredential` constructs
-            successfully.
-        """
-        cred = _build_ipmi_credential()
-        agent = UefiAgent(
-            host="bmc-b",
+def test_ipmi_sol_with_serial_credential_raises() -> None:
+    """
+        Passing a :class:`UefiSerialCredential` to an ``ipmi-sol``
+        transport raises :class:`ConfigurationError`.
+    """
+    cred = _build_serial_credential()
+    with testbase.raises(ConfigurationError) as raised:
+        UefiAgent(
+            host="bmc-a",
             primary_credential=cred,
             transport_kind="ipmi-sol",
         )
-        self.assertEqual(agent._transport_kind, "ipmi-sol")
-        self.assertIs(agent._primary_credential, cred)
-        return
+    testbase.assert_true("ipmi-sol" in str(raised.exception))
+    return
 
-    def test_ssh_host_construct_requires_ssh_agent(self) -> None:
-        """
-            The ``ssh-host`` transport kind accepts any credential as
-            advisory but requires a non-None ``ssh_agent``.
-        """
-        sentinel_ssh_agent = object()
-        cred = _build_serial_credential()  # advisory — ssh-host accepts any
-        agent = UefiAgent(
-            host="host-a",
-            primary_credential=cred,
-            transport_kind="ssh-host",
-            ssh_agent=sentinel_ssh_agent,
-        )
-        self.assertEqual(agent._transport_kind, "ssh-host")
-        self.assertIs(agent._ssh_agent, sentinel_ssh_agent)
-        return
-
-    def test_ssh_host_without_ssh_agent_raises(self) -> None:
-        """
-            Constructing an ``ssh-host`` agent without ``ssh_agent`` raises
-            :class:`ConfigurationError` with an informative message.
-        """
-        cred = _build_serial_credential()
-        with self.assertRaises(ConfigurationError) as ctx:
-            UefiAgent(
-                host="host-a",
-                primary_credential=cred,
-                transport_kind="ssh-host",
-            )
-        self.assertIn("ssh_agent", str(ctx.exception))
-        return
-
-    def test_serial_with_redfish_credential_raises(self) -> None:
-        """
-            Passing a :class:`UefiRedfishCredential` to a ``serial``
-            transport raises :class:`ConfigurationError`; the message
-            names both sides.
-        """
-        cred = _build_redfish_credential()
-        with self.assertRaises(ConfigurationError) as ctx:
-            UefiAgent(
-                host="target-a",
-                primary_credential=cred,
-                transport_kind="serial",
-            )
-        message = str(ctx.exception)
-        self.assertIn("serial", message)
-        self.assertIn("UefiSerialCredential", message)
-        self.assertIn("UefiRedfishCredential", message)
-        return
-
-    def test_redfish_with_ipmi_credential_raises(self) -> None:
-        """
-            Passing a :class:`UefiIpmiCredential` to a ``redfish`` transport
-            raises :class:`ConfigurationError`.
-        """
-        cred = _build_ipmi_credential()
-        with self.assertRaises(ConfigurationError) as ctx:
-            UefiAgent(
-                host="bmc-a",
-                primary_credential=cred,
-                transport_kind="redfish",
-            )
-        self.assertIn("redfish", str(ctx.exception))
-        return
-
-    def test_ipmi_sol_with_serial_credential_raises(self) -> None:
-        """
-            Passing a :class:`UefiSerialCredential` to an ``ipmi-sol``
-            transport raises :class:`ConfigurationError`.
-        """
-        cred = _build_serial_credential()
-        with self.assertRaises(ConfigurationError) as ctx:
-            UefiAgent(
-                host="bmc-a",
-                primary_credential=cred,
-                transport_kind="ipmi-sol",
-            )
-        self.assertIn("ipmi-sol", str(ctx.exception))
-        return
-
-    def test_unknown_transport_kind_raises(self) -> None:
-        """
-            An unknown ``transport_kind`` string raises
-            :class:`ConfigurationError` whose message lists the allowed
-            values.
-        """
-        cred = _build_serial_credential()
-        with self.assertRaises(ConfigurationError) as ctx:
-            UefiAgent(
-                host="target-a",
-                primary_credential=cred,
-                transport_kind="bogus-kind",
-            )
-        message = str(ctx.exception)
-        self.assertIn("bogus-kind", message)
-        self.assertIn("serial", message)
-        self.assertIn("redfish", message)
-        return
-
-    def test_default_aspects_stored(self) -> None:
-        """
-            When no ``aspects`` is passed the instance default is
-            :data:`DEFAULT_CMD_ASPECTS`.
-        """
-        cred = _build_serial_credential()
-        agent = UefiAgent(
+def test_unknown_transport_kind_raises() -> None:
+    """
+        An unknown ``transport_kind`` string raises
+        :class:`ConfigurationError` whose message lists the allowed
+        values.
+    """
+    cred = _build_serial_credential()
+    with testbase.raises(ConfigurationError) as raised:
+        UefiAgent(
             host="target-a",
             primary_credential=cred,
-            transport_kind="serial",
+            transport_kind="bogus-kind",
         )
-        self.assertIs(agent._aspects, DEFAULT_CMD_ASPECTS)
-        return
+    message = str(raised.exception)
+    testbase.assert_true("bogus-kind" in message)
+    testbase.assert_true("serial" in message)
+    testbase.assert_true("redfish" in message)
+    return
 
-    def test_custom_aspects_stored(self) -> None:
-        """
-            A caller-supplied :class:`UefiCmdAspects` is stored as the
-            instance default.
-        """
-        cred = _build_serial_credential()
-        custom = UefiCmdAspects()
-        agent = UefiAgent(
-            host="target-a",
-            primary_credential=cred,
-            transport_kind="serial",
-            aspects=custom,
-        )
-        self.assertIs(agent._aspects, custom)
-        return
+def test_default_aspects_stored() -> None:
+    """
+        When no ``aspects`` is passed the instance default is
+        :data:`DEFAULT_CMD_ASPECTS`.
+    """
+    cred = _build_serial_credential()
+    agent = UefiAgent(
+        host="target-a",
+        primary_credential=cred,
+        transport_kind="serial",
+    )
+    testbase.assert_true(agent._aspects is DEFAULT_CMD_ASPECTS)
+    return
+
+def test_custom_aspects_stored() -> None:
+    """
+        A caller-supplied :class:`UefiCmdAspects` is stored as the
+        instance default.
+    """
+    cred = _build_serial_credential()
+    custom = UefiCmdAspects()
+    agent = UefiAgent(
+        host="target-a",
+        primary_credential=cred,
+        transport_kind="serial",
+        aspects=custom,
+    )
+    testbase.assert_true(agent._aspects is custom)
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -529,207 +540,210 @@ class UefiAgentConstructionTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UefiAgentCreateClientTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiAgentCreateClientTests
+# ----------------------------------------------------------------------
+
+"""
+    Verifies :meth:`UefiAgent._create_client` dispatches to the
+    correct transport + client combination per ``transport_kind`` and
+    honors the ``user`` role lookup.
+"""
+
+def _build_serial_agent(users: Optional[Dict[str, Any]] = None) -> UefiAgent:
     """
-        Verifies :meth:`UefiAgent._create_client` dispatches to the
-        correct transport + client combination per ``transport_kind`` and
-        honors the ``user`` role lookup.
+        Build a serial-transport agent for testing.
+
+        :param users: Optional role-to-credential dictionary.
+        :returns: A serial :class:`UefiAgent`.
     """
+    cred = _build_serial_credential()
+    rtnval = UefiAgent(
+        host="target-a",
+        primary_credential=cred,
+        transport_kind="serial",
+        users=users,
+    )
+    return rtnval
 
-    def _build_serial_agent(self, users: Optional[Dict[str, Any]] = None) -> UefiAgent:
-        """
-            Build a serial-transport agent for testing.
+def test_serial_dispatches_to_serial_transport_and_shell_client() -> None:
+    """
+        For the ``serial`` kind, :meth:`_create_client` constructs a
+        :class:`UefiSerialTransport` and wraps it in a
+        :class:`UefiShellClient`; the transport's ``connect`` is
+        called with the effective aspects.
+    """
+    agent = _build_serial_agent()
 
-            :param users: Optional role-to-credential dictionary.
-            :returns: A serial :class:`UefiAgent`.
-        """
-        cred = _build_serial_credential()
-        rtnval = UefiAgent(
-            host="target-a",
-            primary_credential=cred,
-            transport_kind="serial",
-            users=users,
-        )
-        return rtnval
+    with patch("ccai.protocols.uefi.uefiagent.UefiSerialTransport") as mock_transport, \
+         patch("ccai.protocols.uefi.uefiagent.UefiShellClient") as mock_client:
 
-    def test_serial_dispatches_to_serial_transport_and_shell_client(self) -> None:
-        """
-            For the ``serial`` kind, :meth:`_create_client` constructs a
-            :class:`UefiSerialTransport` and wraps it in a
-            :class:`UefiShellClient`; the transport's ``connect`` is
-            called with the effective aspects.
-        """
-        agent = self._build_serial_agent()
+        transport_instance = MagicMock()
+        mock_transport.return_value = transport_instance
+        client_instance = MagicMock()
+        client_instance._transport = transport_instance
+        mock_client.return_value = client_instance
 
-        with patch("ccai.protocols.uefi.uefiagent.UefiSerialTransport") as mock_transport, \
-             patch("ccai.protocols.uefi.uefiagent.UefiShellClient") as mock_client:
+        result = agent._create_client()
 
-            transport_instance = MagicMock()
-            mock_transport.return_value = transport_instance
-            client_instance = MagicMock()
-            client_instance._transport = transport_instance
-            mock_client.return_value = client_instance
+        testbase.assert_true(result is client_instance)
+        mock_transport.assert_called_once()
+        mock_client.assert_called_once()
+        transport_instance.connect.assert_called_once()
+        connect_kwargs = transport_instance.connect.call_args.kwargs
+        testbase.assert_true(connect_kwargs.get("aspects") is agent._aspects)
+    return
 
-            result = agent._create_client()
+def test_ipmi_sol_dispatches_to_ipmi_transport_and_shell_client() -> None:
+    """
+        For the ``ipmi-sol`` kind, :meth:`_create_client` constructs
+        a :class:`UefiIpmiSolTransport` and wraps it in a
+        :class:`UefiShellClient`.
+    """
+    cred = _build_ipmi_credential()
+    agent = UefiAgent(
+        host="bmc-a",
+        primary_credential=cred,
+        transport_kind="ipmi-sol",
+    )
 
-            self.assertIs(result, client_instance)
-            mock_transport.assert_called_once()
-            mock_client.assert_called_once()
-            transport_instance.connect.assert_called_once()
-            connect_kwargs = transport_instance.connect.call_args.kwargs
-            self.assertIs(connect_kwargs.get("aspects"), agent._aspects)
-        return
+    with patch("ccai.protocols.uefi.uefiagent.UefiIpmiSolTransport") as mock_transport, \
+         patch("ccai.protocols.uefi.uefiagent.UefiShellClient") as mock_client:
 
-    def test_ipmi_sol_dispatches_to_ipmi_transport_and_shell_client(self) -> None:
-        """
-            For the ``ipmi-sol`` kind, :meth:`_create_client` constructs
-            a :class:`UefiIpmiSolTransport` and wraps it in a
-            :class:`UefiShellClient`.
-        """
-        cred = _build_ipmi_credential()
-        agent = UefiAgent(
-            host="bmc-a",
-            primary_credential=cred,
-            transport_kind="ipmi-sol",
-        )
+        transport_instance = MagicMock()
+        mock_transport.return_value = transport_instance
+        client_instance = MagicMock()
+        client_instance._transport = transport_instance
+        mock_client.return_value = client_instance
 
-        with patch("ccai.protocols.uefi.uefiagent.UefiIpmiSolTransport") as mock_transport, \
-             patch("ccai.protocols.uefi.uefiagent.UefiShellClient") as mock_client:
+        result = agent._create_client()
 
-            transport_instance = MagicMock()
-            mock_transport.return_value = transport_instance
-            client_instance = MagicMock()
-            client_instance._transport = transport_instance
-            mock_client.return_value = client_instance
+        testbase.assert_true(result is client_instance)
+        mock_transport.assert_called_once()
+        mock_client.assert_called_once()
+        transport_instance.connect.assert_called_once()
+    return
 
-            result = agent._create_client()
+def test_redfish_dispatches_to_redfish_transport_and_redfish_client() -> None:
+    """
+        For the ``redfish`` kind, :meth:`_create_client` constructs
+        a :class:`UefiRedfishTransport` and wraps it in a
+        :class:`UefiRedfishClient`.
+    """
+    cred = _build_redfish_credential()
+    agent = UefiAgent(
+        host="bmc-a",
+        primary_credential=cred,
+        transport_kind="redfish",
+    )
 
-            self.assertIs(result, client_instance)
-            mock_transport.assert_called_once()
-            mock_client.assert_called_once()
-            transport_instance.connect.assert_called_once()
-        return
+    with patch("ccai.protocols.uefi.uefiagent.UefiRedfishTransport") as mock_transport, \
+         patch("ccai.protocols.uefi.uefiagent.UefiRedfishClient") as mock_client:
 
-    def test_redfish_dispatches_to_redfish_transport_and_redfish_client(self) -> None:
-        """
-            For the ``redfish`` kind, :meth:`_create_client` constructs
-            a :class:`UefiRedfishTransport` and wraps it in a
-            :class:`UefiRedfishClient`.
-        """
-        cred = _build_redfish_credential()
-        agent = UefiAgent(
-            host="bmc-a",
-            primary_credential=cred,
-            transport_kind="redfish",
-        )
+        transport_instance = MagicMock()
+        mock_transport.return_value = transport_instance
+        client_instance = MagicMock()
+        client_instance._transport = transport_instance
+        mock_client.return_value = client_instance
 
-        with patch("ccai.protocols.uefi.uefiagent.UefiRedfishTransport") as mock_transport, \
-             patch("ccai.protocols.uefi.uefiagent.UefiRedfishClient") as mock_client:
+        result = agent._create_client()
 
-            transport_instance = MagicMock()
-            mock_transport.return_value = transport_instance
-            client_instance = MagicMock()
-            client_instance._transport = transport_instance
-            mock_client.return_value = client_instance
+        testbase.assert_true(result is client_instance)
+        mock_transport.assert_called_once()
+        mock_client.assert_called_once()
+        transport_instance.connect.assert_called_once()
+    return
 
-            result = agent._create_client()
+def test_ssh_host_dispatches_to_ssh_host_transport_and_host_os_client() -> None:
+    """
+        For the ``ssh-host`` kind, :meth:`_create_client` constructs
+        a :class:`UefiSshHostTransport` from the held SshAgent and
+        wraps it in a :class:`UefiHostOsClient`.
+    """
+    sentinel_ssh_agent = object()
+    cred = _build_serial_credential()  # advisory for ssh-host
+    agent = UefiAgent(
+        host="host-a",
+        primary_credential=cred,
+        transport_kind="ssh-host",
+        ssh_agent=sentinel_ssh_agent,
+    )
 
-            self.assertIs(result, client_instance)
-            mock_transport.assert_called_once()
-            mock_client.assert_called_once()
-            transport_instance.connect.assert_called_once()
-        return
+    with patch("ccai.protocols.uefi.uefiagent.UefiSshHostTransport") as mock_transport, \
+         patch("ccai.protocols.uefi.uefiagent.UefiHostOsClient") as mock_client:
 
-    def test_ssh_host_dispatches_to_ssh_host_transport_and_host_os_client(self) -> None:
-        """
-            For the ``ssh-host`` kind, :meth:`_create_client` constructs
-            a :class:`UefiSshHostTransport` from the held SshAgent and
-            wraps it in a :class:`UefiHostOsClient`.
-        """
-        sentinel_ssh_agent = object()
-        cred = _build_serial_credential()  # advisory for ssh-host
-        agent = UefiAgent(
-            host="host-a",
-            primary_credential=cred,
-            transport_kind="ssh-host",
-            ssh_agent=sentinel_ssh_agent,
-        )
+        transport_instance = MagicMock()
+        mock_transport.return_value = transport_instance
+        client_instance = MagicMock()
+        client_instance._transport = transport_instance
+        mock_client.return_value = client_instance
 
-        with patch("ccai.protocols.uefi.uefiagent.UefiSshHostTransport") as mock_transport, \
-             patch("ccai.protocols.uefi.uefiagent.UefiHostOsClient") as mock_client:
+        result = agent._create_client()
 
-            transport_instance = MagicMock()
-            mock_transport.return_value = transport_instance
-            client_instance = MagicMock()
-            client_instance._transport = transport_instance
-            mock_client.return_value = client_instance
+        testbase.assert_true(result is client_instance)
+        mock_transport.assert_called_once()
+        call_kwargs = mock_transport.call_args.kwargs
+        testbase.assert_true(call_kwargs.get("ssh_agent") is sentinel_ssh_agent)
+        mock_client.assert_called_once()
+        transport_instance.connect.assert_called_once()
+    return
 
-            result = agent._create_client()
+def test_create_client_with_user_selects_user_credential() -> None:
+    """
+        When ``user="admin"`` is passed, :meth:`_create_client` uses
+        ``agent._users["admin"]`` as the transport credential.
+    """
+    primary = _build_serial_credential()
+    admin_cred = UefiSerialCredential(device="/dev/ttyUSB1", baud=9600)
+    users = {"admin": admin_cred}
+    agent = UefiAgent(
+        host="target-a",
+        primary_credential=primary,
+        transport_kind="serial",
+        users=users,
+    )
 
-            self.assertIs(result, client_instance)
-            mock_transport.assert_called_once()
-            call_kwargs = mock_transport.call_args.kwargs
-            self.assertIs(call_kwargs.get("ssh_agent"), sentinel_ssh_agent)
-            mock_client.assert_called_once()
-            transport_instance.connect.assert_called_once()
-        return
+    with patch("ccai.protocols.uefi.uefiagent.UefiSerialTransport") as mock_transport, \
+         patch("ccai.protocols.uefi.uefiagent.UefiShellClient") as mock_client:
 
-    def test_create_client_with_user_selects_user_credential(self) -> None:
-        """
-            When ``user="admin"`` is passed, :meth:`_create_client` uses
-            ``self._users["admin"]`` as the transport credential.
-        """
-        primary = _build_serial_credential()
-        admin_cred = UefiSerialCredential(device="/dev/ttyUSB1", baud=9600)
-        users = {"admin": admin_cred}
-        agent = UefiAgent(
-            host="target-a",
-            primary_credential=primary,
-            transport_kind="serial",
-            users=users,
-        )
+        transport_instance = MagicMock()
+        mock_transport.return_value = transport_instance
+        client_instance = MagicMock()
+        client_instance._transport = transport_instance
+        mock_client.return_value = client_instance
 
-        with patch("ccai.protocols.uefi.uefiagent.UefiSerialTransport") as mock_transport, \
-             patch("ccai.protocols.uefi.uefiagent.UefiShellClient") as mock_client:
+        agent._create_client(user="admin")
 
-            transport_instance = MagicMock()
-            mock_transport.return_value = transport_instance
-            client_instance = MagicMock()
-            client_instance._transport = transport_instance
-            mock_client.return_value = client_instance
+        call_kwargs = mock_transport.call_args.kwargs
+        testbase.assert_true(call_kwargs.get("credential") is admin_cred)
+    return
 
-            agent._create_client(user="admin")
+def test_create_client_with_user_no_users_dict_raises() -> None:
+    """
+        When ``user`` is passed but no ``users`` dict was supplied
+        at construction time, :class:`ConfigurationError` is raised.
+    """
+    agent = _build_serial_agent(users=None)
+    with testbase.raises(ConfigurationError):
+        agent._create_client(user="admin")
+    return
 
-            call_kwargs = mock_transport.call_args.kwargs
-            self.assertIs(call_kwargs.get("credential"), admin_cred)
-        return
+def test_create_client_with_unknown_user_raises() -> None:
+    """
+        When ``user`` is not in ``agent._users`` a
+        :class:`ConfigurationError` is raised and the message lists
+        the available roles.
+    """
+    admin_cred = UefiSerialCredential(device="/dev/ttyUSB1", baud=9600)
+    agent = _build_serial_agent(users={"admin": admin_cred})
 
-    def test_create_client_with_user_no_users_dict_raises(self) -> None:
-        """
-            When ``user`` is passed but no ``users`` dict was supplied
-            at construction time, :class:`ConfigurationError` is raised.
-        """
-        agent = self._build_serial_agent(users=None)
-        with self.assertRaises(ConfigurationError):
-            agent._create_client(user="admin")
-        return
+    with testbase.raises(ConfigurationError) as raised:
+        agent._create_client(user="nope")
 
-    def test_create_client_with_unknown_user_raises(self) -> None:
-        """
-            When ``user`` is not in ``self._users`` a
-            :class:`ConfigurationError` is raised and the message lists
-            the available roles.
-        """
-        admin_cred = UefiSerialCredential(device="/dev/ttyUSB1", baud=9600)
-        agent = self._build_serial_agent(users={"admin": admin_cred})
-
-        with self.assertRaises(ConfigurationError) as ctx:
-            agent._create_client(user="nope")
-
-        message = str(ctx.exception)
-        self.assertIn("nope", message)
-        self.assertIn("admin", message)
-        return
+    message = str(raised.exception)
+    testbase.assert_true("nope" in message)
+    testbase.assert_true("admin" in message)
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -737,141 +751,144 @@ class UefiAgentCreateClientTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UefiAgentRunCmdTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiAgentRunCmdTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`UefiAgent.run_cmd` — client lifecycle, delegation
+    to :meth:`UefiBase._run`, and ``finally``-block cleanup.
+"""
+
+def _build_agent() -> UefiAgent:
     """
-        Exercises :meth:`UefiAgent.run_cmd` — client lifecycle, delegation
-        to :meth:`UefiBase._run`, and ``finally``-block cleanup.
+        Build a serial agent for run_cmd tests.
+
+        :returns: A fresh :class:`UefiAgent`.
     """
+    cred = _build_serial_credential()
+    rtnval = UefiAgent(
+        host="target-a",
+        primary_credential=cred,
+        transport_kind="serial",
+    )
+    return rtnval
 
-    def _build_agent(self) -> UefiAgent:
-        """
-            Build a serial agent for run_cmd tests.
+def test_run_cmd_opens_client_delegates_to_run_and_closes_client() -> None:
+    """
+        Happy path: :meth:`run_cmd` opens a client, calls
+        :meth:`UefiBase._run` with that client, and closes the client
+        before returning.
+    """
+    agent = _build_agent()
+    agent._run_return = (0, "hello", "")
 
-            :returns: A fresh :class:`UefiAgent`.
-        """
-        cred = _build_serial_credential()
-        rtnval = UefiAgent(
-            host="target-a",
-            primary_credential=cred,
-            transport_kind="serial",
-        )
-        return rtnval
+    fake_client = MagicMock()
 
-    def test_run_cmd_opens_client_delegates_to_run_and_closes_client(self) -> None:
-        """
-            Happy path: :meth:`run_cmd` opens a client, calls
-            :meth:`UefiBase._run` with that client, and closes the client
-            before returning.
-        """
-        agent = self._build_agent()
-        agent._run_return = (0, "hello", "")
+    with patch.object(UefiAgent, "_create_client", return_value=fake_client) as mock_create:
+        status, stdout, stderr = agent.run_cmd(command="echo hi", exp_status=0)
 
-        fake_client = MagicMock()
+        testbase.assert_equal(status, 0)
+        testbase.assert_equal(stdout, "hello")
+        testbase.assert_equal(stderr, "")
 
-        with patch.object(UefiAgent, "_create_client", return_value=fake_client) as mock_create:
-            status, stdout, stderr = agent.run_cmd(command="echo hi", exp_status=0)
-
-            self.assertEqual(status, 0)
-            self.assertEqual(stdout, "hello")
-            self.assertEqual(stderr, "")
-
-            mock_create.assert_called_once()
-            fake_client.close.assert_called_once()
-
-            self.assertEqual(len(agent._run_calls), 1)
-            call = agent._run_calls[0]
-            self.assertIs(call["client"], fake_client)
-            self.assertEqual(call["command"], "echo hi")
-            self.assertEqual(call["exp_status"], 0)
-            self.assertIsNone(call["user"])
-        return
-
-    def test_run_cmd_closes_client_even_when_run_raises(self) -> None:
-        """
-            Failure path: when :meth:`UefiBase._run` raises, the client
-            is still closed in the ``finally`` block and the original
-            exception propagates.
-        """
-        agent = self._build_agent()
-        agent._run_exception = RuntimeError("boom")
-
-        fake_client = MagicMock()
-
-        with patch.object(UefiAgent, "_create_client", return_value=fake_client):
-            with self.assertRaises(RuntimeError):
-                agent.run_cmd(command="echo hi")
-
+        mock_create.assert_called_once()
         fake_client.close.assert_called_once()
-        return
 
-    def test_run_cmd_passes_user_through_to_create_client_and_run(self) -> None:
-        """
-            When ``user`` is passed it is forwarded both to
-            :meth:`_create_client` and into the recorded ``_run`` call.
-        """
-        primary = _build_serial_credential()
-        admin_cred = UefiSerialCredential(device="/dev/ttyUSB1", baud=9600)
-        users = {"admin": admin_cred}
-        cred = primary
-        agent = UefiAgent(
-            host="target-a",
-            primary_credential=cred,
-            transport_kind="serial",
-            users=users,
-        )
-        agent._run_return = (0, "hi", "")
+        testbase.assert_equal(len(agent._run_calls), 1)
+        call = agent._run_calls[0]
+        testbase.assert_true(call["client"] is fake_client)
+        testbase.assert_equal(call["command"], "echo hi")
+        testbase.assert_equal(call["exp_status"], 0)
+        testbase.assert_true(call["user"] is None)
+    return
 
-        fake_client = MagicMock()
+def test_run_cmd_closes_client_even_when_run_raises() -> None:
+    """
+        Failure path: when :meth:`UefiBase._run` raises, the client
+        is still closed in the ``finally`` block and the original
+        exception propagates.
+    """
+    agent = _build_agent()
+    agent._run_exception = RuntimeError("boom")
 
-        with patch.object(UefiAgent, "_create_client", return_value=fake_client) as mock_create:
-            agent.run_cmd(command="whoami", user="admin")
+    fake_client = MagicMock()
 
-            mock_create.assert_called_once()
-            create_kwargs = mock_create.call_args.kwargs
-            self.assertEqual(create_kwargs.get("user"), "admin")
-
-            self.assertEqual(agent._run_calls[0]["user"], "admin")
-        return
-
-    def test_run_cmd_uses_instance_default_when_aspects_none(self) -> None:
-        """
-            When ``aspects=None`` the instance default is resolved and
-            forwarded to both :meth:`_create_client` and
-            :meth:`UefiBase._run`.
-        """
-        agent = self._build_agent()
-        agent._run_return = (0, "", "")
-
-        fake_client = MagicMock()
-        with patch.object(UefiAgent, "_create_client", return_value=fake_client) as mock_create:
+    with patch.object(UefiAgent, "_create_client", return_value=fake_client):
+        with testbase.raises(RuntimeError):
             agent.run_cmd(command="echo hi")
 
-            create_kwargs = mock_create.call_args.kwargs
-            self.assertIs(create_kwargs.get("aspects"), agent._aspects)
+    fake_client.close.assert_called_once()
+    return
 
-            self.assertIs(agent._run_calls[0]["aspects"], agent._aspects)
-        return
+def test_run_cmd_passes_user_through_to_create_client_and_run() -> None:
+    """
+        When ``user`` is passed it is forwarded both to
+        :meth:`_create_client` and into the recorded ``_run`` call.
+    """
+    primary = _build_serial_credential()
+    admin_cred = UefiSerialCredential(device="/dev/ttyUSB1", baud=9600)
+    users = {"admin": admin_cred}
+    cred = primary
+    agent = UefiAgent(
+        host="target-a",
+        primary_credential=cred,
+        transport_kind="serial",
+        users=users,
+    )
+    agent._run_return = (0, "hi", "")
 
-    def test_run_cmd_honors_explicit_aspects_override(self) -> None:
-        """
-            A non-None ``aspects`` argument is used for that call without
-            mutating ``self._aspects``.
-        """
-        agent = self._build_agent()
-        agent._run_return = (0, "", "")
-        override = UefiCmdAspects()
+    fake_client = MagicMock()
 
-        fake_client = MagicMock()
-        with patch.object(UefiAgent, "_create_client", return_value=fake_client) as mock_create:
-            agent.run_cmd(command="echo hi", aspects=override)
+    with patch.object(UefiAgent, "_create_client", return_value=fake_client) as mock_create:
+        agent.run_cmd(command="whoami", user="admin")
 
-            create_kwargs = mock_create.call_args.kwargs
-            self.assertIs(create_kwargs.get("aspects"), override)
+        mock_create.assert_called_once()
+        create_kwargs = mock_create.call_args.kwargs
+        testbase.assert_equal(create_kwargs.get("user"), "admin")
 
-            self.assertIs(agent._run_calls[0]["aspects"], override)
-        # Instance default is unchanged.
-        self.assertIsNot(agent._aspects, override)
-        return
+        testbase.assert_equal(agent._run_calls[0]["user"], "admin")
+    return
+
+def test_run_cmd_uses_instance_default_when_aspects_none() -> None:
+    """
+        When ``aspects=None`` the instance default is resolved and
+        forwarded to both :meth:`_create_client` and
+        :meth:`UefiBase._run`.
+    """
+    agent = _build_agent()
+    agent._run_return = (0, "", "")
+
+    fake_client = MagicMock()
+    with patch.object(UefiAgent, "_create_client", return_value=fake_client) as mock_create:
+        agent.run_cmd(command="echo hi")
+
+        create_kwargs = mock_create.call_args.kwargs
+        testbase.assert_true(create_kwargs.get("aspects") is agent._aspects)
+
+        testbase.assert_true(agent._run_calls[0]["aspects"] is agent._aspects)
+    return
+
+def test_run_cmd_honors_explicit_aspects_override() -> None:
+    """
+        A non-None ``aspects`` argument is used for that call without
+        mutating ``ctx._aspects``.
+    """
+    agent = _build_agent()
+    agent._run_return = (0, "", "")
+    override = UefiCmdAspects()
+
+    fake_client = MagicMock()
+    with patch.object(UefiAgent, "_create_client", return_value=fake_client) as mock_create:
+        agent.run_cmd(command="echo hi", aspects=override)
+
+        create_kwargs = mock_create.call_args.kwargs
+        testbase.assert_true(create_kwargs.get("aspects") is override)
+
+        testbase.assert_true(agent._run_calls[0]["aspects"] is override)
+    # Instance default is unchanged.
+    testbase.assert_true(agent._aspects is not override)
+    return
 
 
 # ---------------------------------------------------------------------------
@@ -879,181 +896,180 @@ class UefiAgentRunCmdTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UefiAgentRebootTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiAgentRebootTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`UefiAgent.reboot` — happy path reconnect, timeout
+    path, and transport-native reset dispatch.
+"""
+
+def _build_agent_uefi_agent_reboot(transport_kind: str = "serial") -> UefiAgent:
     """
-        Exercises :meth:`UefiAgent.reboot` — happy path reconnect, timeout
-        path, and transport-native reset dispatch.
+        Build a test agent.  For ``ssh-host`` a sentinel ssh_agent is
+        supplied.
+
+        :param transport_kind: Transport kind selector.
+        :returns: A fresh :class:`UefiAgent`.
     """
+    if transport_kind == "serial":
+        cred = _build_serial_credential()
+        rtnval = UefiAgent(
+            host="target-a",
+            primary_credential=cred,
+            transport_kind="serial",
+        )
+    elif transport_kind == "redfish":
+        cred = _build_redfish_credential()
+        rtnval = UefiAgent(
+            host="bmc-a",
+            primary_credential=cred,
+            transport_kind="redfish",
+        )
+    elif transport_kind == "ipmi-sol":
+        cred = _build_ipmi_credential()
+        rtnval = UefiAgent(
+            host="bmc-b",
+            primary_credential=cred,
+            transport_kind="ipmi-sol",
+        )
+    elif transport_kind == "ssh-host":
+        cred = _build_serial_credential()
+        rtnval = UefiAgent(
+            host="host-a",
+            primary_credential=cred,
+            transport_kind="ssh-host",
+            ssh_agent=object(),
+        )
+    else:
+        raise AssertionError("unknown transport_kind: {!r}".format(transport_kind))
+    return rtnval
 
-    def _build_agent(self, transport_kind: str = "serial") -> UefiAgent:
-        """
-            Build a test agent.  For ``ssh-host`` a sentinel ssh_agent is
-            supplied.
+def test_reboot_happy_path_returns_after_reconnect() -> None:
+    """
+        Happy path: ``run_cmd`` raises :class:`ConnectionError` (the
+        target dropped during reset) — swallowed.  The polling loop
+        observes ``verify_connectivity() == True`` on the third call
+        and returns without raising.
+    """
+    agent = _build_agent_uefi_agent_reboot(transport_kind="serial")
+    agent._verify_return_sequence = [False, False, True]
 
-            :param transport_kind: Transport kind selector.
-            :returns: A fresh :class:`UefiAgent`.
-        """
-        if transport_kind == "serial":
-            cred = _build_serial_credential()
-            rtnval = UefiAgent(
-                host="target-a",
-                primary_credential=cred,
-                transport_kind="serial",
-            )
-        elif transport_kind == "redfish":
-            cred = _build_redfish_credential()
-            rtnval = UefiAgent(
-                host="bmc-a",
-                primary_credential=cred,
-                transport_kind="redfish",
-            )
-        elif transport_kind == "ipmi-sol":
-            cred = _build_ipmi_credential()
-            rtnval = UefiAgent(
-                host="bmc-b",
-                primary_credential=cred,
-                transport_kind="ipmi-sol",
-            )
-        elif transport_kind == "ssh-host":
-            cred = _build_serial_credential()
-            rtnval = UefiAgent(
-                host="host-a",
-                primary_credential=cred,
-                transport_kind="ssh-host",
-                ssh_agent=object(),
-            )
-        else:
-            raise AssertionError("unknown transport_kind: {!r}".format(transport_kind))
-        return rtnval
-
-    def test_reboot_happy_path_returns_after_reconnect(self) -> None:
-        """
-            Happy path: ``run_cmd`` raises :class:`ConnectionError` (the
-            target dropped during reset) — swallowed.  The polling loop
-            observes ``verify_connectivity() == True`` on the third call
-            and returns without raising.
-        """
-        agent = self._build_agent(transport_kind="serial")
-        agent._verify_return_sequence = [False, False, True]
-
-        sleep_record: List[float] = []
-        _install_time_stubs(self, sleep_record=sleep_record)
+    sleep_record: List[float] = []
+    with _install_time_stubs(sleep_record=sleep_record):
 
         with patch.object(UefiAgent, "run_cmd", side_effect=ConnectionError("drop")) as mock_run_cmd:
             agent.reboot()
 
             mock_run_cmd.assert_called_once()
             call_kwargs = mock_run_cmd.call_args.kwargs
-            self.assertEqual(call_kwargs.get("command"), SHELL_RESET_COMMAND)
+            testbase.assert_equal(call_kwargs.get("command"), SHELL_RESET_COMMAND)
 
-        self.assertEqual(agent._verify_calls, 3)
+        testbase.assert_equal(agent._verify_calls, 3)
         # First sleep is the grace period; subsequent sleeps are retry intervals.
-        self.assertEqual(sleep_record[0], DEFAULT_REBOOT_GRACE_PERIOD)
+        testbase.assert_equal(sleep_record[0], DEFAULT_REBOOT_GRACE_PERIOD)
         for sleep_value in sleep_record[1:]:
-            self.assertEqual(sleep_value, DEFAULT_REBOOT_RETRY_INTERVAL)
+            testbase.assert_equal(sleep_value, DEFAULT_REBOOT_RETRY_INTERVAL)
         return
 
-    def test_reboot_timeout_raises_timeouterror(self) -> None:
-        """
-            Timeout path: ``verify_connectivity`` never returns ``True``
-            within ``completion_timeout``; a :class:`TimeoutError` is
-            raised whose details name host, transport, and elapsed_ms.
-        """
-        agent = self._build_agent(transport_kind="serial")
-        agent._verify_return_sequence = []  # always False
+def test_reboot_timeout_raises_timeouterror() -> None:
+    """
+        Timeout path: ``verify_connectivity`` never returns ``True``
+        within ``completion_timeout``; a :class:`TimeoutError` is
+        raised whose details name host, transport, and elapsed_ms.
+    """
+    agent = _build_agent_uefi_agent_reboot(transport_kind="serial")
+    agent._verify_return_sequence = []  # always False
 
-        # Fake time to burn through the reboot window quickly.
-        time_values = [0.0]
-        for idx in range(1, 400):
-            time_values.append(float(idx * 50))
+    # Fake time to burn through the reboot window quickly.
+    time_values = [0.0]
+    for idx in range(1, 400):
+        time_values.append(float(idx * 50))
 
-        sleep_record: List[float] = []
-        _install_time_stubs(
-            self,
-            sleep_record=sleep_record,
-            time_sequence=time_values,
-        )
+    sleep_record: List[float] = []
+    with _install_time_stubs(sleep_record=sleep_record, time_sequence=time_values, ):
 
         with patch.object(UefiAgent, "run_cmd", side_effect=ConnectionError("drop")):
-            with self.assertRaises(TimeoutError) as ctx:
+            with testbase.raises(TimeoutError) as raised:
                 agent.reboot()
 
-        message = str(ctx.exception)
-        self.assertIn("target-a", message)
-        self.assertIn("serial", message)
-        self.assertIn("COMPLETION_TIMEOUT", message)
-        self.assertIn("ELAPSED_MS", message)
+        message = str(raised.exception)
+        testbase.assert_true("target-a" in message)
+        testbase.assert_true("serial" in message)
+        testbase.assert_true("COMPLETION_TIMEOUT" in message)
+        testbase.assert_true("ELAPSED_MS" in message)
         return
 
-    def test_reboot_swallows_expected_connection_error_from_reset(self) -> None:
-        """
-            An :class:`OSError` raised by ``run_cmd`` is treated as an
-            expected side effect of the reset command; the polling loop
-            still runs and, when ``verify_connectivity`` eventually
-            returns ``True``, the reboot returns cleanly.
-        """
-        agent = self._build_agent(transport_kind="serial")
-        agent._verify_return_sequence = [True]
+def test_reboot_swallows_expected_connection_error_from_reset() -> None:
+    """
+        An :class:`OSError` raised by ``run_cmd`` is treated as an
+        expected side effect of the reset command; the polling loop
+        still runs and, when ``verify_connectivity`` eventually
+        returns ``True``, the reboot returns cleanly.
+    """
+    agent = _build_agent_uefi_agent_reboot(transport_kind="serial")
+    agent._verify_return_sequence = [True]
 
-        _install_time_stubs(self)
+    with _install_time_stubs():
 
         with patch.object(UefiAgent, "run_cmd", side_effect=OSError("broken pipe")):
             agent.reboot()
 
-        self.assertEqual(agent._verify_calls, 1)
+        testbase.assert_equal(agent._verify_calls, 1)
         return
 
-    def test_reboot_uses_redfish_reset_command_for_redfish_kind(self) -> None:
-        """
-            For the ``redfish`` kind the reset command is the canonical
-            Redfish POST verb line.
-        """
-        agent = self._build_agent(transport_kind="redfish")
-        agent._verify_return_sequence = [True]
+def test_reboot_uses_redfish_reset_command_for_redfish_kind() -> None:
+    """
+        For the ``redfish`` kind the reset command is the canonical
+        Redfish POST verb line.
+    """
+    agent = _build_agent_uefi_agent_reboot(transport_kind="redfish")
+    agent._verify_return_sequence = [True]
 
-        _install_time_stubs(self)
+    with _install_time_stubs():
 
         with patch.object(UefiAgent, "run_cmd", side_effect=ConnectionError("drop")) as mock_run_cmd:
             agent.reboot()
 
             call_kwargs = mock_run_cmd.call_args.kwargs
             command = call_kwargs.get("command")
-            self.assertIn("POST", command)
-            self.assertIn("ComputerSystem.Reset", command)
-            self.assertIn("ForceRestart", command)
+            testbase.assert_true("POST" in command)
+            testbase.assert_true("ComputerSystem.Reset" in command)
+            testbase.assert_true("ForceRestart" in command)
         return
 
-    def test_reboot_uses_ssh_reset_command_for_ssh_host_kind(self) -> None:
-        """
-            For the ``ssh-host`` kind the reset command is ``"reboot"``.
-        """
-        agent = self._build_agent(transport_kind="ssh-host")
-        agent._verify_return_sequence = [True]
+def test_reboot_uses_ssh_reset_command_for_ssh_host_kind() -> None:
+    """
+        For the ``ssh-host`` kind the reset command is ``"reboot"``.
+    """
+    agent = _build_agent_uefi_agent_reboot(transport_kind="ssh-host")
+    agent._verify_return_sequence = [True]
 
-        _install_time_stubs(self)
+    with _install_time_stubs():
 
         with patch.object(UefiAgent, "run_cmd", side_effect=ConnectionError("drop")) as mock_run_cmd:
             agent.reboot()
 
             call_kwargs = mock_run_cmd.call_args.kwargs
-            self.assertEqual(call_kwargs.get("command"), SSH_HOST_RESET_COMMAND)
+            testbase.assert_equal(call_kwargs.get("command"), SSH_HOST_RESET_COMMAND)
         return
 
-    def test_reboot_uses_shell_reset_command_for_ipmi_sol_kind(self) -> None:
-        """
-            For the ``ipmi-sol`` kind the reset command is the UEFI
-            Shell ``reset`` command.
-        """
-        agent = self._build_agent(transport_kind="ipmi-sol")
-        agent._verify_return_sequence = [True]
+def test_reboot_uses_shell_reset_command_for_ipmi_sol_kind() -> None:
+    """
+        For the ``ipmi-sol`` kind the reset command is the UEFI
+        Shell ``reset`` command.
+    """
+    agent = _build_agent_uefi_agent_reboot(transport_kind="ipmi-sol")
+    agent._verify_return_sequence = [True]
 
-        _install_time_stubs(self)
+    with _install_time_stubs():
 
         with patch.object(UefiAgent, "run_cmd", side_effect=ConnectionError("drop")) as mock_run_cmd:
             agent.reboot()
 
             call_kwargs = mock_run_cmd.call_args.kwargs
-            self.assertEqual(call_kwargs.get("command"), SHELL_RESET_COMMAND)
+            testbase.assert_equal(call_kwargs.get("command"), SHELL_RESET_COMMAND)
         return
 
 
@@ -1062,64 +1078,70 @@ class UefiAgentRebootTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class UefiAgentOpenSessionTests(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiAgentOpenSessionTests
+# ----------------------------------------------------------------------
+
+"""
+    Exercises :meth:`UefiAgent.open_session`.  The UefiSession class
+    may not yet exist in the codebase; tests guard against ImportError
+    by installing a stub uefisession module for the duration of the
+    test run.
+"""
+
+def _setup_uefi_agent_open_session(ctx) -> None:
     """
-        Exercises :meth:`UefiAgent.open_session`.  The UefiSession class
-        may not yet exist in the codebase; tests guard against ImportError
-        by installing a stub uefisession module for the duration of the
-        test run.
+        Install a stub :mod:`ccai.protocols.uefi.uefisession`
+        module providing a minimal :class:`UefiSession` that simply
+        records the construction kwargs.
     """
+    ctx._module_name = "ccai.protocols.uefi.uefisession"
+    ctx._prior_module = sys.modules.get(ctx._module_name)
 
-    def setUp(self) -> None:
+    recorded_kwargs: List[Dict[str, Any]] = []
+
+    class _StubUefiSession:
         """
-            Install a stub :mod:`ccai.protocols.uefi.uefisession`
-            module providing a minimal :class:`UefiSession` that simply
-            records the construction kwargs.
+            Stand-in for :class:`UefiSession`.
         """
-        self._module_name = "ccai.protocols.uefi.uefisession"
-        self._prior_module = sys.modules.get(self._module_name)
 
-        recorded_kwargs: List[Dict[str, Any]] = []
+        def __init__(self, **kwargs: Any) -> None:
+            recorded_kwargs.append(dict(kwargs))
+            self.kwargs = dict(kwargs)
+            self._host = kwargs.get("host")
+            self._transport_kind = kwargs.get("transport_kind")
+            self._users = kwargs.get("users")
+            self._jump = kwargs.get("jump")
+            self._called_id = kwargs.get("called_id")
+            return
 
-        class _StubUefiSession:
-            """
-                Stand-in for :class:`UefiSession`.
-            """
+    stub_module = types.ModuleType(ctx._module_name)
+    stub_module.UefiSession = _StubUefiSession
+    sys.modules[ctx._module_name] = stub_module
 
-            def __init__(self, **kwargs: Any) -> None:
-                recorded_kwargs.append(dict(kwargs))
-                self.kwargs = dict(kwargs)
-                self._host = kwargs.get("host")
-                self._transport_kind = kwargs.get("transport_kind")
-                self._users = kwargs.get("users")
-                self._jump = kwargs.get("jump")
-                self._called_id = kwargs.get("called_id")
-                return
+    ctx._stub_session_cls = _StubUefiSession
+    ctx._recorded = recorded_kwargs
+    return
 
-        stub_module = types.ModuleType(self._module_name)
-        stub_module.UefiSession = _StubUefiSession
-        sys.modules[self._module_name] = stub_module
+def _teardown_uefi_agent_open_session(ctx) -> None:
+    """
+        Restore the previous module entry (or drop the stub).
+    """
+    if ctx._prior_module is not None:
+        sys.modules[ctx._module_name] = ctx._prior_module
+    else:
+        sys.modules.pop(ctx._module_name, None)
+    return
 
-        self._stub_session_cls = _StubUefiSession
-        self._recorded = recorded_kwargs
-        return
-
-    def tearDown(self) -> None:
-        """
-            Restore the previous module entry (or drop the stub).
-        """
-        if self._prior_module is not None:
-            sys.modules[self._module_name] = self._prior_module
-        else:
-            sys.modules.pop(self._module_name, None)
-        return
-
-    def test_open_session_returns_session_with_agent_params(self) -> None:
-        """
-            Without arguments, :meth:`open_session` forwards the agent's
-            host, primary credential, transport kind, jump, called_id,
-            and aspects to the new session.
-        """
+def test_open_session_returns_session_with_agent_params() -> None:
+    """
+        Without arguments, :meth:`open_session` forwards the agent's
+        host, primary credential, transport kind, jump, called_id,
+        and aspects to the new session.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_agent_open_session(ctx)
+    try:
         cred = _build_serial_credential()
         agent = UefiAgent(
             host="target-a",
@@ -1129,20 +1151,25 @@ class UefiAgentOpenSessionTests(unittest.TestCase):
         )
         session = agent.open_session()
 
-        self.assertIsInstance(session, self._stub_session_cls)
-        kwargs = self._recorded[-1]
-        self.assertEqual(kwargs["host"], "target-a")
-        self.assertIs(kwargs["primary_credential"], cred)
-        self.assertEqual(kwargs["transport_kind"], "serial")
-        self.assertEqual(kwargs["called_id"], "node-01")
-        self.assertIs(kwargs["aspects"], agent._aspects)
+        testbase.assert_true(isinstance(session, ctx._stub_session_cls))
+        kwargs = ctx._recorded[-1]
+        testbase.assert_equal(kwargs["host"], "target-a")
+        testbase.assert_true(kwargs["primary_credential"] is cred)
+        testbase.assert_equal(kwargs["transport_kind"], "serial")
+        testbase.assert_equal(kwargs["called_id"], "node-01")
+        testbase.assert_true(kwargs["aspects"] is agent._aspects)
         return
 
-    def test_open_session_with_user_resolves_user_credential(self) -> None:
-        """
-            :meth:`open_session` with ``user="admin"`` uses
-            ``self._users["admin"]`` as the session's primary credential.
-        """
+    finally:
+        _teardown_uefi_agent_open_session(ctx)
+def test_open_session_with_user_resolves_user_credential() -> None:
+    """
+        :meth:`open_session` with ``user="admin"`` uses
+        ``agent._users["admin"]`` as the session's primary credential.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_agent_open_session(ctx)
+    try:
         primary = _build_serial_credential()
         admin_cred = UefiSerialCredential(device="/dev/ttyUSB1", baud=9600)
         users = {"admin": admin_cred}
@@ -1154,15 +1181,20 @@ class UefiAgentOpenSessionTests(unittest.TestCase):
         )
         agent.open_session(user="admin")
 
-        kwargs = self._recorded[-1]
-        self.assertIs(kwargs["primary_credential"], admin_cred)
+        kwargs = ctx._recorded[-1]
+        testbase.assert_true(kwargs["primary_credential"] is admin_cred)
         return
 
-    def test_open_session_unknown_user_raises(self) -> None:
-        """
-            :meth:`open_session` with an unknown ``user`` raises
-            :class:`ConfigurationError`.
-        """
+    finally:
+        _teardown_uefi_agent_open_session(ctx)
+def test_open_session_unknown_user_raises() -> None:
+    """
+        :meth:`open_session` with an unknown ``user`` raises
+        :class:`ConfigurationError`.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_agent_open_session(ctx)
+    try:
         cred = _build_serial_credential()
         agent = UefiAgent(
             host="target-a",
@@ -1170,15 +1202,20 @@ class UefiAgentOpenSessionTests(unittest.TestCase):
             transport_kind="serial",
             users={"admin": cred},
         )
-        with self.assertRaises(ConfigurationError):
+        with testbase.raises(ConfigurationError):
             agent.open_session(user="nope")
         return
 
-    def test_open_session_honors_custom_aspects(self) -> None:
-        """
-            A non-None ``aspects`` argument is forwarded to the new
-            session.
-        """
+    finally:
+        _teardown_uefi_agent_open_session(ctx)
+def test_open_session_honors_custom_aspects() -> None:
+    """
+        A non-None ``aspects`` argument is forwarded to the new
+        session.
+    """
+    ctx = SimpleNamespace()
+    _setup_uefi_agent_open_session(ctx)
+    try:
         cred = _build_serial_credential()
         agent = UefiAgent(
             host="target-a",
@@ -1188,10 +1225,8 @@ class UefiAgentOpenSessionTests(unittest.TestCase):
         custom = UefiCmdAspects()
         agent.open_session(aspects=custom)
 
-        kwargs = self._recorded[-1]
-        self.assertIs(kwargs["aspects"], custom)
+        kwargs = ctx._recorded[-1]
+        testbase.assert_true(kwargs["aspects"] is custom)
         return
-
-
-if __name__ == "__main__":
-    unittest.main()
+    finally:
+        _teardown_uefi_agent_open_session(ctx)

@@ -21,6 +21,8 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
+import unittest
+
 from ccai import testbase
 
 import uuid

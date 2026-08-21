@@ -19,12 +19,13 @@ __copyright__ = "Copyright 2025, Code Craft AI LLC"
 __credits__ = []
 
 
-import unittest
+
+from ccai import testbase
 
 from typing import Dict, List, Optional, Tuple
 from unittest.mock import MagicMock
 
-from ccai.errors.exceptions import ConfigurationError, SemanticError
+from ccai.errors.exceptions import ConfigurationError, SemanticError, SkipError
 
 try:
     from ccai.protocols.ssh.sshagent import SshAgent
@@ -154,473 +155,520 @@ def _all_present_responses() -> Dict[str, Tuple[int, str, str]]:
 # Construction
 # ---------------------------------------------------------------------------
 
-def setUpModule() -> None:
+def _require_ssh() -> None:
     """
-        Skips every test in this module when the optional
-        'codecraftai-protocol-ssh' package is not installed.  The
-        ssh-host transport is the only feature that requires it, so its
-        absence is a valid configuration rather than a failure.
+        Skips the calling test when the optional
+        'codecraftai-protocol-ssh' package is absent.  The ssh-host
+        transport is the only feature that needs it, so its absence is a
+        valid configuration rather than a failure.
 
-        :raises: unittest.SkipTest
+        testbase has no module-level setup hook, so the gate is an
+        explicit call rather than the setUpModule this replaced.
+
+        :raises: SkipError
     """
     if not _HAS_SSH_AGENT:
-        raise unittest.SkipTest("ccai.protocols.ssh not installed")
+        raise SkipError("ccai.protocols.ssh not installed")
 
     return
 
 
-class UefiSshHostTransportConstructionTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiSshHostTransportConstructionTestCase
+# ----------------------------------------------------------------------
 
-    def test_non_sshagent_raises(self) -> None:
-        """
-            Passing a non-:class:`SshAgent` value as ``ssh_agent`` must
-            raise :class:`ConfigurationError`.
-        """
-        with self.assertRaises(ConfigurationError):
-            UefiSshHostTransport(ssh_agent="not-an-agent")  # type: ignore[arg-type]
-        return
 
-    def test_non_aspects_raises(self) -> None:
-        """
-            Passing a non-:class:`UefiCmdAspects` value as ``aspects``
-            must raise :class:`ConfigurationError`.
-        """
-        agent = _make_stub_agent()
-        with self.assertRaises(ConfigurationError):
-            UefiSshHostTransport(ssh_agent=agent, aspects="not-aspects")  # type: ignore[arg-type]
-        return
+def test_non_sshagent_raises() -> None:
+    """
+        Passing a non-:class:`SshAgent` value as ``ssh_agent`` must
+        raise :class:`ConfigurationError`.
+    """
+    _require_ssh()
+    with testbase.raises(ConfigurationError):
+        UefiSshHostTransport(ssh_agent="not-an-agent")  # type: ignore[arg-type]
+    return
 
-    def test_construction_records_state(self) -> None:
-        """
-            Construction must stash the agent and aspects and must leave
-            the transport marked as not-connected with an empty capability
-            dict.
-        """
-        agent = _make_stub_agent()
-        transport = UefiSshHostTransport(ssh_agent=agent)
+def test_non_aspects_raises() -> None:
+    """
+        Passing a non-:class:`UefiCmdAspects` value as ``aspects``
+        must raise :class:`ConfigurationError`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent()
+    with testbase.raises(ConfigurationError):
+        UefiSshHostTransport(ssh_agent=agent, aspects="not-aspects")  # type: ignore[arg-type]
+    return
 
-        self.assertIs(transport.ssh_agent, agent)
-        self.assertFalse(transport.connected)
-        self.assertEqual(transport.capabilities, {})
-        self.assertEqual(transport.transport_kind, TRANSPORT_KIND)
-        return
+def test_construction_records_state() -> None:
+    """
+        Construction must stash the agent and aspects and must leave
+        the transport marked as not-connected with an empty capability
+        dict.
+    """
+    _require_ssh()
+    agent = _make_stub_agent()
+    transport = UefiSshHostTransport(ssh_agent=agent)
+
+    testbase.assert_true(transport.ssh_agent is agent)
+    testbase.assert_false(transport.connected)
+    testbase.assert_equal(transport.capabilities, {})
+    testbase.assert_equal(transport.transport_kind, TRANSPORT_KIND)
+    return
 
 
 # ---------------------------------------------------------------------------
 # connect() / capability probing
 # ---------------------------------------------------------------------------
 
-class UefiSshHostTransportConnectTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiSshHostTransportConnectTestCase
+# ----------------------------------------------------------------------
 
-    def test_connect_all_capabilities_present(self) -> None:
-        """
-            When every probe exits 0, every capability flag must be
-            ``True`` and the transport must be marked connected.
-        """
-        agent = _make_stub_agent(responses=_all_present_responses())
-        transport = UefiSshHostTransport(ssh_agent=agent)
+
+def test_connect_all_capabilities_present() -> None:
+    """
+        When every probe exits 0, every capability flag must be
+        ``True`` and the transport must be marked connected.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(responses=_all_present_responses())
+    transport = UefiSshHostTransport(ssh_agent=agent)
+    transport.connect()
+
+    caps = transport.capabilities
+    testbase.assert_true(caps[CAPABILITY_HAS_EFIBOOTMGR])
+    testbase.assert_true(caps[CAPABILITY_HAS_EFIVAR])
+    testbase.assert_true(caps[CAPABILITY_HAS_FWUPDMGR])
+    testbase.assert_true(caps[CAPABILITY_HAS_EFIVARFS])
+    testbase.assert_true(caps[CAPABILITY_HAS_EFIVARFS_RW])
+
+    testbase.assert_true(transport.connected)
+    testbase.assert_equal(agent.stub.verify_call_count, 1)
+    return
+
+def test_connect_capability_keys_are_complete() -> None:
+    """
+        Every key in :data:`KNOWN_CAPABILITIES` must be populated after
+        :meth:`connect`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(responses=_all_present_responses())
+    transport = UefiSshHostTransport(ssh_agent=agent)
+    transport.connect()
+
+    for name in KNOWN_CAPABILITIES:
+        testbase.assert_true(name in transport.capabilities)
+    return
+
+def test_connect_missing_binaries_do_not_raise_by_default() -> None:
+    """
+        When no capabilities are marked as required, a missing binary
+        must set the flag to ``False`` and MUST NOT raise.
+    """
+    _require_ssh()
+    responses: Dict[str, Tuple[int, str, str]] = {
+        PROBE_COMMANDS[CAPABILITY_HAS_EFIBOOTMGR]: (1, "", ""),
+        PROBE_COMMANDS[CAPABILITY_HAS_EFIVAR]: (1, "", ""),
+        PROBE_COMMANDS[CAPABILITY_HAS_FWUPDMGR]: (0, "/usr/bin/fwupdmgr", ""),
+        PROBE_COMMANDS[CAPABILITY_HAS_EFIVARFS]: (0, "", ""),
+        PROBE_COMMANDS[CAPABILITY_HAS_EFIVARFS_RW]: (1, "", ""),
+    }
+    agent = _make_stub_agent(responses=responses)
+    transport = UefiSshHostTransport(ssh_agent=agent)
+    transport.connect()
+
+    caps = transport.capabilities
+    testbase.assert_false(caps[CAPABILITY_HAS_EFIBOOTMGR])
+    testbase.assert_false(caps[CAPABILITY_HAS_EFIVAR])
+    testbase.assert_true(caps[CAPABILITY_HAS_FWUPDMGR])
+    testbase.assert_true(caps[CAPABILITY_HAS_EFIVARFS])
+    testbase.assert_false(caps[CAPABILITY_HAS_EFIVARFS_RW])
+
+    testbase.assert_true(transport.connected)
+    return
+
+def test_connect_require_capabilities_raises_on_missing() -> None:
+    """
+        When ``require_capabilities`` names a capability whose probe
+        returned non-zero, :class:`UefiTransportError` must be raised
+        whose ``details`` list the missing subjects.
+    """
+    _require_ssh()
+    responses: Dict[str, Tuple[int, str, str]] = {
+        PROBE_COMMANDS[CAPABILITY_HAS_EFIBOOTMGR]: (1, "", ""),
+        PROBE_COMMANDS[CAPABILITY_HAS_EFIVAR]: (0, "/usr/bin/efivar", ""),
+        PROBE_COMMANDS[CAPABILITY_HAS_FWUPDMGR]: (0, "/usr/bin/fwupdmgr", ""),
+        PROBE_COMMANDS[CAPABILITY_HAS_EFIVARFS]: (0, "", ""),
+        PROBE_COMMANDS[CAPABILITY_HAS_EFIVARFS_RW]: (0, "", ""),
+    }
+    agent = _make_stub_agent(responses=responses)
+    transport = UefiSshHostTransport(ssh_agent=agent)
+
+    with testbase.raises(UefiTransportError) as ctx:
+        transport.connect(require_capabilities=(CAPABILITY_HAS_EFIBOOTMGR,))
+
+    details_text = " ".join(ctx.exception.details)
+    testbase.assert_true(CAPABILITY_HAS_EFIBOOTMGR in details_text)
+    testbase.assert_true("efibootmgr" in details_text)
+    return
+
+def test_connect_require_capabilities_unknown_raises_semantic() -> None:
+    """
+        ``require_capabilities`` naming a key not in
+        :data:`KNOWN_CAPABILITIES` must raise :class:`SemanticError`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(responses=_all_present_responses())
+    transport = UefiSshHostTransport(ssh_agent=agent)
+
+    with testbase.raises(SemanticError):
+        transport.connect(require_capabilities=("has_nonexistent_tool",))
+    return
+
+def test_connect_verify_connectivity_failure_raises_transport() -> None:
+    """
+        An exception raised by :meth:`SshAgent.verify_connectivity`
+        must surface as :class:`UefiTransportError` chained from the
+        underlying cause.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(verify_exc=ConnectionError("unreachable"))
+    transport = UefiSshHostTransport(ssh_agent=agent)
+
+    with testbase.raises(UefiTransportError) as ctx:
         transport.connect()
 
-        caps = transport.capabilities
-        self.assertTrue(caps[CAPABILITY_HAS_EFIBOOTMGR])
-        self.assertTrue(caps[CAPABILITY_HAS_EFIVAR])
-        self.assertTrue(caps[CAPABILITY_HAS_FWUPDMGR])
-        self.assertTrue(caps[CAPABILITY_HAS_EFIVARFS])
-        self.assertTrue(caps[CAPABILITY_HAS_EFIVARFS_RW])
+    testbase.assert_true(isinstance(ctx.exception.__cause__, ConnectionError))
+    return
 
-        self.assertTrue(transport.connected)
-        self.assertEqual(agent.stub.verify_call_count, 1)
-        return
+def test_connect_probe_exception_sets_flag_false() -> None:
+    """
+        A probe that raises an unexpected exception must be treated as
+        ``False`` — the transport MUST NOT propagate the exception
+        past the probe loop for probes that are not in
+        ``require_capabilities``.
+    """
+    _require_ssh()
+    base_responses = _all_present_responses()
+    base_responses[PROBE_COMMANDS[CAPABILITY_HAS_EFIBOOTMGR]] = (0, "", "")
 
-    def test_connect_capability_keys_are_complete(self) -> None:
-        """
-            Every key in :data:`KNOWN_CAPABILITIES` must be populated after
-            :meth:`connect`.
-        """
-        agent = _make_stub_agent(responses=_all_present_responses())
-        transport = UefiSshHostTransport(ssh_agent=agent)
-        transport.connect()
+    def _raising_run_cmd(command: str, **kwargs: object) -> Tuple[int, str, str]:
+        if command == PROBE_COMMANDS[CAPABILITY_HAS_EFIBOOTMGR]:
+            raise RuntimeError("probe-go-boom")
+        response = base_responses.get(command, (0, "", ""))
+        return response
 
-        for name in KNOWN_CAPABILITIES:
-            self.assertIn(name, transport.capabilities)
-        return
+    agent = MagicMock(spec=SshAgent)
+    agent._host = "test-host"
+    agent.verify_connectivity.return_value = True
+    agent.run_cmd.side_effect = _raising_run_cmd
 
-    def test_connect_missing_binaries_do_not_raise_by_default(self) -> None:
-        """
-            When no capabilities are marked as required, a missing binary
-            must set the flag to ``False`` and MUST NOT raise.
-        """
-        responses: Dict[str, Tuple[int, str, str]] = {
-            PROBE_COMMANDS[CAPABILITY_HAS_EFIBOOTMGR]: (1, "", ""),
-            PROBE_COMMANDS[CAPABILITY_HAS_EFIVAR]: (1, "", ""),
-            PROBE_COMMANDS[CAPABILITY_HAS_FWUPDMGR]: (0, "/usr/bin/fwupdmgr", ""),
-            PROBE_COMMANDS[CAPABILITY_HAS_EFIVARFS]: (0, "", ""),
-            PROBE_COMMANDS[CAPABILITY_HAS_EFIVARFS_RW]: (1, "", ""),
-        }
-        agent = _make_stub_agent(responses=responses)
-        transport = UefiSshHostTransport(ssh_agent=agent)
-        transport.connect()
+    transport = UefiSshHostTransport(ssh_agent=agent)
+    transport.connect()
 
-        caps = transport.capabilities
-        self.assertFalse(caps[CAPABILITY_HAS_EFIBOOTMGR])
-        self.assertFalse(caps[CAPABILITY_HAS_EFIVAR])
-        self.assertTrue(caps[CAPABILITY_HAS_FWUPDMGR])
-        self.assertTrue(caps[CAPABILITY_HAS_EFIVARFS])
-        self.assertFalse(caps[CAPABILITY_HAS_EFIVARFS_RW])
-
-        self.assertTrue(transport.connected)
-        return
-
-    def test_connect_require_capabilities_raises_on_missing(self) -> None:
-        """
-            When ``require_capabilities`` names a capability whose probe
-            returned non-zero, :class:`UefiTransportError` must be raised
-            whose ``details`` list the missing subjects.
-        """
-        responses: Dict[str, Tuple[int, str, str]] = {
-            PROBE_COMMANDS[CAPABILITY_HAS_EFIBOOTMGR]: (1, "", ""),
-            PROBE_COMMANDS[CAPABILITY_HAS_EFIVAR]: (0, "/usr/bin/efivar", ""),
-            PROBE_COMMANDS[CAPABILITY_HAS_FWUPDMGR]: (0, "/usr/bin/fwupdmgr", ""),
-            PROBE_COMMANDS[CAPABILITY_HAS_EFIVARFS]: (0, "", ""),
-            PROBE_COMMANDS[CAPABILITY_HAS_EFIVARFS_RW]: (0, "", ""),
-        }
-        agent = _make_stub_agent(responses=responses)
-        transport = UefiSshHostTransport(ssh_agent=agent)
-
-        with self.assertRaises(UefiTransportError) as ctx:
-            transport.connect(require_capabilities=(CAPABILITY_HAS_EFIBOOTMGR,))
-
-        details_text = " ".join(ctx.exception.details)
-        self.assertIn(CAPABILITY_HAS_EFIBOOTMGR, details_text)
-        self.assertIn("efibootmgr", details_text)
-        return
-
-    def test_connect_require_capabilities_unknown_raises_semantic(self) -> None:
-        """
-            ``require_capabilities`` naming a key not in
-            :data:`KNOWN_CAPABILITIES` must raise :class:`SemanticError`.
-        """
-        agent = _make_stub_agent(responses=_all_present_responses())
-        transport = UefiSshHostTransport(ssh_agent=agent)
-
-        with self.assertRaises(SemanticError):
-            transport.connect(require_capabilities=("has_nonexistent_tool",))
-        return
-
-    def test_connect_verify_connectivity_failure_raises_transport(self) -> None:
-        """
-            An exception raised by :meth:`SshAgent.verify_connectivity`
-            must surface as :class:`UefiTransportError` chained from the
-            underlying cause.
-        """
-        agent = _make_stub_agent(verify_exc=ConnectionError("unreachable"))
-        transport = UefiSshHostTransport(ssh_agent=agent)
-
-        with self.assertRaises(UefiTransportError) as ctx:
-            transport.connect()
-
-        self.assertIsInstance(ctx.exception.__cause__, ConnectionError)
-        return
-
-    def test_connect_probe_exception_sets_flag_false(self) -> None:
-        """
-            A probe that raises an unexpected exception must be treated as
-            ``False`` — the transport MUST NOT propagate the exception
-            past the probe loop for probes that are not in
-            ``require_capabilities``.
-        """
-        base_responses = _all_present_responses()
-        base_responses[PROBE_COMMANDS[CAPABILITY_HAS_EFIBOOTMGR]] = (0, "", "")
-
-        def _raising_run_cmd(command: str, **kwargs: object) -> Tuple[int, str, str]:
-            if command == PROBE_COMMANDS[CAPABILITY_HAS_EFIBOOTMGR]:
-                raise RuntimeError("probe-go-boom")
-            response = base_responses.get(command, (0, "", ""))
-            return response
-
-        agent = MagicMock(spec=SshAgent)
-        agent._host = "test-host"
-        agent.verify_connectivity.return_value = True
-        agent.run_cmd.side_effect = _raising_run_cmd
-
-        transport = UefiSshHostTransport(ssh_agent=agent)
-        transport.connect()
-
-        self.assertFalse(transport.capabilities[CAPABILITY_HAS_EFIBOOTMGR])
-        self.assertTrue(transport.capabilities[CAPABILITY_HAS_EFIVAR])
-        return
+    testbase.assert_false(transport.capabilities[CAPABILITY_HAS_EFIBOOTMGR])
+    testbase.assert_true(transport.capabilities[CAPABILITY_HAS_EFIVAR])
+    return
 
 
 # ---------------------------------------------------------------------------
 # require()
 # ---------------------------------------------------------------------------
 
-class UefiSshHostTransportRequireTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiSshHostTransportRequireTestCase
+# ----------------------------------------------------------------------
 
-    def test_require_returns_on_true(self) -> None:
-        """
-            :meth:`require` must return normally when the named capability
-            probed ``True``.
-        """
-        agent = _make_stub_agent(responses=_all_present_responses())
-        transport = UefiSshHostTransport(ssh_agent=agent)
-        transport.connect()
 
-        result = transport.require(capability_name=CAPABILITY_HAS_EFIBOOTMGR)
-        self.assertIsNone(result)
-        return
+def test_require_returns_on_true() -> None:
+    """
+        :meth:`require` must return normally when the named capability
+        probed ``True``.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(responses=_all_present_responses())
+    transport = UefiSshHostTransport(ssh_agent=agent)
+    transport.connect()
 
-    def test_require_raises_transport_on_false(self) -> None:
-        """
-            :meth:`require` must raise :class:`UefiTransportError` when
-            the named capability probed ``False``.
-        """
-        responses = _all_present_responses()
-        responses[PROBE_COMMANDS[CAPABILITY_HAS_EFIVAR]] = (1, "", "")
+    result = transport.require(capability_name=CAPABILITY_HAS_EFIBOOTMGR)
+    testbase.assert_true(result is None)
+    return
 
-        agent = _make_stub_agent(responses=responses)
-        transport = UefiSshHostTransport(ssh_agent=agent)
-        transport.connect()
+def test_require_raises_transport_on_false() -> None:
+    """
+        :meth:`require` must raise :class:`UefiTransportError` when
+        the named capability probed ``False``.
+    """
+    _require_ssh()
+    responses = _all_present_responses()
+    responses[PROBE_COMMANDS[CAPABILITY_HAS_EFIVAR]] = (1, "", "")
 
-        with self.assertRaises(UefiTransportError):
-            transport.require(capability_name=CAPABILITY_HAS_EFIVAR)
-        return
+    agent = _make_stub_agent(responses=responses)
+    transport = UefiSshHostTransport(ssh_agent=agent)
+    transport.connect()
 
-    def test_require_raises_semantic_on_unknown(self) -> None:
-        """
-            :meth:`require` with an unknown key must raise
-            :class:`SemanticError`.
-        """
-        agent = _make_stub_agent(responses=_all_present_responses())
-        transport = UefiSshHostTransport(ssh_agent=agent)
-        transport.connect()
+    with testbase.raises(UefiTransportError):
+        transport.require(capability_name=CAPABILITY_HAS_EFIVAR)
+    return
 
-        with self.assertRaises(SemanticError):
-            transport.require(capability_name="has_unknown")
-        return
+def test_require_raises_semantic_on_unknown() -> None:
+    """
+        :meth:`require` with an unknown key must raise
+        :class:`SemanticError`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(responses=_all_present_responses())
+    transport = UefiSshHostTransport(ssh_agent=agent)
+    transport.connect()
+
+    with testbase.raises(SemanticError):
+        transport.require(capability_name="has_unknown")
+    return
 
 
 # ---------------------------------------------------------------------------
 # run_cmd() sudo policy
 # ---------------------------------------------------------------------------
 
-class UefiSshHostTransportRunCmdTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiSshHostTransportRunCmdTestCase
+# ----------------------------------------------------------------------
 
-    def test_run_cmd_no_root_passes_through(self) -> None:
-        """
-            :meth:`run_cmd` with ``as_root=False`` must pass the command
-            unchanged to :meth:`SshAgent.run_cmd`.
-        """
-        agent = _make_stub_agent(default_response=(0, "hello", ""))
-        transport = UefiSshHostTransport(ssh_agent=agent)
 
-        status, stdout, stderr = transport.run_cmd(command="echo hello")
-        self.assertEqual(status, 0)
-        self.assertEqual(stdout, "hello")
-        self.assertEqual(stderr, "")
+def test_run_cmd_no_root_passes_through() -> None:
+    """
+        :meth:`run_cmd` with ``as_root=False`` must pass the command
+        unchanged to :meth:`SshAgent.run_cmd`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(default_response=(0, "hello", ""))
+    transport = UefiSshHostTransport(ssh_agent=agent)
 
-        issued_command, _ = agent.stub.run_cmd_calls[-1]
-        self.assertEqual(issued_command, "echo hello")
-        return
+    status, stdout, stderr = transport.run_cmd(command="echo hello")
+    testbase.assert_equal(status, 0)
+    testbase.assert_equal(stdout, "hello")
+    testbase.assert_equal(stderr, "")
 
-    def test_run_cmd_as_root_prefixes_sudo_n(self) -> None:
-        """
-            :meth:`run_cmd` with ``as_root=True`` must prepend
-            ``sudo -n `` to the command before dispatching to the
-            :class:`SshAgent`.
-        """
-        agent = _make_stub_agent(default_response=(0, "", ""))
-        transport = UefiSshHostTransport(ssh_agent=agent)
+    issued_command, _ = agent.stub.run_cmd_calls[-1]
+    testbase.assert_equal(issued_command, "echo hello")
+    return
 
+def test_run_cmd_as_root_prefixes_sudo_n() -> None:
+    """
+        :meth:`run_cmd` with ``as_root=True`` must prepend
+        ``sudo -n `` to the command before dispatching to the
+        :class:`SshAgent`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(default_response=(0, "", ""))
+    transport = UefiSshHostTransport(ssh_agent=agent)
+
+    transport.run_cmd(command="efibootmgr -v", as_root=True)
+
+    issued_command, _ = agent.stub.run_cmd_calls[-1]
+    expected = SUDO_NONINTERACTIVE_PREFIX + "efibootmgr -v"
+    testbase.assert_equal(issued_command, expected)
+    return
+
+def test_run_cmd_as_root_sudo_prompt_raises_configuration() -> None:
+    """
+        When ``as_root=True`` and stderr contains the sudo password
+        sentinel, :meth:`run_cmd` must raise
+        :class:`ConfigurationError` (not :class:`UefiTransportError`
+        — this is caller misconfiguration).
+    """
+    _require_ssh()
+    prompt_stderr = "sudo: a password is required\n"
+    agent = _make_stub_agent(default_response=(1, "", prompt_stderr))
+    transport = UefiSshHostTransport(ssh_agent=agent)
+
+    with testbase.raises(ConfigurationError):
         transport.run_cmd(command="efibootmgr -v", as_root=True)
+    return
 
-        issued_command, _ = agent.stub.run_cmd_calls[-1]
-        expected = SUDO_NONINTERACTIVE_PREFIX + "efibootmgr -v"
-        self.assertEqual(issued_command, expected)
-        return
+def test_run_cmd_as_root_terminal_required_raises_configuration() -> None:
+    """
+        The ``a terminal is required`` variant of the sudo refusal
+        sentinel must also produce :class:`ConfigurationError`.
+    """
+    _require_ssh()
+    prompt_stderr = "sudo: a terminal is required to read the password\n"
+    agent = _make_stub_agent(default_response=(1, "", prompt_stderr))
+    transport = UefiSshHostTransport(ssh_agent=agent)
 
-    def test_run_cmd_as_root_sudo_prompt_raises_configuration(self) -> None:
-        """
-            When ``as_root=True`` and stderr contains the sudo password
-            sentinel, :meth:`run_cmd` must raise
-            :class:`ConfigurationError` (not :class:`UefiTransportError`
-            — this is caller misconfiguration).
-        """
-        prompt_stderr = "sudo: a password is required\n"
-        agent = _make_stub_agent(default_response=(1, "", prompt_stderr))
-        transport = UefiSshHostTransport(ssh_agent=agent)
+    with testbase.raises(ConfigurationError):
+        transport.run_cmd(command="efibootmgr -v", as_root=True)
+    return
 
-        with self.assertRaises(ConfigurationError):
-            transport.run_cmd(command="efibootmgr -v", as_root=True)
-        return
+def test_run_cmd_no_root_does_not_check_sudo() -> None:
+    """
+        When ``as_root=False`` the sudo prompt sentinel in stderr
+        must NOT raise — it is only interpreted as a sudo refusal
+        when the caller actually asked for sudo.
+    """
+    _require_ssh()
+    bogus_stderr = "something about a password is required elsewhere\n"
+    agent = _make_stub_agent(default_response=(0, "", bogus_stderr))
+    transport = UefiSshHostTransport(ssh_agent=agent)
 
-    def test_run_cmd_as_root_terminal_required_raises_configuration(self) -> None:
-        """
-            The ``a terminal is required`` variant of the sudo refusal
-            sentinel must also produce :class:`ConfigurationError`.
-        """
-        prompt_stderr = "sudo: a terminal is required to read the password\n"
-        agent = _make_stub_agent(default_response=(1, "", prompt_stderr))
-        transport = UefiSshHostTransport(ssh_agent=agent)
+    status, stdout, stderr = transport.run_cmd(command="true", as_root=False)
+    testbase.assert_equal(status, 0)
+    testbase.assert_equal(stderr, bogus_stderr)
+    return
 
-        with self.assertRaises(ConfigurationError):
-            transport.run_cmd(command="efibootmgr -v", as_root=True)
-        return
+def test_run_cmd_rejects_non_string_command() -> None:
+    """
+        :meth:`run_cmd` must reject a non-string ``command`` with
+        :class:`ConfigurationError`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent()
+    transport = UefiSshHostTransport(ssh_agent=agent)
 
-    def test_run_cmd_no_root_does_not_check_sudo(self) -> None:
-        """
-            When ``as_root=False`` the sudo prompt sentinel in stderr
-            must NOT raise — it is only interpreted as a sudo refusal
-            when the caller actually asked for sudo.
-        """
-        bogus_stderr = "something about a password is required elsewhere\n"
-        agent = _make_stub_agent(default_response=(0, "", bogus_stderr))
-        transport = UefiSshHostTransport(ssh_agent=agent)
+    with testbase.raises(ConfigurationError):
+        transport.run_cmd(command=12345)  # type: ignore[arg-type]
+    return
 
-        status, stdout, stderr = transport.run_cmd(command="true", as_root=False)
-        self.assertEqual(status, 0)
-        self.assertEqual(stderr, bogus_stderr)
-        return
+def test_run_cmd_rejects_non_bool_as_root() -> None:
+    """
+        :meth:`run_cmd` must reject a non-bool ``as_root`` with
+        :class:`ConfigurationError`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent()
+    transport = UefiSshHostTransport(ssh_agent=agent)
 
-    def test_run_cmd_rejects_non_string_command(self) -> None:
-        """
-            :meth:`run_cmd` must reject a non-string ``command`` with
-            :class:`ConfigurationError`.
-        """
-        agent = _make_stub_agent()
-        transport = UefiSshHostTransport(ssh_agent=agent)
-
-        with self.assertRaises(ConfigurationError):
-            transport.run_cmd(command=12345)  # type: ignore[arg-type]
-        return
-
-    def test_run_cmd_rejects_non_bool_as_root(self) -> None:
-        """
-            :meth:`run_cmd` must reject a non-bool ``as_root`` with
-            :class:`ConfigurationError`.
-        """
-        agent = _make_stub_agent()
-        transport = UefiSshHostTransport(ssh_agent=agent)
-
-        with self.assertRaises(ConfigurationError):
-            transport.run_cmd(command="true", as_root="yes-please")  # type: ignore[arg-type]
-        return
+    with testbase.raises(ConfigurationError):
+        transport.run_cmd(command="true", as_root="yes-please")  # type: ignore[arg-type]
+    return
 
 
 # ---------------------------------------------------------------------------
 # send / recv / recv_until — SemanticError guards
 # ---------------------------------------------------------------------------
 
-class UefiSshHostTransportBytePipeTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiSshHostTransportBytePipeTestCase
+# ----------------------------------------------------------------------
 
-    def test_send_raises_semantic(self) -> None:
-        """
-            :meth:`send` must raise :class:`SemanticError`.
-        """
-        agent = _make_stub_agent()
-        transport = UefiSshHostTransport(ssh_agent=agent)
 
-        with self.assertRaises(SemanticError):
-            transport.send(data=b"bytes")
-        return
+def test_send_raises_semantic() -> None:
+    """
+        :meth:`send` must raise :class:`SemanticError`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent()
+    transport = UefiSshHostTransport(ssh_agent=agent)
 
-    def test_recv_raises_semantic(self) -> None:
-        """
-            :meth:`recv` must raise :class:`SemanticError`.
-        """
-        agent = _make_stub_agent()
-        transport = UefiSshHostTransport(ssh_agent=agent)
+    with testbase.raises(SemanticError):
+        transport.send(data=b"bytes")
+    return
 
-        with self.assertRaises(SemanticError):
-            transport.recv(max_bytes=16, timeout=0.5)
-        return
+def test_recv_raises_semantic() -> None:
+    """
+        :meth:`recv` must raise :class:`SemanticError`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent()
+    transport = UefiSshHostTransport(ssh_agent=agent)
 
-    def test_recv_until_raises_semantic(self) -> None:
-        """
-            :meth:`recv_until` must raise :class:`SemanticError`.
-        """
-        agent = _make_stub_agent()
-        transport = UefiSshHostTransport(ssh_agent=agent)
+    with testbase.raises(SemanticError):
+        transport.recv(max_bytes=16, timeout=0.5)
+    return
 
-        with self.assertRaises(SemanticError):
-            transport.recv_until(pattern=b"\n", timeout=0.5)
-        return
+def test_recv_until_raises_semantic() -> None:
+    """
+        :meth:`recv_until` must raise :class:`SemanticError`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent()
+    transport = UefiSshHostTransport(ssh_agent=agent)
+
+    with testbase.raises(SemanticError):
+        transport.recv_until(pattern=b"\n", timeout=0.5)
+    return
 
 
 # ---------------------------------------------------------------------------
 # disconnect() is a no-op on the SshAgent
 # ---------------------------------------------------------------------------
 
-class UefiSshHostTransportDisconnectTestCase(unittest.TestCase):
+# ----------------------------------------------------------------------
+# UefiSshHostTransportDisconnectTestCase
+# ----------------------------------------------------------------------
 
-    def test_disconnect_does_not_close_ssh_agent(self) -> None:
-        """
-            :meth:`disconnect` must flip the transport's ``connected``
-            flag but must NOT invoke any close / disconnect method on the
-            caller-supplied :class:`SshAgent`.
-        """
-        agent = _make_stub_agent(responses=_all_present_responses())
-        transport = UefiSshHostTransport(ssh_agent=agent)
-        transport.connect()
-        self.assertTrue(transport.connected)
 
-        transport.disconnect()
+def test_disconnect_does_not_close_ssh_agent() -> None:
+    """
+        :meth:`disconnect` must flip the transport's ``connected``
+        flag but must NOT invoke any close / disconnect method on the
+        caller-supplied :class:`SshAgent`.
+    """
+    _require_ssh()
+    agent = _make_stub_agent(responses=_all_present_responses())
+    transport = UefiSshHostTransport(ssh_agent=agent)
+    transport.connect()
+    testbase.assert_true(transport.connected)
 
-        self.assertFalse(transport.connected)
-        # MagicMock's close / disconnect / quit / exit must NOT be invoked.
-        self.assertFalse(agent.close.called)
-        self.assertFalse(agent.disconnect.called)
-        return
+    transport.disconnect()
 
-    def test_double_disconnect_is_safe(self) -> None:
-        """
-            :meth:`disconnect` must be idempotent.
-        """
-        agent = _make_stub_agent()
-        transport = UefiSshHostTransport(ssh_agent=agent)
+    testbase.assert_false(transport.connected)
+    # MagicMock's close / disconnect / quit / exit must NOT be invoked.
+    testbase.assert_false(agent.close.called)
+    testbase.assert_false(agent.disconnect.called)
+    return
 
-        transport.disconnect()
-        transport.disconnect()
-        self.assertFalse(transport.connected)
-        return
+def test_double_disconnect_is_safe() -> None:
+    """
+        :meth:`disconnect` must be idempotent.
+    """
+    _require_ssh()
+    agent = _make_stub_agent()
+    transport = UefiSshHostTransport(ssh_agent=agent)
+
+    transport.disconnect()
+    transport.disconnect()
+    testbase.assert_false(transport.connected)
+    return
 
 
 # ---------------------------------------------------------------------------
 # Aspects passthrough
 # ---------------------------------------------------------------------------
 
-class UefiSshHostTransportAspectsTestCase(unittest.TestCase):
-
-    def test_run_cmd_falls_back_to_default_aspects(self) -> None:
-        """
-            When a caller omits ``aspects``, the instance default must be
-            forwarded to :meth:`SshAgent.run_cmd`.
-        """
-        custom = UefiCmdAspects()
-        agent = _make_stub_agent(default_response=(0, "", ""))
-        transport = UefiSshHostTransport(ssh_agent=agent, aspects=custom)
-
-        transport.run_cmd(command="true")
-
-        _, aspects_used = agent.stub.run_cmd_calls[-1]
-        self.assertIs(aspects_used, custom)
-        return
-
-    def test_run_cmd_uses_explicit_aspects(self) -> None:
-        """
-            When a caller supplies an ``aspects`` argument, that exact
-            instance must be forwarded to :meth:`SshAgent.run_cmd`.
-        """
-        explicit = UefiCmdAspects()
-        agent = _make_stub_agent(default_response=(0, "", ""))
-        transport = UefiSshHostTransport(ssh_agent=agent, aspects=DEFAULT_CMD_ASPECTS)
-
-        transport.run_cmd(command="true", aspects=explicit)
-
-        _, aspects_used = agent.stub.run_cmd_calls[-1]
-        self.assertIs(aspects_used, explicit)
-        return
+# ----------------------------------------------------------------------
+# UefiSshHostTransportAspectsTestCase
+# ----------------------------------------------------------------------
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_run_cmd_falls_back_to_default_aspects() -> None:
+    """
+        When a caller omits ``aspects``, the instance default must be
+        forwarded to :meth:`SshAgent.run_cmd`.
+    """
+    _require_ssh()
+    custom = UefiCmdAspects()
+    agent = _make_stub_agent(default_response=(0, "", ""))
+    transport = UefiSshHostTransport(ssh_agent=agent, aspects=custom)
+
+    transport.run_cmd(command="true")
+
+    _, aspects_used = agent.stub.run_cmd_calls[-1]
+    testbase.assert_true(aspects_used is custom)
+    return
+
+def test_run_cmd_uses_explicit_aspects() -> None:
+    """
+        When a caller supplies an ``aspects`` argument, that exact
+        instance must be forwarded to :meth:`SshAgent.run_cmd`.
+    """
+    _require_ssh()
+    explicit = UefiCmdAspects()
+    agent = _make_stub_agent(default_response=(0, "", ""))
+    transport = UefiSshHostTransport(ssh_agent=agent, aspects=DEFAULT_CMD_ASPECTS)
+
+    transport.run_cmd(command="true", aspects=explicit)
+
+    _, aspects_used = agent.stub.run_cmd_calls[-1]
+    testbase.assert_true(aspects_used is explicit)
+    return
