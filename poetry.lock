@@ -312,75 +312,79 @@ files = [
 
 [[package]]
 name = "codecraftai-credentials"
-version = "0.0.1"
+version = "1.0.0"
 description = "Code Craft AI - Credentials Package"
 optional = false
 python-versions = ">=3.10,<4.0"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "codecraftai_credentials-1.0.0-py3-none-any.whl", hash = "sha256:8fed300b9bfb0d510d636589e4de3990491e645a6e51ed4b6da1c941aea2f51c"},
+    {file = "codecraftai_credentials-1.0.0.tar.gz", hash = "sha256:1e31067a1558c1e55bd9d4f9c2273e89ec67d26306a402c7cc13d86ea85262e0"},
+]
 
 [package.dependencies]
-codecraftai-errors = {git = "https://github.com/code-craft-ai-company/codecraftai-errors.git", branch = "main"}
+codecraftai-errors = "<2.0.0"
 
 [package.source]
-type = "git"
-url = "https://github.com/code-craft-ai-company/codecraftai-credentials.git"
-reference = "main"
-resolved_reference = "3992c96eb1d126cbd6370996f6748ad188c30efe"
+type = "legacy"
+url = "https://code-craft.ai/licensed-repository/simple"
+reference = "codecraftai"
 
 [[package]]
 name = "codecraftai-errors"
-version = "0.0.2"
+version = "1.0.0"
 description = "Code Craft AI - Errors"
 optional = false
 python-versions = ">=3.10,<4.0"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "codecraftai_errors-1.0.0-py3-none-any.whl", hash = "sha256:6fa27c28e7e9eae33fde10d6ebc0c1e9f600bfafd124b3f199de6db5f587d18c"},
+    {file = "codecraftai_errors-1.0.0.tar.gz", hash = "sha256:45c6a526741e0920b356e796fd3379656d4b5dd018c58c02676783f4dcc4096d"},
+]
 
 [package.source]
-type = "git"
-url = "https://github.com/code-craft-ai-company/codecraftai-errors.git"
-reference = "main"
-resolved_reference = "bbc01a9b9e7602c225ffab0716bc6e56b472e4b4"
+type = "legacy"
+url = "https://code-craft.ai/licensed-repository/simple"
+reference = "codecraftai"
 
 [[package]]
 name = "codecraftai-waiting"
-version = "0.0.1"
+version = "1.0.0"
 description = "Code Craft AI - Waiting Package"
 optional = false
 python-versions = ">=3.10,<4.0"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "codecraftai_waiting-1.0.0-py3-none-any.whl", hash = "sha256:cbf00b8183498a9bad4d5e3fe9f03b8610d13caca3c8371b01348f698f3df674"},
+    {file = "codecraftai_waiting-1.0.0.tar.gz", hash = "sha256:8156278ecdbd2e4d5e6ab9d2efb23fac3ead873d588af90bccc186376dc6b0cf"},
+]
 
 [package.source]
-type = "git"
-url = "https://github.com/code-craft-ai-company/codecraftai-waiting.git"
-reference = "main"
-resolved_reference = "071b83b5ff6ce8cb8966aee7e6a2de97a6e926d1"
+type = "legacy"
+url = "https://code-craft.ai/licensed-repository/simple"
+reference = "codecraftai"
 
 [[package]]
 name = "codecraftai-xmodules"
-version = "0.0.1"
+version = "1.0.0"
 description = "Code Craft AI - Python Extension Modules"
 optional = false
 python-versions = ">=3.10,<4.0"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "codecraftai_xmodules-1.0.0-py3-none-any.whl", hash = "sha256:783735753a2f3100c8735fb6d78f1ff085aa6c99d7036a7565d73b12c705baa6"},
+    {file = "codecraftai_xmodules-1.0.0.tar.gz", hash = "sha256:6d6fb9bb83606b5b599b3412823ed4e84a1ceabe8064ba2f7873b0adad5690fa"},
+]
 
 [package.dependencies]
-codecraftai-errors = {git = "https://github.com/code-craft-ai-company/codecraftai-errors.git", branch = "main"}
-codecraftai-waiting = {git = "https://github.com/code-craft-ai-company/codecraftai-waiting.git", branch = "main"}
-debugpy = "^1.8.14"
+codecraftai-errors = "<2.0.0"
+codecraftai-waiting = "<2.0.0"
+debugpy = ">=1.8.14,<2.0.0"
 
 [package.source]
-type = "git"
-url = "https://github.com/code-craft-ai-company/codecraftai-xmodules.git"
-reference = "main"
-resolved_reference = "aa6007a13842bbe98a1c22147e2b6b8391481053"
+type = "legacy"
+url = "https://code-craft.ai/licensed-repository/simple"
+reference = "codecraftai"
 
 [[package]]
 name = "cryptography"
@@ -604,4 +608,4 @@ signing = ["cryptography"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "db9a38c9c22d7c2d89e2ad3b6eda9b6a2cf2d8fc863a5db8209fb54c9b20bb17"
+content-hash = "d1c9a848db251b49f0c485ce5d2dbde733f8dc014eba93a660c4a6d5aa0d5035"
