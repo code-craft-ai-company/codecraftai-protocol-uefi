@@ -20,50 +20,15 @@ import logging
 from enum import IntEnum
 from typing import Final, Optional, Sequence, Tuple, Type, Union
 
+from ccai.aspects.aspects import Aspects as AspectsBase
 from ccai.errors.exceptions import ConfigurationError
 from ccai.xmodules.xlogging.enhancedloggers import getEnhancedLogger
 
 
 # ---------------------------------------------------------------------------
-# Freezable base
-# ---------------------------------------------------------------------------
-
-class Freezable:
-    """
-        Base class that allows an instance to be marked read-only after its
-        constructor has finished populating attributes.  Consumers call
-        :meth:`freeze` at the end of ``__init__``; any subsequent attribute
-        assignment raises :class:`AttributeError`.
-    """
-
-    def __init__(self) -> None:
-        """
-            Initialize the freezable state marker.
-        """
-        object.__setattr__(self, "__frozen__", False)
-        return
-
-    def freeze(self) -> None:
-        """
-            Transition the instance into the frozen state.  After this call
-            any attribute assignment will raise :class:`AttributeError`.
-        """
-        object.__setattr__(self, "__frozen__", True)
-        return
-
-    def __setattr__(self, name: str, value: object) -> None:
-        """
-            Gate attribute assignment based on the frozen flag.
-        """
-        is_frozen = getattr(self, "__frozen__", False)
-        if is_frozen:
-            err_msg = "Freezable instance is frozen; cannot set attribute '{}'.".format(name)
-            raise AttributeError(err_msg)
-
-        object.__setattr__(self, name, value)
-        return
-
-
+# Freezable base: the suite-wide implementation now lives in ccai.bases; the name is kept here for
+# any caller that imported it from this module.
+from ccai.bases.freezable import Freezable
 # ---------------------------------------------------------------------------
 # Pattern enums
 # ---------------------------------------------------------------------------
@@ -339,7 +304,7 @@ def _validate_bool(field_name: str, value: object) -> bool:
 # UefiAspects
 # ---------------------------------------------------------------------------
 
-class UefiAspects(Freezable):
+class UefiAspects(AspectsBase):
     """
         The :class:`UefiAspects` class packages measured-interop behavior
         parameters into a single frozen container that callers pass to any
@@ -390,6 +355,9 @@ class UefiAspects(Freezable):
 
             :raises: ConfigurationError
         """
+        super().__init__(completion_interval=completion_interval, completion_timeout=completion_timeout,
+                         connection_timeout=connection_timeout)
+
         Freezable.__init__(self)
 
         validated_action_pattern = _validate_action_pattern(action_pattern)
