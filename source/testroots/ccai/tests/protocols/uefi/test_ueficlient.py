@@ -25,6 +25,8 @@ __credits__ = []
 from ccai import testbase
 
 import os
+import functools
+from unittest.mock import patch
 import sys
 import types
 
@@ -144,50 +146,24 @@ class _StubUefiHostOsChannel(_RecordedChannel):
     """
 
 
-_UEFICHANNEL_MODULE_NAME = "ccai.protocols.uefi.uefichannel"
-
-
-def _install_uefichannel_stub() -> types.ModuleType:
-    """
-        Install (or return the already-installed) stub
-        :mod:`ccai.protocols.uefi.uefichannel` module.
-
-        :returns: The stub module.
-    """
-    # Force-install even if the real uefichannel module is already loaded by
-    # another test; ueficlient's bound names must point at our stubs for
-    # these tests.  We capture the prior binding on the stub module so it
-    # can be restored in tearDown if needed.
-    stub_module = types.ModuleType(_UEFICHANNEL_MODULE_NAME)
-    stub_module.UefiChannel = _StubUefiChannel
-    stub_module.UefiShellChannel = _StubUefiShellChannel
-    stub_module.UefiRedfishChannel = _StubUefiRedfishChannel
-    stub_module.UefiHostOsChannel = _StubUefiHostOsChannel
-
-    sys.modules[_UEFICHANNEL_MODULE_NAME] = stub_module
-
-    return stub_module
-
-
-_install_uefichannel_stub()
-
-
-# ---------------------------------------------------------------------------
-# Import the module under test AFTER the stub is installed so the
-# ``from ccai.protocols.uefi.uefichannel import ...`` line in
-# ueficlient.py resolves to our stubs.
-# ---------------------------------------------------------------------------
-
 from ccai.protocols.uefi import ueficlient  # noqa: E402
 
-# Force-rebind the channel names on the ueficlient module to our stubs, in
-# case the real uefichannel module was already imported (and thus bound
-# into ueficlient at its module-load time) before the stub install above
-# had a chance to swap it out.
-ueficlient.UefiChannel = _StubUefiChannel
-ueficlient.UefiShellChannel = _StubUefiShellChannel
-ueficlient.UefiRedfishChannel = _StubUefiRedfishChannel
-ueficlient.UefiHostOsChannel = _StubUefiHostOsChannel
+
+def _with_stub_channels(test):
+    """
+        Binds the recorded stub channels onto ``ueficlient`` for the duration of one test only. Installing
+        them at module scope, or into ``sys.modules``, replaced the real channel classes for every test module
+        that ran after this one in the same process.
+    """
+    @functools.wraps(test)
+    def wrapper(*args, **kwargs):
+        with patch.object(ueficlient, "UefiChannel", _StubUefiChannel), \
+             patch.object(ueficlient, "UefiShellChannel", _StubUefiShellChannel), \
+             patch.object(ueficlient, "UefiRedfishChannel", _StubUefiRedfishChannel), \
+             patch.object(ueficlient, "UefiHostOsChannel", _StubUefiHostOsChannel):
+            return test(*args, **kwargs)
+    return wrapper
+
 
 from ccai.protocols.uefi.ueficlient import (  # noqa: E402
     SHELL_LINE_TERMINATOR,
@@ -385,6 +361,7 @@ class _NarrowActionPatternClient(UefiClient):
     class.
 """
 
+@_with_stub_channels
 def test_open_channel_raises_abstract() -> None:
     """
         :meth:`UefiClient.open_channel` must raise
@@ -401,6 +378,7 @@ def test_open_channel_raises_abstract() -> None:
 
     return
 
+@_with_stub_channels
 def test_execute_raises_abstract() -> None:
     """
         :meth:`UefiClient.execute` must raise
@@ -417,6 +395,7 @@ def test_execute_raises_abstract() -> None:
 
     return
 
+@_with_stub_channels
 def test_connected_property_delegates_to_transport() -> None:
     """
         The ``connected`` property MUST delegate to the transport.
@@ -432,6 +411,7 @@ def test_connected_property_delegates_to_transport() -> None:
 
     return
 
+@_with_stub_channels
 def test_close_is_idempotent_and_never_raises() -> None:
     """
         :meth:`UefiClient.close` must be idempotent and must NEVER
@@ -469,6 +449,7 @@ def test_close_is_idempotent_and_never_raises() -> None:
     narrowly-configured concrete subclass.
 """
 
+@_with_stub_channels
 def test_supported_pattern_is_accepted() -> None:
     """
         A pattern present in ``supported_action_patterns`` must NOT
@@ -484,6 +465,7 @@ def test_supported_pattern_is_accepted() -> None:
 
     return
 
+@_with_stub_channels
 def test_unsupported_pattern_raises_semantic_error() -> None:
     """
         A pattern NOT in ``supported_action_patterns`` must raise
@@ -513,6 +495,7 @@ def test_unsupported_pattern_raises_semantic_error() -> None:
 
     return
 
+@_with_stub_channels
 def test_execute_validates_action_pattern_before_dispatch() -> None:
     """
         :meth:`UefiClient.execute` implementations MUST validate the
@@ -542,6 +525,7 @@ def test_execute_validates_action_pattern_before_dispatch() -> None:
     Tests for the :class:`UefiShellClient` concrete subclass.
 """
 
+@_with_stub_channels
 def test_uefi_shell_client_supported_action_patterns_match_spec() -> None:
     """
         :class:`UefiShellClient` must declare exactly the four
@@ -558,6 +542,7 @@ def test_uefi_shell_client_supported_action_patterns_match_spec() -> None:
 
     return
 
+@_with_stub_channels
 def test_uefi_shell_client_open_channel_returns_shell_channel() -> None:
     """
         :meth:`UefiShellClient.open_channel` must return a
@@ -574,6 +559,7 @@ def test_uefi_shell_client_open_channel_returns_shell_channel() -> None:
 
     return
 
+@_with_stub_channels
 def test_uefi_shell_client_execute_dispatches_command_reads_until_prompt_and_parses_status() -> None:
     """
         :meth:`UefiShellClient.execute` must:
@@ -591,7 +577,7 @@ def test_uefi_shell_client_execute_dispatches_command_reads_until_prompt_and_par
     # Track the channels handed out by the stub module.
     created_channels: List[_StubUefiShellChannel] = []
 
-    original_cls = sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel
+    original_cls = ueficlient.UefiShellChannel
 
     def factory(transport, aspects):
         ch = original_cls(transport=transport, aspects=aspects)
@@ -606,13 +592,13 @@ def test_uefi_shell_client_execute_dispatches_command_reads_until_prompt_and_par
 
     # Monkey-patch the module-level UefiShellChannel used by the
     # production client so we can observe the channel.
-    sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel = factory
+    ueficlient.UefiShellChannel = factory
     ueficlient.UefiShellChannel = factory
     try:
         client = UefiShellClient(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
         status, stdout, stderr = client.execute(command="ver")
     finally:
-        sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel = original_cls
+        ueficlient.UefiShellChannel = original_cls
         ueficlient.UefiShellChannel = original_cls
 
     testbase.assert_equal(len(created_channels), 1)
@@ -645,6 +631,7 @@ def test_uefi_shell_client_execute_dispatches_command_reads_until_prompt_and_par
 
     return
 
+@_with_stub_channels
 def test_uefi_shell_client_execute_parses_nonzero_hex_exit_status() -> None:
     """
         A non-zero hex ``%lasterror%`` must be parsed into the
@@ -652,7 +639,7 @@ def test_uefi_shell_client_execute_parses_nonzero_hex_exit_status() -> None:
     """
     transport = _StubShellTransport()
 
-    original_cls = sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel
+    original_cls = ueficlient.UefiShellChannel
     captured: List[_StubUefiShellChannel] = []
 
     def factory(transport, aspects):
@@ -664,19 +651,20 @@ def test_uefi_shell_client_execute_parses_nonzero_hex_exit_status() -> None:
         captured.append(ch)
         return ch
 
-    sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel = factory
+    ueficlient.UefiShellChannel = factory
     ueficlient.UefiShellChannel = factory
     try:
         client = UefiShellClient(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
         status, _, _ = client.execute(command="bogus")
     finally:
-        sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel = original_cls
+        ueficlient.UefiShellChannel = original_cls
         ueficlient.UefiShellChannel = original_cls
 
     testbase.assert_equal(status, 15)
 
     return
 
+@_with_stub_channels
 def test_uefi_shell_client_execute_raises_connection_error_on_mid_read_loss() -> None:
     """
         A :class:`ConnectionError` raised from the transport during
@@ -685,7 +673,7 @@ def test_uefi_shell_client_execute_raises_connection_error_on_mid_read_loss() ->
     """
     transport = _StubShellTransport()
 
-    original_cls = sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel
+    original_cls = ueficlient.UefiShellChannel
     captured: List[_StubUefiShellChannel] = []
 
     def factory(transport, aspects):
@@ -694,14 +682,14 @@ def test_uefi_shell_client_execute_raises_connection_error_on_mid_read_loss() ->
         captured.append(ch)
         return ch
 
-    sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel = factory
+    ueficlient.UefiShellChannel = factory
     ueficlient.UefiShellChannel = factory
     try:
         client = UefiShellClient(transport=transport, aspects=DEFAULT_CMD_ASPECTS)
         with testbase.raises(ConnectionError):
             client.execute(command="ver")
     finally:
-        sys.modules[_UEFICHANNEL_MODULE_NAME].UefiShellChannel = original_cls
+        ueficlient.UefiShellChannel = original_cls
         ueficlient.UefiShellChannel = original_cls
 
     testbase.assert_equal(len(captured), 1)
@@ -709,6 +697,7 @@ def test_uefi_shell_client_execute_raises_connection_error_on_mid_read_loss() ->
 
     return
 
+@_with_stub_channels
 def test_uefi_shell_client_execute_rejects_unsupported_action_pattern() -> None:
     """
         Only the four declared action patterns are accepted; any
@@ -740,6 +729,7 @@ def test_uefi_shell_client_execute_rejects_unsupported_action_pattern() -> None:
     Tests for the :class:`UefiRedfishClient` concrete subclass.
 """
 
+@_with_stub_channels
 def test_uefi_redfish_client_supported_action_patterns_match_spec() -> None:
     """
         :class:`UefiRedfishClient` must declare exactly the two
@@ -754,6 +744,7 @@ def test_uefi_redfish_client_supported_action_patterns_match_spec() -> None:
 
     return
 
+@_with_stub_channels
 def test_uefi_redfish_client_open_channel_returns_redfish_channel() -> None:
     """
         :meth:`UefiRedfishClient.open_channel` must return a
@@ -770,6 +761,7 @@ def test_uefi_redfish_client_open_channel_returns_redfish_channel() -> None:
 
     return
 
+@_with_stub_channels
 def test_uefi_redfish_client_execute_always_raises_semantic_error() -> None:
     """
         :meth:`UefiRedfishClient.execute` must raise
@@ -800,6 +792,7 @@ def test_uefi_redfish_client_execute_always_raises_semantic_error() -> None:
     Tests for the :class:`UefiHostOsClient` concrete subclass.
 """
 
+@_with_stub_channels
 def test_uefi_host_os_client_supported_action_patterns_match_spec() -> None:
     """
         :class:`UefiHostOsClient` must declare exactly the three
@@ -815,6 +808,7 @@ def test_uefi_host_os_client_supported_action_patterns_match_spec() -> None:
 
     return
 
+@_with_stub_channels
 def test_uefi_host_os_client_open_channel_returns_host_os_channel() -> None:
     """
         :meth:`UefiHostOsClient.open_channel` must return a
@@ -831,6 +825,7 @@ def test_uefi_host_os_client_open_channel_returns_host_os_channel() -> None:
 
     return
 
+@_with_stub_channels
 def test_uefi_host_os_client_execute_forwards_to_transport_run_cmd() -> None:
     """
         :meth:`UefiHostOsClient.execute` must forward the command and
@@ -854,6 +849,7 @@ def test_uefi_host_os_client_execute_forwards_to_transport_run_cmd() -> None:
 
     return
 
+@_with_stub_channels
 def test_uefi_host_os_client_execute_forwards_per_call_aspects() -> None:
     """
         A non-None per-call aspects MUST be forwarded to
@@ -873,6 +869,7 @@ def test_uefi_host_os_client_execute_forwards_per_call_aspects() -> None:
 
     return
 
+@_with_stub_channels
 def test_uefi_host_os_client_execute_rejects_unsupported_action_pattern() -> None:
     """
         Patterns outside the declared three must raise
@@ -904,6 +901,7 @@ def test_uefi_host_os_client_execute_rejects_unsupported_action_pattern() -> Non
     Tests for shared surface behavior across every concrete subclass.
 """
 
+@_with_stub_channels
 def test_close_delegates_to_transport_disconnect() -> None:
     """
         :meth:`close` must call :meth:`transport.disconnect` exactly
