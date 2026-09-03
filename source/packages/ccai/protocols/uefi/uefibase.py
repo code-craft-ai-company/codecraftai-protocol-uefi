@@ -952,6 +952,47 @@ class UefiBase:
         return rtnval
 
 
+def default_client_factory(transport_kind: str, transport: object,
+                           aspects: UefiCmdAspects) -> UefiClient:
+    """
+        Builds the :class:`UefiClient` subclass that matches an already
+        constructed transport.  :class:`UefiSession` uses this after it has
+        built and connected its own transport; the dispatch mirrors
+        :meth:`UefiAgent._create_client`, which builds transport and client
+        together.
+
+        :param transport_kind: One of ``"serial"``, ``"ipmi-sol"``,
+                               ``"redfish"`` or ``"ssh-host"``.
+        :param transport: The connected transport the client will drive.
+        :param aspects: The :class:`UefiCmdAspects` the client should use.
+
+        :returns: An unconnected-by-this-function client wrapping ``transport``.
+
+        :raises ConfigurationError: When ``transport_kind`` is not one of the
+                                    supported kinds.
+    """
+    # Imported here so uefibase stays importable before the client subclasses are.
+    from ccai.protocols.uefi.ueficlient import UefiHostOsClient, UefiRedfishClient, UefiShellClient
+
+    if transport_kind in ("serial", "ipmi-sol"):
+        rtnval: UefiClient = UefiShellClient(transport=transport, aspects=aspects)
+    elif transport_kind == "redfish":
+        rtnval = UefiRedfishClient(transport=transport, aspects=aspects)
+    elif transport_kind == "ssh-host":
+        rtnval = UefiHostOsClient(transport=transport, aspects=aspects)
+    else:
+        err_msg_lines = [
+            "default_client_factory: unknown transport_kind.",
+            "TRANSPORT_KIND: {!r}".format(transport_kind),
+            "ALLOWED: serial, ipmi-sol, redfish, ssh-host",
+        ]
+        err_msg = os.linesep.join(err_msg_lines)
+        raise ConfigurationError(err_msg) from None
+
+    return rtnval
+
+
 __all__ = [
     "UefiBase",
+    "default_client_factory",
 ]
