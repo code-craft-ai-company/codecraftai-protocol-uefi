@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "codecraftai-protocol-uefi"
 description = "Code Craft AI - UEFI Protocol Interop Library"
-version = "1.0.3"
+version = "1.0.4"
 authors = ["Myron Walker <myron.walker@gmail.com>"]
 readme = "README.rst"
 license = "LicenseRef-CodeCraftAI-Dual-License"
@@ -37,7 +37,7 @@ codecraftai-xmodules = { version = "<2.0.0", source = "codecraftai" }
 # 'signing' extra exists to make that obligation installable.
 pyserial = { version = "^3.5", optional = true }
 requests = { version = "^2.32.0", optional = true }
-cryptography = { version = "^46.0.5", optional = true }
+cryptography = { version = ">=46.0.5,<51.0.0", optional = true }
 
 # codecraftai-protocol-ssh is an OPTIONAL runtime dependency used only by the
 # UefiSshHostTransport; it has a transitive dep on codecraftai-interop. When
