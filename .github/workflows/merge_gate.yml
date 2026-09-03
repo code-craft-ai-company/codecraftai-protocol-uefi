@@ -50,6 +50,8 @@ jobs:
         run: poetry config http-basic.codecraftai deployment "${{ secrets.CCAI_ORG_READ_TOKEN }}"
 
       - name: Setup the Virtual Environment
+        env:
+          EXTRA_POETRY_SETUP_FLAGS: --all-extras
         run: |
           ./development/setup-environment
           poetry install --all-extras
