@@ -610,12 +610,17 @@ def test_disconnect_does_not_close_ssh_agent() -> None:
     transport.connect()
     testbase.assert_true(transport.connected)
 
+    # The agent is a MagicMock(spec=SshAgent).  SshAgent exposes no close /
+    # disconnect / quit method at all, so asking the mock for one raises
+    # AttributeError rather than proving anything.  The property that matters
+    # is that disconnect() makes NO call of any kind on the agent, which the
+    # mock's call log shows directly.
+    calls_before = len(agent.method_calls)
+
     transport.disconnect()
 
     testbase.assert_false(transport.connected)
-    # MagicMock's close / disconnect / quit / exit must NOT be invoked.
-    testbase.assert_false(agent.close.called)
-    testbase.assert_false(agent.disconnect.called)
+    testbase.assert_equal(len(agent.method_calls), calls_before)
     return
 
 def test_double_disconnect_is_safe() -> None:
