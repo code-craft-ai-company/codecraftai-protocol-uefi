@@ -1,15 +1,10 @@
-[tool.poetry]
+[project]
 name = "codecraftai-protocol-uefi"
+version = "1.1.0"
 description = "Code Craft AI - UEFI Protocol Interop Library"
-version = "1.0.4"
-authors = ["Myron Walker <myron.walker@gmail.com>"]
 readme = "README.rst"
 license = "LicenseRef-CodeCraftAI-Dual-License"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: Other/Proprietary License",
-    "Operating System :: POSIX"
-]
+authors = [{name = "Myron Walker", email = "myron.walker@gmail.com"}]
 keywords = [
     "python",
     "uefi",
@@ -17,49 +12,66 @@ keywords = [
     "interop",
     "automation"
 ]
-packages = [{include="ccai", from="source/packages"}]
-
-[tool.poetry.dependencies]
-python = ">=3.10,<4.0"
-codecraftai-foundations = { version = "<2.0.0", source = "codecraftai" }
-codecraftai-credentials = { version = "<2.0.0", source = "codecraftai" }
-codecraftai-xmodules = { version = "<2.0.0", source = "codecraftai" }
-
-# Each third-party package below is used by exactly one feature, so each is
-# an extra rather than a base dependency.  The transport modules soft-import
-# them and raise ConfigurationError at construction when the extra is absent,
-# which is the same pattern UefiSshHostTransport already uses.
-#   pyserial  -> uefiserialtransport   (the serial-console transport)
-#   requests  -> uefiredfishtransport  (the Redfish / REST-over-HTTPS transport)
-# 'cryptography' is NOT imported anywhere in this package.  The signing APIs
-# in uefisecureboot and uefivariables accept caller-constructed private-key
-# and X.509 certificate objects, so it is the caller that needs it; the
-# 'signing' extra exists to make that obligation installable.
-pyserial = { version = "^3.5", optional = true }
-requests = { version = "^2.32.0", optional = true }
-cryptography = { version = ">=46.0.5,<51.0.0", optional = true }
-
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX",
+]
+requires-python = ">=3.10,<4.0"
+dependencies = [
+    "codecraftai-foundations<2.0.0",
+    "codecraftai-credentials<2.0.0",
+    "codecraftai-xmodules<2.0.0",
+]
 # codecraftai-protocol-ssh is an OPTIONAL runtime dependency used only by the
 # UefiSshHostTransport; it has a transitive dep on codecraftai-interop. When
 # absent, UefiSshHostTransport construction raises ConfigurationError. Install
 # separately in downstream projects that need the ssh-host transport:
-#   pip install codecraftai-protocol-ssh codecraftai-interop
+# pip install codecraftai-protocol-ssh codecraftai-interop
 
-[tool.poetry.extras]
-serial = ["pyserial"]
-redfish = ["requests"]
-signing = ["cryptography"]
+[project.optional-dependencies]
+# Each third-party package below is used by exactly one feature, so each is
+# an extra rather than a base dependency.  The transport modules soft-import
+# them and raise ConfigurationError at construction when the extra is absent,
+# which is the same pattern UefiSshHostTransport already uses.
+# pyserial  -> uefiserialtransport   (the serial-console transport)
+# requests  -> uefiredfishtransport  (the Redfish / REST-over-HTTPS transport)
+# 'cryptography' is NOT imported anywhere in this package.  The signing APIs
+# in uefisecureboot and uefivariables accept caller-constructed private-key
+# and X.509 certificate objects, so it is the caller that needs it; the
+# 'signing' extra exists to make that obligation installable.
+serial = ["pyserial>=3.5,<4.0.0"]
+redfish = ["requests>=2.32.0,<3.0.0"]
+signing = ["cryptography>=46.0.5,<51.0.0"]
+
+[dependency-groups]
+dev = [
+    "codecraftai-testbase<2.0.0",
+]
+dbio = []
+
+[tool.poetry]
+packages = [{include="ccai", from="source/packages"}]
+
+[tool.poetry.dependencies]
+codecraftai-foundations = {source = "codecraftai"}
+codecraftai-credentials = {source = "codecraftai"}
+codecraftai-xmodules = {source = "codecraftai"}
 
 [tool.poetry.group.dev.dependencies]
-codecraftai-testbase = { version = "<2.0.0", source = "codecraftai" }
-
-[tool.poetry.group.dbio.dependencies]
-
+codecraftai-testbase = {source = "codecraftai"}
 
 [[tool.poetry.source]]
 name = "codecraftai"
 url = "https://code-craft.ai/licensed-repository/simple/"
 priority = "supplemental"
+
+[[tool.uv.index]]
+# Same licensed index as [[tool.poetry.source]]. Listed before PyPI so that
+# codecraftai-* packages (direct and transitive) resolve from it; everything
+# else falls through to PyPI. Credentials: UV_INDEX_CODECRAFTAI_USERNAME /
+# UV_INDEX_CODECRAFTAI_PASSWORD, or `uv auth login`.
+name = "codecraftai"
+url = "https://code-craft.ai/licensed-repository/simple/"
 
 [tool.ruff.lint]
 # Deliberately narrow.  This gate exists for one reason: a bare `except:`
