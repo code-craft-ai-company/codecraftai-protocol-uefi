@@ -22,7 +22,6 @@ __credits__ = []
 import os
 import re
 import select
-import signal
 import subprocess
 import time
 
@@ -45,7 +44,7 @@ DEACTIVATION_FAILED_SENTINEL = "Deactivation failed"
 
 SOL_ESCAPE_SEQUENCE = b"~."
 
-SIGTERM_TO_SIGKILL_GRACE_SECONDS = 5.0
+TERMINATE_TO_KILL_GRACE_SECONDS = 5.0
 
 DEFAULT_RECV_CHUNK = 4096
 
@@ -205,7 +204,7 @@ class UefiIpmiSolTransport:
             Tear down the SOL session.  Never raises; double-disconnect
             is a no-op.  For the subprocess backend the ``~.`` escape is
             sent to request an orderly ``ipmitool`` exit before
-            ``SIGTERM`` / ``SIGKILL`` are applied.  For the pyghmi
+            ``Popen.terminate`` / ``Popen.kill`` are applied.  For the pyghmi
             backend the console's ``close`` method is invoked when
             available.
         """
@@ -598,8 +597,14 @@ class UefiIpmiSolTransport:
     def _disconnect_ipmitool(self) -> None:
         """
             Send the ``~.`` escape sequence to request an orderly
-            ``ipmitool`` exit, then apply ``SIGTERM`` with a grace
-            period and finally ``SIGKILL``.  Never raises.
+            ``ipmitool`` exit, then apply ``Popen.terminate`` with a
+            grace period and finally ``Popen.kill``.  Never raises.
+
+            Only the portable :class:`subprocess.Popen` termination
+            methods are used so the same code path runs on POSIX and
+            Windows.  On POSIX ``terminate`` sends ``SIGTERM`` and
+            ``kill`` sends ``SIGKILL``; on Windows both call
+            ``TerminateProcess``.
         """
         process = self._process
         if process is None:
@@ -626,11 +631,11 @@ class UefiIpmiSolTransport:
 
             if process.poll() is None:
                 try:
-                    process.send_signal(signal.SIGTERM)
+                    process.terminate()
                 except (OSError, ValueError):
                     pass
 
-                term_deadline = time.monotonic() + SIGTERM_TO_SIGKILL_GRACE_SECONDS
+                term_deadline = time.monotonic() + TERMINATE_TO_KILL_GRACE_SECONDS
                 while time.monotonic() < term_deadline:
                     if process.poll() is not None:
                         break

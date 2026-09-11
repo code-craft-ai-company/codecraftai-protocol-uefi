@@ -22,7 +22,6 @@ from ccai import testbase
 
 import io
 import re
-import signal
 import subprocess
 
 from typing import List, Optional
@@ -82,7 +81,7 @@ class _FakePopen:
         self.stdout = _NonClosingBytesIO()
         self.stderr = _NonClosingBytesIO()
         self._exit_code: Optional[int] = None
-        self._signals_received: List[int] = []
+        self._termination_calls: List[str] = []
         self._early_exit_after: Optional[float] = None
         self._early_exit_output: bytes = b""
         self._early_exit_stderr: bytes = b""
@@ -125,26 +124,30 @@ class _FakePopen:
 
     def send_signal(self, sig: int) -> None:
         """
-            Record a signal and treat ``SIGTERM`` / ``SIGKILL`` as
-            immediate exits.
+            Record a raw ``send_signal`` call.  The product code must
+            not use this entry point because signal numbers such as
+            ``SIGKILL`` are not portable to Windows; the call is
+            recorded so tests can assert it never happens.
         """
-        self._signals_received.append(sig)
-        if sig in (signal.SIGTERM, signal.SIGKILL):
-            self._exit_code = -sig
+        self._termination_calls.append("send_signal:{}".format(int(sig)))
         return
 
     def kill(self) -> None:
         """
-            Treat ``kill()`` as ``SIGKILL``.
+            Record a portable ``kill()`` call and treat it as an
+            immediate exit.
         """
-        self.send_signal(sig=signal.SIGKILL)
+        self._termination_calls.append("kill")
+        self._exit_code = -9
         return
 
     def terminate(self) -> None:
         """
-            Treat ``terminate()`` as ``SIGTERM``.
+            Record a portable ``terminate()`` call and treat it as an
+            immediate exit.
         """
-        self.send_signal(sig=signal.SIGTERM)
+        self._termination_calls.append("terminate")
+        self._exit_code = -15
         return
 
     def wait(self, timeout: Optional[float] = None) -> int:
@@ -503,8 +506,10 @@ def _setup_disconnect(ctx) -> None:
 def test_disconnect_sends_escape_and_terminates() -> None:
     """
         :meth:`disconnect` writes the ``~.`` escape to the
-        subprocess stdin and then sends ``SIGTERM`` when the process
-        has not yet exited.
+        subprocess stdin and then calls the portable
+        ``Popen.terminate`` when the process has not yet exited.  The
+        raw ``send_signal`` entry point must not be used because it is
+        not portable to Windows.
     """
     ctx = SimpleNamespace()
     _setup_disconnect(ctx)
@@ -521,9 +526,9 @@ def test_disconnect_sends_escape_and_terminates() -> None:
     # The escape sequence should have been written to stdin.
     written_bytes = fake.stdin.getvalue()
     testbase.assert_equal(written_bytes, SOL_ESCAPE_SEQUENCE)
-    # The subprocess was not exiting on escape; SIGTERM should have
-    # been applied.
-    testbase.assert_true(signal.SIGTERM in fake._signals_received)
+    # The subprocess was not exiting on escape; the portable
+    # terminate() should have been applied, and nothing else.
+    testbase.assert_equal(fake._termination_calls, ["terminate"])
     # Transport should be disconnected now.
     testbase.assert_false(transport.connected)
     return
