@@ -132,3 +132,6 @@ dmypy.json
 
 # Project Specific Exclusion
 *.code-workspace
+
+# uv can resolve this project too, but poetry.lock is the lockfile of record.
+uv.lock
