@@ -304,7 +304,7 @@ class UefiAgent(UefiBase):
             if client is not None:
                 try:
                     client.close()
-                except BaseException as cerr:
+                except Exception as cerr:
                     self._logger.warning(
                         "uefi.agent: run_cmd client close raised; suppressed. EXCEPTION=%r",
                         cerr,
@@ -391,7 +391,7 @@ class UefiAgent(UefiBase):
                         self._host, elapsed_ms,
                     )
                     return
-            except BaseException as cerr:
+            except Exception as cerr:
                 last_exception = cerr
             time.sleep(retry_interval)
 

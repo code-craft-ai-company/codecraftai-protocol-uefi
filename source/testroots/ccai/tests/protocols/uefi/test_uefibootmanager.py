@@ -48,8 +48,6 @@ from ccai.protocols.uefi.uefiaspects import (
 from ccai.protocols.uefi.uefidevicepath import (
     DevicePath,
     DevicePathNode,
-    decode_device_path,
-    device_path_from_text,
     encode_device_path,
 )
 from ccai.protocols.uefi.uefiexceptions import (
@@ -61,7 +59,6 @@ from ccai.protocols.uefi.uefivariables import (
     EFI_NOT_FOUND,
     UefiVariable,
     UefiVariableAttributes,
-    VariableStore,
 )
 
 from ccai.protocols.uefi.uefibootmanager import (

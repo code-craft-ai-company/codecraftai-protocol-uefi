@@ -42,7 +42,6 @@ from ccai.protocols.uefi.uefisystemtables import (
     MemoryAttributesEntry,
     MemoryAttributesTable,
     SMBIOS_ANCHOR_2X,
-    SmbiosStructure,
     SmbiosTable,
     SystemTables,
 )

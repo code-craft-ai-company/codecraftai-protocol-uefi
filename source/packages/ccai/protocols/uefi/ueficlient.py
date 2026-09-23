@@ -215,7 +215,7 @@ class UefiClient:
 
         try:
             self._transport.disconnect()
-        except BaseException as derr:
+        except Exception as derr:
             self._logger.warning(
                 "UefiClient.close: transport disconnect raised; suppressed. "
                 "CLIENT={} EXCEPTION={!r}".format(type(self).__name__, derr)
@@ -375,7 +375,7 @@ class UefiShellClient(UefiClient):
         finally:
             try:
                 channel.close()
-            except BaseException as cerr:
+            except Exception as cerr:
                 self._logger.warning(
                     "UefiShellClient.execute: channel close raised; suppressed. "
                     "EXCEPTION={!r}".format(cerr)

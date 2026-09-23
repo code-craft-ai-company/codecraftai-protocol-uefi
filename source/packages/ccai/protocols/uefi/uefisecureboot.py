@@ -484,7 +484,6 @@ def _parse_esl_body(list_buffer: bytes,
 
     entry_count = entries_total // sig_size
     entries: list = []
-    payload_size = sig_size - _ESL_ENTRY_OWNER_SIZE
     cursor = body_offset
     for _ in range(entry_count):
         owner_bytes = bytes(list_buffer[cursor:cursor + _ESL_ENTRY_OWNER_SIZE])

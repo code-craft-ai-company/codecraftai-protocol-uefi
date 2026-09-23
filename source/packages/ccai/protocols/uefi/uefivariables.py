@@ -47,10 +47,7 @@ from ccai.protocols.uefi.uefiexceptions import (
     UefiTransportError,
     UefiVariableError,
 )
-from ccai.protocols.uefi.uefihelpers import (
-    datetime_to_efi_time,
-    ucs2_encode,
-)
+from ccai.protocols.uefi.uefihelpers import datetime_to_efi_time
 from ccai.protocols.uefi.uefilogging import (
     UEFI_VARIABLE_CHANNEL,
     get_uefi_logger,

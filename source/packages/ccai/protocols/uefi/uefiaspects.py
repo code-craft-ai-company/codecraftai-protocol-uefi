@@ -958,5 +958,3 @@ UNDER_CONSTRUCTION_ASPECTS: Final[UefiCmdAspects] = UefiCmdAspects(
     connection_interval=UNDER_CONSTRUCTION_CONNECTION_INTERVAL,
     allowed_connection_exceptions=UNDER_CONSTRUCTION_ALLOWED_EXCEPTIONS,
 )
-
-DEFAULT_UEFI_ASPECTS: Final[UefiCmdAspects] = DEFAULT_CMD_ASPECTS

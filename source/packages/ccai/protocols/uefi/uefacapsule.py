@@ -53,7 +53,6 @@ from ccai.protocols.uefi.uefiguids import EFI_CAPSULE_REPORT_GUID
 from ccai.protocols.uefi.uefihelpers import (
     pack_u16_le,
     pack_u32_le,
-    pack_u64_le,
     unpack_u16_le,
     unpack_u32_le,
     unpack_u64_le,

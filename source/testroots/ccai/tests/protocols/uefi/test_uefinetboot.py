@@ -48,8 +48,6 @@ from ccai.protocols.uefi.uefibootmanager import (
     LoadOptionAttribute,
 )
 from ccai.protocols.uefi.uefidevicepath import (
-    DevicePath,
-    DevicePathNode,
     decode_device_path,
     device_path_from_text,
     device_path_to_text,

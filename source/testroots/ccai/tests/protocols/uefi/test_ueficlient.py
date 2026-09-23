@@ -24,11 +24,8 @@ __credits__ = []
 
 from ccai import testbase
 
-import os
 import functools
 from unittest.mock import patch
-import sys
-import types
 
 from typing import List, Optional, Tuple
 
@@ -165,9 +162,8 @@ def _with_stub_channels(test):
     return wrapper
 
 
-from ccai.protocols.uefi.ueficlient import (  # noqa: E402
+from ccai.protocols.uefi.ueficlient import (
     SHELL_LINE_TERMINATOR,
-    SHELL_STATUS_MARKER,
     SHELL_STATUS_PROBE,
     UefiClient,
     UefiHostOsClient,

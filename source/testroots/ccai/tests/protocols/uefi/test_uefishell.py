@@ -29,21 +29,13 @@ from ccai.protocols.uefi.uefiaspects import (
 from ccai.protocols.uefi.uefiexceptions import UefiShellError
 
 from ccai.protocols.uefi.uefishell import (
-    BcfgEntry,
     BcfgResult,
-    DevtreeNode,
     DevtreeResult,
-    DhEntry,
     DhResult,
-    DmpstoreEntry,
     DmpstoreResult,
-    DriverEntry,
     DriversResult,
-    LsEntry,
     LsResult,
-    MapEntry,
     MapResult,
-    MemmapEntry,
     MemmapResult,
     RESET_MODE_COLD,
     RESET_MODE_SHUTDOWN,

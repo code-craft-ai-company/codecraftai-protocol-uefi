@@ -447,7 +447,7 @@ class SystemReset:
                         host, kind.value, elapsed_seconds, attempt_count,
                     )
                     return
-            except BaseException as cerr:
+            except Exception as cerr:
                 last_error = cerr
 
             time.sleep(completion_interval)

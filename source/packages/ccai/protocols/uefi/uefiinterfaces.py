@@ -45,7 +45,6 @@ class IUefiTransport(Protocol):
             :returns: ``True`` when the transport has an open, usable
                       session to the target.
         """
-        ...
 
     def connect(self, aspects: UefiCmdAspects) -> None:
         """
@@ -57,14 +56,12 @@ class IUefiTransport(Protocol):
 
             :raises: UefiTransportError
         """
-        ...
 
     def disconnect(self) -> None:
         """
             Tear down the connection.  Shall not raise on a
             double-disconnect.
         """
-        ...
 
     def send(self, data: bytes) -> int:
         """
@@ -75,7 +72,6 @@ class IUefiTransport(Protocol):
             :returns: The number of bytes actually sent.
             :raises: UefiTransportError
         """
-        ...
 
     def recv(self, max_bytes: int, timeout: float) -> bytes:
         """
@@ -89,7 +85,6 @@ class IUefiTransport(Protocol):
             :returns: The bytes read; may be shorter than ``max_bytes``.
             :raises: TimeoutError, UefiTransportError
         """
-        ...
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +119,6 @@ class IUefiShellRunner(Protocol):
                       ``stderr`` is the captured standard-error text.
             :raises: UefiShellError, UefiTransportError
         """
-        ...
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +147,6 @@ class IUefiVariableProvider(Protocol):
                       payload.
             :raises: UefiVariableError
         """
-        ...
 
     def set_variable(self, name: str, vendor_guid: uuid.UUID, attributes: int, data: bytes) -> None:
         """
@@ -166,7 +159,6 @@ class IUefiVariableProvider(Protocol):
 
             :raises: UefiVariableError
         """
-        ...
 
     def enumerate_variables(self) -> Iterator[Tuple[str, uuid.UUID]]:
         """
@@ -177,7 +169,6 @@ class IUefiVariableProvider(Protocol):
             :returns: An iterator of ``(name, vendor_guid)`` tuples.
             :raises: UefiVariableError
         """
-        ...
 
 
 # ---------------------------------------------------------------------------
@@ -205,7 +196,6 @@ class IUefiFileProvider(Protocol):
 
             :raises: UefiShellError, UefiTransportError
         """
-        ...
 
     def file_pull(self, remote: str, local: str) -> None:
         """
@@ -216,7 +206,6 @@ class IUefiFileProvider(Protocol):
 
             :raises: UefiShellError, UefiTransportError
         """
-        ...
 
     def file_exists(self, path: str) -> bool:
         """
@@ -227,7 +216,6 @@ class IUefiFileProvider(Protocol):
             :returns: ``True`` when ``path`` exists and is a file.
             :raises: UefiShellError, UefiTransportError
         """
-        ...
 
     def directory_exists(self, path: str) -> bool:
         """
@@ -240,7 +228,6 @@ class IUefiFileProvider(Protocol):
                       directory.
             :raises: UefiShellError, UefiTransportError
         """
-        ...
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +252,6 @@ class IUefiSystemContext(Protocol):
                       URI.  Used as a correlation key in log output
                       and in structured diagnostics.
         """
-        ...
 
     @property
     def firmware_vendor(self) -> Optional[str]:
@@ -273,7 +259,6 @@ class IUefiSystemContext(Protocol):
             :returns: The firmware-vendor string reported by the
                       target, or ``None`` when not yet known.
         """
-        ...
 
     @property
     def firmware_revision(self) -> Optional[int]:
@@ -281,7 +266,6 @@ class IUefiSystemContext(Protocol):
             :returns: The firmware-revision integer (UEFI spec
                       encoding), or ``None`` when not yet known.
         """
-        ...
 
     @property
     def secure_boot_state(self) -> Optional[str]:
@@ -291,7 +275,6 @@ class IUefiSystemContext(Protocol):
                       ``"setup"``, ``"audit"``), or ``None`` when
                       not yet known.
         """
-        ...
 
     def verify_connectivity(self) -> bool:
         """
@@ -302,7 +285,6 @@ class IUefiSystemContext(Protocol):
                       probe; ``False`` otherwise.
             :raises: UefiTransportError
         """
-        ...
 
 
 __all__ = [

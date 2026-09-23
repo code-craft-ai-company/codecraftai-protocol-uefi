@@ -26,10 +26,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from ccai.errors.exceptions import ConfigurationError
 
-from ccai.protocols.uefi.uefiaspects import (
-    DEFAULT_CMD_ASPECTS,
-    UefiCmdAspects,
-)
+from ccai.protocols.uefi.uefiaspects import UefiCmdAspects
 from ccai.protocols.uefi.uefiexceptions import UefiError
 
 from ccai.protocols.uefi.uefiespfiles import (

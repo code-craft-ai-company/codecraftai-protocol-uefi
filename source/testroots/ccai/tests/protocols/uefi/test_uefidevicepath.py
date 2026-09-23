@@ -197,9 +197,8 @@ def _venmedia_node_bytes(guid: uuid.UUID, data: bytes) -> bytes:
     return rtnval
 
 
-# ACPI HID constants for PNP0A03 (PciRoot) and PNP0A08 (PcieRoot).
+# ACPI HID constant for PNP0A03 (PciRoot).
 _PNP0A03 = 0x0A0341D0
-_PNP0A08 = 0x0A0841D0
 
 
 # ---------------------------------------------------------------------------

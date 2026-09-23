@@ -624,12 +624,16 @@ def _teardown_pty_round_trip(ctx) -> None:
     try:
         ctx._transport.disconnect()
     except Exception:
+        # Best-effort teardown; a failed disconnect must not stop the PTY file
+        # descriptors below from being closed or mask the test's own result.
         pass
 
     for fd in (ctx._master_fd, ctx._slave_fd):
         try:
             os.close(fd)
         except OSError:
+            # Best-effort teardown; the descriptor may already have been closed
+            # by the transport.
             pass
     return
 
@@ -819,6 +823,8 @@ def test_context_manager_on_pty() -> None:
             try:
                 os.close(fd)
             except OSError:
+                # Best-effort teardown; the descriptor may already have been
+                # closed by the transport.
                 pass
     return
 

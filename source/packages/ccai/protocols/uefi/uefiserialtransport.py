@@ -1136,6 +1136,8 @@ class UefiSerialTransport:
             try:
                 handle.timeout = float(remaining)
             except Exception:
+                # Some backends reject per-call timeout changes; the deadline
+                # check above still bounds the read loop.
                 pass
 
             try:
@@ -1179,6 +1181,8 @@ class UefiSerialTransport:
         try:
             sock.settimeout(float(timeout))
         except Exception:
+            # Some socket backends reject timeout changes; the read then uses the
+            # socket's existing timeout.
             pass
 
         try:

@@ -28,7 +28,7 @@ import base64
 import os
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from ccai.errors.exceptions import ConfigurationError
 

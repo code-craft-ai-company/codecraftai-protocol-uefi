@@ -297,7 +297,7 @@ class RebootWorkflow:
 
         try:
             observed = verify_connectivity()
-        except BaseException as cerr:
+        except Exception as cerr:
             self._logger.warning(
                 "uefi.workflow.reboot: verify_connectivity raised; treating as not-ready. EXCEPTION=%r",
                 cerr,
@@ -333,7 +333,7 @@ class RebootWorkflow:
 
         try:
             handle = beginner()
-        except BaseException as cerr:
+        except Exception as cerr:
             self._logger.warning(
                 "uefi.workflow.reboot: begin_console_capture raised; capture skipped. EXCEPTION=%r",
                 cerr,
@@ -364,7 +364,7 @@ class RebootWorkflow:
 
         try:
             captured = ender(handle)
-        except BaseException as cerr:
+        except Exception as cerr:
             self._logger.warning(
                 "uefi.workflow.reboot: end_console_capture raised; no console text available. EXCEPTION=%r",
                 cerr,

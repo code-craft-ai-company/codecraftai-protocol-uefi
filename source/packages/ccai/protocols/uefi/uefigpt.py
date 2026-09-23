@@ -26,7 +26,7 @@ import struct
 import uuid
 
 from dataclasses import dataclass
-from typing import Final, List, Optional, Tuple
+from typing import Final, List, Tuple
 
 from ccai.protocols.uefi.ueficonst import guid_from_bytes, guid_to_bytes
 from ccai.protocols.uefi.uefiexceptions import UefiError

@@ -907,7 +907,7 @@ class TimeServices:
             status, stdout, stderr = self._agent.run_cmd(
                 command=command, aspects=aspects,
             )
-        except BaseException as cerr:
+        except Exception as cerr:
             self._logger.debug(
                 "uefi.time: adjtimex invocation raised; returning defaults. EXCEPTION=%r",
                 cerr,

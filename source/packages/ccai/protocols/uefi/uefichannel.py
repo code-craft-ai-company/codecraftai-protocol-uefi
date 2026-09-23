@@ -320,27 +320,13 @@ class UefiShellChannel(UefiChannel):
         """
             Mark the channel closed.  Does NOT disconnect the underlying
             transport — that is a higher-layer responsibility.  Never
-            raises; if a clean-up action raises, the exception is logged
-            at ``WARNING`` under ``uefi.transport`` and suppressed.
+            raises.
         """
         if self._closed:
             return
 
-        try:
-            # The channel owns no resources of its own beyond the closed
-            # flag.  A subclass-provided clean-up hook could land here in
-            # the future; the try/except is kept to honor the "close
-            # never raises" contract even against the simplest call.
-            pass
-        except BaseException as xcpt:
-            err_msg_lines = [
-                "UefiShellChannel.close: suppressed exception during clean-up.",
-                "CHANNEL: {}".format(self._channel_id),
-                "CAUSE: {}: {}".format(type(xcpt).__name__, xcpt),
-            ]
-            err_msg = os.linesep.join(err_msg_lines)
-            self._logger.warning(err_msg)
-
+        # The channel owns no resources of its own beyond the closed flag,
+        # so there is no clean-up that could raise.
         self._closed = True
         return
 
@@ -447,20 +433,8 @@ class UefiRedfishChannel(UefiChannel):
         if self._closed:
             return
 
-        try:
-            # The Redfish channel owns no session directly; the transport
-            # manages the session.  The try/except honors the "close
-            # never raises" contract even against future clean-up work.
-            pass
-        except BaseException as xcpt:
-            err_msg_lines = [
-                "UefiRedfishChannel.close: suppressed exception during clean-up.",
-                "CHANNEL: {}".format(self._channel_id),
-                "CAUSE: {}: {}".format(type(xcpt).__name__, xcpt),
-            ]
-            err_msg = os.linesep.join(err_msg_lines)
-            self._logger.warning(err_msg)
-
+        # The Redfish channel owns no session directly; the transport
+        # manages the session, so there is no clean-up that could raise.
         self._closed = True
         return
 
@@ -668,21 +642,9 @@ class UefiHostOsChannel(UefiChannel):
         if self._closed:
             return
 
-        try:
-            # The host-OS channel owns no sub-channel directly in this
-            # forwarder implementation; the transport's SshAgent manages
-            # sessions.  The try/except honors the "close never raises"
-            # contract even against future clean-up work.
-            pass
-        except BaseException as xcpt:
-            err_msg_lines = [
-                "UefiHostOsChannel.close: suppressed exception during clean-up.",
-                "CHANNEL: {}".format(self._channel_id),
-                "CAUSE: {}: {}".format(type(xcpt).__name__, xcpt),
-            ]
-            err_msg = os.linesep.join(err_msg_lines)
-            self._logger.warning(err_msg)
-
+        # The host-OS channel owns no sub-channel directly in this
+        # forwarder implementation; the transport's SshAgent manages
+        # sessions, so there is no clean-up that could raise.
         self._closed = True
         return
 

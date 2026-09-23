@@ -33,7 +33,7 @@ import datetime
 import os
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 from ccai.protocols.uefi.uefiaspects import (
     DEFAULT_CMD_ASPECTS,

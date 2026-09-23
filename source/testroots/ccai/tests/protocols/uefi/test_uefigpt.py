@@ -22,13 +22,10 @@ from ccai import testbase
 import dataclasses
 import uuid
 
-from ccai.protocols.uefi.ueficonst import guid_to_bytes
 from ccai.protocols.uefi.uefiexceptions import UefiError
 from ccai.protocols.uefi.uefihelpers import crc32_uefi
 from ccai.protocols.uefi.uefimbr import (
-    MBR_PARTITION_COUNT,
     MBR_PROTECTIVE_OS_TYPE,
-    MBR_SECTOR_SIZE,
     MBR_SIGNATURE,
     MasterBootRecord,
     MbrPartitionEntry,
@@ -182,7 +179,7 @@ def _build_synthetic_gpt_image(
     esp_entry = GptPartitionEntry(
         partition_type_guid=EFI_SYSTEM_PARTITION_GUID,
         unique_partition_guid=uuid.UUID("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"),
-        starting_lba=2048 // sector_size + 34 if False else 34,
+        starting_lba=34,
         ending_lba=133,
         attributes=0,
         partition_name="EFI System",

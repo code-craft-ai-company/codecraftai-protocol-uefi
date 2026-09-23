@@ -79,7 +79,6 @@ _DP_SUBTYPE_URI: int = 0x18
 # form is 56 bytes: LocalIp(16) + RemoteIp(16) + LocalPort(2) + RemotePort(2)
 # + Protocol(2) + IpAddressOrigin(1) + PrefixLength(1) + GatewayIp(16).
 _MAC_PADDING_LEN: int = 32
-_MAC_PAYLOAD_LEN: int = 33
 _IPV4_PAYLOAD_LEN: int = 23
 _IPV6_PAYLOAD_LEN: int = 56
 

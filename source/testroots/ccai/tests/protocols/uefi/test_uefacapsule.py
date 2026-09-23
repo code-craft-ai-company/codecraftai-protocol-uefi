@@ -28,10 +28,7 @@ import uuid
 
 from typing import Any, Callable, Iterator, List, Optional, Tuple
 
-from ccai.protocols.uefi.uefiaspects import (
-    DEFAULT_CMD_ASPECTS,
-    UefiCmdAspects,
-)
+from ccai.protocols.uefi.uefiaspects import UefiCmdAspects
 from ccai.protocols.uefi.ueficonst import guid_to_bytes
 from ccai.protocols.uefi.uefiexceptions import UefiCapsuleError
 from ccai.protocols.uefi.uefiguids import EFI_CAPSULE_REPORT_GUID
@@ -46,7 +43,6 @@ from ccai.protocols.uefi.uefivariables import (
 from ccai.protocols.uefi.uefacapsule import (
     CAPSULE_FLAGS_INITIATE_RESET,
     CAPSULE_FLAGS_PERSIST_ACROSS_RESET,
-    CAPSULE_FLAGS_POPULATE_SYSTEM_TABLE,
     CAPSULE_HEADER_SIZE,
     FMP_CAPSULE_HEADER_FIXED_SIZE,
     FMP_PAYLOAD_HEADER_SIZE,
@@ -56,7 +52,6 @@ from ccai.protocols.uefi.uefacapsule import (
     CapsuleDelivery,
     CapsuleHeader,
     CapsuleReport,
-    CapsuleReportEntry,
     FmpCapsuleHeader,
     FmpPayloadHeader,
 )

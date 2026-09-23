@@ -26,10 +26,7 @@ __credits__ = []
 
 
 import contextlib
-import atexit
 from types import SimpleNamespace
-
-import unittest
 
 from ccai import testbase
 
@@ -235,8 +232,7 @@ except TypeError:
 # above, so this only affects fresh imports elsewhere.
 sys.modules.pop(_UEFIBASE_MODULE_NAME, None)
 
-from ccai.protocols.uefi.uefiagent import (  # noqa: E402
-    DEFAULT_REBOOT_COMPLETION_TIMEOUT,
+from ccai.protocols.uefi.uefiagent import (
     DEFAULT_REBOOT_GRACE_PERIOD,
     DEFAULT_REBOOT_RETRY_INTERVAL,
     SHELL_RESET_COMMAND,

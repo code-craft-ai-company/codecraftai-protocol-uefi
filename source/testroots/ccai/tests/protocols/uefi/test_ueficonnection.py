@@ -32,7 +32,6 @@ from ccai.protocols.uefi.uefiaspects import (
     UefiCmdAspects,
 )
 from ccai.protocols.uefi.uefiexceptions import UefiTransportError
-from ccai.protocols.uefi.uefiinterfaces import IUefiTransport
 
 from ccai.protocols.uefi.ueficonnection import (
     EVENT_CONNECTION_CLOSE,

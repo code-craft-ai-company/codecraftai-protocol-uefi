@@ -31,9 +31,7 @@ __credits__ = []
 from ccai import testbase
 
 from typing import Any, Dict, List, Optional
-from unittest.mock import patch
 
-from ccai.protocols.uefi import boottoopceonce
 from ccai.protocols.uefi.uefiaspects import UefiCmdAspects
 from ccai.protocols.uefi.uefibootmanager import BootManager, BootOption
 from ccai.protocols.uefi.uefidevicepath import DevicePath
@@ -337,7 +335,6 @@ def test_boot_once_success() -> None:
         Result reports ``success=True``.
     """
     parts = _build_workflow()
-    agent = parts["agent"]
     boot_manager: _FakeBootManager = parts["boot_manager"]
     reboot_workflow: _FakeRebootWorkflow = parts["reboot_workflow"]
     workflow: BootToOptionOnceWorkflow = parts["workflow"]

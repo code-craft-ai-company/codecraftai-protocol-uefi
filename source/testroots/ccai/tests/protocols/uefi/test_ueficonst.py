@@ -192,7 +192,6 @@ def test_success_template_has_no_hardcoded_lf_when_linesep_differs() -> None:
     # Skip the assertion on POSIX platforms where os.linesep IS "\n".
     if os.linesep == "\n":
         raise SkipError("os.linesep is '\\n' on this platform; hardcoded-LF check is meaningless.")
-        return
 
     testbase.assert_true("\n" not in TEMPLATE_COMMAND_SUCCESS.replace(os.linesep, ""))
     return
@@ -200,7 +199,6 @@ def test_success_template_has_no_hardcoded_lf_when_linesep_differs() -> None:
 def test_failure_template_has_no_hardcoded_lf_when_linesep_differs() -> None:
     if os.linesep == "\n":
         raise SkipError("os.linesep is '\\n' on this platform; hardcoded-LF check is meaningless.")
-        return
 
     testbase.assert_true("\n" not in TEMPLATE_COMMAND_FAILURE.replace(os.linesep, ""))
     return

@@ -284,7 +284,7 @@ class UefiSession(UefiBase):
         if self._client is not None and self._channel is not None:
             try:
                 connected_flag = bool(self._client.connected)
-            except BaseException:
+            except Exception:
                 connected_flag = False
         return connected_flag
 
@@ -431,7 +431,7 @@ class UefiSession(UefiBase):
         if self._client is not None:
             try:
                 cached_connected = bool(self._client.connected)
-            except BaseException:
+            except Exception:
                 cached_connected = False
 
             if cached_connected:
@@ -743,7 +743,7 @@ class UefiSession(UefiBase):
                 self._channel = self._client.open_channel()
                 reconnect_ok = True
                 break
-            except BaseException as rerr:
+            except Exception as rerr:
                 last_exception = rerr
                 self._reset_logger.debug(
                     "uefi.reset: reconnect attempt failed host=%s err=%r",
@@ -873,7 +873,7 @@ class UefiSession(UefiBase):
         if self._channel is not None:
             try:
                 self._channel.close()
-            except BaseException as cerr:
+            except Exception as cerr:
                 self._session_logger.warning(
                     "uefi.transport: session channel close suppressed host=%s err=%r",
                     self._host, cerr,
@@ -883,7 +883,7 @@ class UefiSession(UefiBase):
         if self._client is not None and self._basis_session is None:
             try:
                 self._client.close()
-            except BaseException as cerr:
+            except Exception as cerr:
                 self._session_logger.warning(
                     "uefi.transport: session client close suppressed host=%s err=%r",
                     self._host, cerr,
@@ -924,7 +924,7 @@ class UefiSession(UefiBase):
             self._channel = self._client.open_channel()
             self._reconnect_count += 1
             self._replay_recorded_actions()
-        except BaseException as rerr:
+        except Exception as rerr:
             self._session_logger.warning(
                 "uefi.transport: session single-shot reconnect failed host=%s err=%r",
                 self._host, rerr,
@@ -946,7 +946,9 @@ class UefiSession(UefiBase):
         if self._channel is not None:
             try:
                 self._channel.close()
-            except BaseException:
+            except Exception:
+                # Best-effort; the channel is being discarded after a connection
+                # failure and the next call rebuilds it.
                 pass
             self._channel = None
         return
@@ -961,7 +963,9 @@ class UefiSession(UefiBase):
         if self._channel is not None:
             try:
                 self._channel.close()
-            except BaseException:
+            except Exception:
+                # Best-effort; the stale channel is being discarded before a
+                # rebuild and a failure to close it must not stop the rebuild.
                 pass
             self._channel = None
 
@@ -969,7 +973,9 @@ class UefiSession(UefiBase):
             if self._basis_session is None:
                 try:
                     self._client.close()
-                except BaseException:
+                except Exception:
+                    # Best-effort; the stale client is being discarded before a
+                    # rebuild and a failure to close it must not stop the rebuild.
                     pass
             self._client = None
 

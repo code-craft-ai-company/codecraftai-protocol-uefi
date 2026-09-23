@@ -392,6 +392,8 @@ def _rmtree(root: Path) -> None:
     try:
         shutil.rmtree(root)
     except OSError:
+        # Best-effort teardown of a temporary directory at interpreter exit; a
+        # leftover temp directory must not fail the test run.
         pass
     return
 

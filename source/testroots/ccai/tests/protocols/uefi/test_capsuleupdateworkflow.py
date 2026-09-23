@@ -28,7 +28,7 @@ from ccai import testbase
 
 import uuid
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from ccai.protocols.uefi.uefiaspects import (
     DEFAULT_CMD_ASPECTS,

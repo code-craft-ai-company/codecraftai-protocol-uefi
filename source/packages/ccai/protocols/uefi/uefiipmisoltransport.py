@@ -552,8 +552,12 @@ class UefiIpmiSolTransport:
             try:
                 stdout_bytes, stderr_bytes = process.communicate(timeout=1.0)
             except subprocess.TimeoutExpired:
+                # The captured output only enriches the error raised below; the
+                # early exit code is already known, so report without the output.
                 pass
             except ValueError:
+                # The pipes were already closed, so there is no output to collect;
+                # the error raised below still reports the early exit code.
                 pass
 
             stdout_text = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes is not None else ""
@@ -616,10 +620,13 @@ class UefiIpmiSolTransport:
                     process.stdin.write(SOL_ESCAPE_SEQUENCE)
                     process.stdin.flush()
                 except (BrokenPipeError, OSError, ValueError):
+                    # Best-effort orderly exit request; the process may already have
+                    # exited, and terminate/kill below still stop it.
                     pass
                 try:
                     process.stdin.close()
                 except (BrokenPipeError, OSError, ValueError):
+                    # Best-effort cleanup; the pipe may already be broken or closed.
                     pass
         finally:
             # Give the tool a brief window to exit on the escape.
@@ -633,6 +640,8 @@ class UefiIpmiSolTransport:
                 try:
                     process.terminate()
                 except (OSError, ValueError):
+                    # The process may have exited since the poll; kill below is the
+                    # fallback when it is still running.
                     pass
 
                 term_deadline = time.monotonic() + TERMINATE_TO_KILL_GRACE_SECONDS
@@ -645,10 +654,14 @@ class UefiIpmiSolTransport:
                     try:
                         process.kill()
                     except (OSError, ValueError):
+                        # The process may have exited since the poll; disconnect
+                        # never raises, so there is nothing further to do.
                         pass
                     try:
                         process.wait(timeout=1.0)
                     except (subprocess.TimeoutExpired, OSError, ValueError):
+                        # Best-effort reap; disconnect never raises and the process
+                        # has already been sent a kill.
                         pass
 
             # Drain stdout/stderr handles so file descriptors close.
@@ -657,6 +670,8 @@ class UefiIpmiSolTransport:
                     try:
                         handle.close()
                     except (OSError, ValueError):
+                        # Best-effort cleanup; a handle that fails to close must not
+                        # stop the remaining handle from being closed.
                         pass
 
         self._process = None

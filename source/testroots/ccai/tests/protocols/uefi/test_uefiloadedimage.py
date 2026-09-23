@@ -31,7 +31,6 @@ from ccai.protocols.uefi.uefiloadedimage import (
     DATA_DIRECTORY_ENTRY_SIZE,
     DOS_E_LFANEW_OFFSET,
     DOS_SIGNATURE,
-    OPTIONAL_HEADER_MAGIC_PE32,
     OPTIONAL_HEADER_MAGIC_PE32_PLUS,
     PE_SIGNATURE,
     SECTION_HEADER_SIZE,
@@ -273,8 +272,6 @@ def _build_minimal_pe_image(
         data_directories[4] = (security_offset, security_size)
     else:
         certificate_entry = None
-        security_offset = 0
-        security_size = 0
 
     # Build the optional header with the (possibly patched) directory table.
     optional_header_bytes = _build_optional_header(

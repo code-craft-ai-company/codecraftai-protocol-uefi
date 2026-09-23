@@ -25,12 +25,9 @@ from ccai import testbase
 
 from ccai.testbase.properties import expect_exception
 
-from typing import List, Optional
+from typing import List
 
-from ccai.protocols.uefi.uefiaspects import (
-    DEFAULT_CMD_ASPECTS,
-    UefiCmdAspects,
-)
+from ccai.protocols.uefi.uefiaspects import DEFAULT_CMD_ASPECTS
 from ccai.protocols.uefi.uefihii import (
     KEY_DOWN,
     KEY_ENTER,
@@ -38,7 +35,6 @@ from ccai.protocols.uefi.uefihii import (
     KEY_RIGHT,
     KEY_SPACE,
     KEY_UP,
-    FormItem,
     HiiFormNavigator,
     HiiNavigationError,
     SCREEN_SHAPES,
@@ -762,7 +758,7 @@ def test_rejects_non_screenshape() -> None:
     """
     try:
         HiiFormNavigator(
-            send=lambda b: len(b),
+            send=len,
             read_screen=lambda t: "",
             shape="ami",  # type: ignore[arg-type]
         )
