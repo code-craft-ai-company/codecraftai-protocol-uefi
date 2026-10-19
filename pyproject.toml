@@ -43,6 +43,10 @@ serial = ["pyserial>=3.5,<4.0.0"]
 redfish = ["requests>=2.32.0,<3.0.0"]
 signing = ["cryptography>=46.0.5,<51.0.0"]
 
+[project.urls]
+Repository = "https://github.com/code-craft-ai-company/codecraftai-protocol-uefi"
+Issues = "https://github.com/code-craft-ai-company/codecraftai-protocol-uefi/issues"
+
 [dependency-groups]
 dev = [
     "codecraftai-testbase<2.0.0",
