@@ -1,6 +1,6 @@
 [project]
 name = "codecraftai-protocol-uefi"
-version = "1.2.0"
+version = "1.2.1"
 description = "Code Craft AI - UEFI Protocol Interop Library"
 readme = "README.rst"
 license = "LicenseRef-CodeCraftAI-Source-Available"
