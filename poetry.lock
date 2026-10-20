@@ -315,106 +315,81 @@ name = "codecraftai-arcli"
 version = "1.2.0"
 description = "Advanced Re-Usable Commandline Interface Framework"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 groups = ["dev"]
 files = [
-    {file = "codecraftai_arcli-1.2.0-py3-none-any.whl", hash = "sha256:eb600ea2eaae07e67bf32828075fa9cb9d949dbcc6d8c01e64e9cda3c2797503"},
-    {file = "codecraftai_arcli-1.2.0.tar.gz", hash = "sha256:bc5849c4226b2e03cadbd9fe092a32cc6480d7f036b027b8e2bfabd1048f6c09"},
+    {file = "codecraftai_arcli-1.2.0-py3-none-any.whl", hash = "sha256:c360586cdaddc572ef2627f8f53b2e71891f3df6ec4fa09dc77422c88aad7710"},
+    {file = "codecraftai_arcli-1.2.0.tar.gz", hash = "sha256:07882f55fc0c4f45bf54446df3ce3f176c52a74c799d618001b0d0a36cb81a60"},
 ]
 
 [package.dependencies]
 codecraftai-foundations = "<2.0.0"
 pyyaml = ">=6.0.2,<7.0.0"
 
-[package.source]
-type = "legacy"
-url = "https://code-craft.ai/licensed-repository/simple"
-reference = "codecraftai"
-
 [[package]]
 name = "codecraftai-credentials"
 version = "1.2.0"
 description = "Code Craft AI - Credentials Package"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "codecraftai_credentials-1.2.0-py3-none-any.whl", hash = "sha256:fbf3fec7c2292e4f7bd9bc89ea89919b90d550379be6d9e6ae0e79fb20710ac1"},
-    {file = "codecraftai_credentials-1.2.0.tar.gz", hash = "sha256:5a65f4c931b58429eabd350b77ebc9fd2b42af8d28bcde0b81067d6265cb4dcd"},
+    {file = "codecraftai_credentials-1.2.0-py3-none-any.whl", hash = "sha256:d72de58745e6e83a92c925c8bed4a2f3430f795e14b63c5638c9691216f30279"},
+    {file = "codecraftai_credentials-1.2.0.tar.gz", hash = "sha256:6e066e9aae65e51dd340c7a9e4645bd54cb4a55b7f5a6dc0073ee54d778a81b1"},
 ]
 
 [package.dependencies]
 codecraftai-foundations = "<2.0.0"
-
-[package.source]
-type = "legacy"
-url = "https://code-craft.ai/licensed-repository/simple"
-reference = "codecraftai"
 
 [[package]]
 name = "codecraftai-extension"
 version = "1.3.0"
 description = "Code Craft AI - Extension Package"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 groups = ["dev"]
 files = [
-    {file = "codecraftai_extension-1.3.0-py3-none-any.whl", hash = "sha256:a94b7dc10cb160af27c64a1f03d637eec775de147bc6c6d0e1a08536697ed02c"},
-    {file = "codecraftai_extension-1.3.0.tar.gz", hash = "sha256:97a0cc9411552611cbb0a7fdf4dc189bec4495f0a50fb0a08aeb5fa41d83fe4e"},
+    {file = "codecraftai_extension-1.3.0-py3-none-any.whl", hash = "sha256:91a298a0fb3b9ce2cd679c85da157de33d803dc6ed2f4e306024f810373e7ecb"},
+    {file = "codecraftai_extension-1.3.0.tar.gz", hash = "sha256:5f1d14ce01a4d86550f33a95adb263224d1baf2171709984a8f441ee7e3a8b06"},
 ]
-
-[package.source]
-type = "legacy"
-url = "https://code-craft.ai/licensed-repository/simple"
-reference = "codecraftai"
 
 [[package]]
 name = "codecraftai-foundations"
 version = "1.2.0"
 description = "Code Craft AI - Foundations Package"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 groups = ["main", "dev"]
 files = [
-    {file = "codecraftai_foundations-1.2.0-py3-none-any.whl", hash = "sha256:e9b51072f6e298a96a296b15c40723bc13c164e897be7c9926e7d44bdc4bd923"},
-    {file = "codecraftai_foundations-1.2.0.tar.gz", hash = "sha256:11674f3efb804add4d794d521800a24bfb5808d3e2dda6b476480c299fc04b1f"},
+    {file = "codecraftai_foundations-1.2.0-py3-none-any.whl", hash = "sha256:e50480cdac988a316a304f018bf60ffce6037c0535990d68e6f8788b6617a01a"},
+    {file = "codecraftai_foundations-1.2.0.tar.gz", hash = "sha256:b38877de5882ec8ce5ce983a357d35c7c63f12b2c45535d5999ed57c0b5fe1a6"},
 ]
-
-[package.source]
-type = "legacy"
-url = "https://code-craft.ai/licensed-repository/simple"
-reference = "codecraftai"
 
 [[package]]
 name = "codecraftai-runtime"
 version = "1.2.0"
 description = "Code Craft AI - Runtime"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 groups = ["dev"]
 files = [
-    {file = "codecraftai_runtime-1.2.0-py3-none-any.whl", hash = "sha256:57203d2494ef22bce8e3f86dc62b5cb9a2fae12a27ec1f7f8a1d498da71e8a79"},
-    {file = "codecraftai_runtime-1.2.0.tar.gz", hash = "sha256:efe1bb7cd270a423f88939528ab3008aa3a7c6a2160028cd394617567e567010"},
+    {file = "codecraftai_runtime-1.2.0-py3-none-any.whl", hash = "sha256:9b2ec8388415a99621f1b277074c8d1609940fbdaa08cfdd5531f0f6822d29c7"},
+    {file = "codecraftai_runtime-1.2.0.tar.gz", hash = "sha256:71663fe8332361acbd2d4b72a7eed6d445add3823e549679f41785af4aeb3649"},
 ]
 
 [package.dependencies]
 codecraftai-this-app = "<2.0.0"
-
-[package.source]
-type = "legacy"
-url = "https://code-craft.ai/licensed-repository/simple"
-reference = "codecraftai"
 
 [[package]]
 name = "codecraftai-testbase"
 version = "1.3.0"
 description = "Code Craft AI - TestBase"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 groups = ["dev"]
 files = [
-    {file = "codecraftai_testbase-1.3.0-py3-none-any.whl", hash = "sha256:5e2a1a1602e4c216e94a717b3e752b3fc5a31792ae483bc02f0a361ebbfb3215"},
-    {file = "codecraftai_testbase-1.3.0.tar.gz", hash = "sha256:7728d02d849635fd5599971b8bc68d98b6883c82245ebd0c8ece97f749104698"},
+    {file = "codecraftai_testbase-1.3.0-py3-none-any.whl", hash = "sha256:e029b047e21ffc9bf18d13ca656f78fa7499f5abf07ce7993065991d20be756b"},
+    {file = "codecraftai_testbase-1.3.0.tar.gz", hash = "sha256:5e833b7c69e3c702746a016753a4561231ec3464d2664a4a4c2f9d8aa2724625"},
 ]
 
 [package.dependencies]
@@ -425,21 +400,16 @@ codecraftai-this-app = "<2.0.0"
 codecraftai-xmodules = "<2.0.0"
 pyyaml = ">=6.0.2,<7.0.0"
 
-[package.source]
-type = "legacy"
-url = "https://code-craft.ai/licensed-repository/simple"
-reference = "codecraftai"
-
 [[package]]
 name = "codecraftai-this-app"
 version = "1.4.0"
 description = "Code Craft AI - This-App"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 groups = ["dev"]
 files = [
-    {file = "codecraftai_this_app-1.4.0-py3-none-any.whl", hash = "sha256:6a0b855691be8095503d5714fb52c3bcaeb68a234e39e33ca5fb41a88d9d1683"},
-    {file = "codecraftai_this_app-1.4.0.tar.gz", hash = "sha256:bfde7e51a2ef15100e3704f47e1714e20422fa09960cd52765ef08b65e1917e4"},
+    {file = "codecraftai_this_app-1.4.0-py3-none-any.whl", hash = "sha256:a232af4f0813d4c64a1024f7d72de84c5b44b97fe79202cfecd588044e927c0a"},
+    {file = "codecraftai_this_app-1.4.0.tar.gz", hash = "sha256:d16a964d8a246771d89c3b21f29e1eaec2f2915ef8fcc44a66af349ad5693c16"},
 ]
 
 [package.dependencies]
@@ -447,31 +417,21 @@ codecraftai-extension = "<2.0.0"
 codecraftai-foundations = "<2.0.0"
 codecraftai-xmodules = "<2.0.0"
 
-[package.source]
-type = "legacy"
-url = "https://code-craft.ai/licensed-repository/simple"
-reference = "codecraftai"
-
 [[package]]
 name = "codecraftai-xmodules"
 version = "1.3.0"
 description = "Code Craft AI - Python Extension Modules"
 optional = false
-python-versions = ">=3.10,<4.0"
+python-versions = "<4.0,>=3.10"
 groups = ["main", "dev"]
 files = [
-    {file = "codecraftai_xmodules-1.3.0-py3-none-any.whl", hash = "sha256:1281bdb3ffed389bcc9cc39f731fdf12f5856eb640ff656975750fd6d7ded509"},
-    {file = "codecraftai_xmodules-1.3.0.tar.gz", hash = "sha256:4a8d337f583e903c9e9609b05844e2bec8dca84593399bde8dbeb96d4ac74e51"},
+    {file = "codecraftai_xmodules-1.3.0-py3-none-any.whl", hash = "sha256:6d04fe0f8611ad5c6e2079bf31c6a77ebf21e28785a06dbfce53e80b32256f02"},
+    {file = "codecraftai_xmodules-1.3.0.tar.gz", hash = "sha256:cc62e9dd1bd388ed56832050d57d2254552f4ba384c679551cbe1d0c54634173"},
 ]
 
 [package.dependencies]
 codecraftai-foundations = "<2.0.0"
 debugpy = ">=1.8.14,<2.0.0"
-
-[package.source]
-type = "legacy"
-url = "https://code-craft.ai/licensed-repository/simple"
-reference = "codecraftai"
 
 [[package]]
 name = "cryptography"
@@ -768,4 +728,4 @@ signing = ["cryptography"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "ba4399bfa9a75da686a108d19de28c4338e8ecfca288ccaf38efb0d61a4418ea"
+content-hash = "c6ecaf508086b26d8ca4fdee22ce544f0aa6a91e98dcef35cdd34c8b4f0b3736"
